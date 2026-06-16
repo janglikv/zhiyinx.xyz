@@ -17,6 +17,8 @@ const encoder = new TextEncoder();
 const sessionCookieName = "zhiyinx_session";
 const sessionDays = 7;
 const dbTimeoutMs = 8000;
+// Cloudflare Workers WebCrypto rejects PBKDF2 iteration counts above 100000.
+const passwordHashIterations = 100000;
 
 type DbStatement = {
   bind(...values: unknown[]): DbStatement;
@@ -318,7 +320,7 @@ async function verifyPassword(password: string, salt: string, expectedHash: stri
 async function derivePasswordHash(password: string, salt: Uint8Array): Promise<string> {
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations: 150000 },
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: passwordHashIterations },
     key,
     256
   );
