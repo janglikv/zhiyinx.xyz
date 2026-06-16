@@ -1,0 +1,9 @@
+name = "zhixinx-xyz"
+main = "src/index.ts"
+compatibility_date = "2026-06-16"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zhixinx-db"
+database_id = "c3b1c1fb-7efe-44b2-bdd4-9519690c197f"
