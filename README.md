@@ -15,11 +15,18 @@ npm run dev
 如果本地开发需要连接线上 D1 数据库：
 
 ```bash
-export CLOUDFLARE_API_TOKEN="你的 Cloudflare API Token"
+npx wrangler login
 npm run dev:remote
 ```
 
-打开 `http://localhost:8790`。该模式会在本地运行 Worker，并通过 Cloudflare D1 HTTP API 直接读写线上数据库。API Token 至少需要 `D1 Read` 和 `D1 Write` 权限。
+打开 `http://localhost:8790`。该模式下 Worker 代码仍在本地运行，`wrangler.toml` 中标记为 `remote = true` 的 D1 绑定会连接线上数据库。
+
+如果当前网络下 remote binding 无响应，可以改用 Cloudflare D1 HTTP API：
+
+```bash
+export CLOUDFLARE_API_TOKEN="你的 Cloudflare API Token"
+npm run dev:remote:token
+```
 
 ## Cloudflare 部署
 

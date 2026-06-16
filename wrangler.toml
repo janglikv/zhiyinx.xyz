@@ -7,3 +7,4 @@ workers_dev = true
 binding = "DB"
 database_name = "zhiyinx-db"
 database_id = "f0a155e4-8094-43a6-9745-58f159ef2d14"
+remote = true

@@ -5,15 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local",
-    "dev:remote": "(test -n \"$CLOUDFLARE_API_TOKEN\" || (echo '请先设置 CLOUDFLARE_API_TOKEN' && exit 1)) && wrangler dev --local --port 8790 --var USE_REMOTE_D1_HTTP:true --var CF_ACCOUNT_ID:5231e27427d1d2a36acf213a56d09110 --var CF_D1_DATABASE_ID:f0a155e4-8094-43a6-9745-58f159ef2d14 --var \"CF_API_TOKEN:$CLOUDFLARE_API_TOKEN\"",
+    "dev:remote": "[ -f .env ] && . ./.env; (test -n \"$CLOUDFLARE_API_TOKEN\" || (echo '请先设置 CLOUDFLARE_API_TOKEN' && exit 1)) && wrangler dev --local --port 8790 --var USE_REMOTE_D1_HTTP:true --var CF_ACCOUNT_ID:5231e27427d1d2a36acf213a56d09110 --var CF_D1_DATABASE_ID:f0a155e4-8094-43a6-9745-58f159ef2d14 --var \"CF_API_TOKEN:$CLOUDFLARE_API_TOKEN\"",
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply zhiyinx-db --local",
     "db:migrate": "wrangler d1 migrations apply zhiyinx-db --remote",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260615.0",
+    "@cloudflare/workers-types": "^4.20260616.1",
     "typescript": "^5.8.3",
-    "wrangler": "^4.20.0"
+    "wrangler": "^4.100.0"
   }
 }
