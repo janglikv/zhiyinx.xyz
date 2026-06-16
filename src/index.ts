@@ -1,5 +1,9 @@
 interface Env {
   DB: D1Database;
+  USE_REMOTE_D1_HTTP?: string;
+  CF_ACCOUNT_ID?: string;
+  CF_D1_DATABASE_ID?: string;
+  CF_API_TOKEN?: string;
 }
 
 type User = {
@@ -10,8 +14,19 @@ type User = {
 };
 
 const encoder = new TextEncoder();
-const sessionCookieName = "zhixinx_session";
+const sessionCookieName = "zhiyinx_session";
 const sessionDays = 7;
+const dbTimeoutMs = 8000;
+
+type DbStatement = {
+  bind(...values: unknown[]): DbStatement;
+  first<T = unknown>(): Promise<T | null>;
+  run(): Promise<D1Result>;
+};
+
+type DbClient = {
+  prepare(query: string): DbStatement;
+};
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -30,8 +45,8 @@ export default {
       return htmlResponse(renderApp(user.email));
     }
 
-    if (request.method === "POST" && url.pathname === "/api/setup") {
-      return setup(request, env);
+    if (request.method === "POST" && url.pathname === "/api/register") {
+      return register(request, env);
     }
 
     if (request.method === "POST" && url.pathname === "/api/login") {
@@ -52,21 +67,36 @@ export default {
   }
 };
 
-async function setup(request: Request, env: Env): Promise<Response> {
-  const existing = await env.DB.prepare("SELECT COUNT(*) AS count FROM users").first<{ count: number }>();
-  if ((existing?.count ?? 0) > 0) {
-    return json({ error: "Setup is already completed." }, { status: 409 });
-  }
-
+async function register(request: Request, env: Env): Promise<Response> {
   const body = await readCredentials(request);
   if (!body.ok) {
     return json({ error: body.error }, { status: 400 });
   }
 
+  const db = getDb(env);
+  let existing: { id: string } | null;
+  try {
+    existing = await withDbTimeout(
+      db.prepare("SELECT id FROM users WHERE email = ?").bind(body.email).first<{ id: string }>()
+    );
+  } catch {
+    return dbUnavailableResponse();
+  }
+
+  if (existing) {
+    return json({ error: "该邮箱已注册，请直接登录。" }, { status: 409 });
+  }
+
   const password = await hashPassword(body.password);
-  await env.DB.prepare(
-    "INSERT INTO users (id, email, password_hash, salt) VALUES (?, ?, ?, ?)"
-  ).bind(crypto.randomUUID(), body.email, password.hash, password.salt).run();
+  try {
+    await withDbTimeout(
+      db.prepare(
+        "INSERT INTO users (id, email, password_hash, salt) VALUES (?, ?, ?, ?)"
+      ).bind(crypto.randomUUID(), body.email, password.hash, password.salt).run()
+    );
+  } catch {
+    return dbUnavailableResponse();
+  }
 
   return json({ ok: true });
 }
@@ -77,9 +107,17 @@ async function login(request: Request, env: Env): Promise<Response> {
     return json({ error: body.error }, { status: 400 });
   }
 
-  const user = await env.DB.prepare(
-    "SELECT id, email, password_hash, salt FROM users WHERE email = ?"
-  ).bind(body.email).first<User>();
+  const db = getDb(env);
+  let user: User | null;
+  try {
+    user = await withDbTimeout(
+      db.prepare(
+        "SELECT id, email, password_hash, salt FROM users WHERE email = ?"
+      ).bind(body.email).first<User>()
+    );
+  } catch {
+    return dbUnavailableResponse();
+  }
 
   if (!user || !(await verifyPassword(body.password, user.salt, user.password_hash))) {
     return json({ error: "Invalid email or password." }, { status: 401 });
@@ -89,9 +127,15 @@ async function login(request: Request, env: Env): Promise<Response> {
   const tokenHash = await sha256(token);
   const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000).toISOString();
 
-  await env.DB.prepare(
-    "INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)"
-  ).bind(crypto.randomUUID(), user.id, tokenHash, expiresAt).run();
+  try {
+    await withDbTimeout(
+      db.prepare(
+        "INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)"
+      ).bind(crypto.randomUUID(), user.id, tokenHash, expiresAt).run()
+    );
+  } catch {
+    return dbUnavailableResponse();
+  }
 
   return json(
     { ok: true },
@@ -105,7 +149,11 @@ async function logout(request: Request, env: Env): Promise<void> {
     return;
   }
 
-  await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256(token)).run();
+  try {
+    await withDbTimeout(getDb(env).prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256(token)).run());
+  } catch {
+    // 退出时优先清理浏览器 cookie，远程 D1 临时不可用不阻断用户退出。
+  }
 }
 
 async function getCurrentUser(request: Request, env: Env): Promise<Pick<User, "id" | "email"> | null> {
@@ -114,15 +162,116 @@ async function getCurrentUser(request: Request, env: Env): Promise<Pick<User, "i
     return null;
   }
 
-  const session = await env.DB.prepare(
-    `SELECT users.id, users.email
-     FROM sessions
-     JOIN users ON users.id = sessions.user_id
-     WHERE sessions.token_hash = ? AND sessions.expires_at > ?
-     LIMIT 1`
-  ).bind(await sha256(token), new Date().toISOString()).first<Pick<User, "id" | "email">>();
+  let session: Pick<User, "id" | "email"> | null;
+  try {
+    const db = getDb(env);
+    session = await withDbTimeout(
+      db.prepare(
+        `SELECT users.id, users.email
+         FROM sessions
+         JOIN users ON users.id = sessions.user_id
+         WHERE sessions.token_hash = ? AND sessions.expires_at > ?
+         LIMIT 1`
+      ).bind(await sha256(token), new Date().toISOString()).first<Pick<User, "id" | "email">>()
+    );
+  } catch {
+    return null;
+  }
 
   return session ?? null;
+}
+
+function getDb(env: Env): DbClient {
+  if (env.USE_REMOTE_D1_HTTP !== "true") {
+    return env.DB;
+  }
+
+  if (!env.CF_ACCOUNT_ID || !env.CF_D1_DATABASE_ID || !env.CF_API_TOKEN) {
+    throw new Error("Remote D1 HTTP API credentials are not configured.");
+  }
+
+  return new HttpD1Database(env.CF_ACCOUNT_ID, env.CF_D1_DATABASE_ID, env.CF_API_TOKEN);
+}
+
+class HttpD1Database implements DbClient {
+  constructor(
+    private readonly accountId: string,
+    private readonly databaseId: string,
+    private readonly apiToken: string
+  ) {}
+
+  prepare(query: string): DbStatement {
+    return new HttpD1Statement(this, query);
+  }
+
+  async query(sql: string, params: unknown[]): Promise<D1Result> {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/d1/database/${this.databaseId}/query`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.apiToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ sql, params })
+      }
+    );
+    const payload = await response.json<{
+      success: boolean;
+      errors?: Array<{ message?: string }>;
+      result?: D1Result[];
+    }>();
+    const result = payload.result?.[0];
+
+    if (!response.ok || !payload.success || !result?.success) {
+      const message = payload.errors?.map((error) => error.message).filter(Boolean).join("; ");
+      throw new Error(message || "Remote D1 HTTP API request failed.");
+    }
+
+    return result;
+  }
+}
+
+class HttpD1Statement implements DbStatement {
+  private params: unknown[] = [];
+
+  constructor(
+    private readonly database: HttpD1Database,
+    private readonly query: string
+  ) {}
+
+  bind(...values: unknown[]): DbStatement {
+    this.params = values;
+    return this;
+  }
+
+  async first<T = unknown>(): Promise<T | null> {
+    const result = await this.database.query(this.query, this.params);
+    return (result.results?.[0] as T | undefined) ?? null;
+  }
+
+  run(): Promise<D1Result> {
+    return this.database.query(this.query, this.params);
+  }
+}
+
+async function withDbTimeout<T>(operation: Promise<T>): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error("Database request timed out.")), dbTimeoutMs);
+  });
+
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+function dbUnavailableResponse(): Response {
+  return json({ error: "数据库连接失败，请检查远程 D1 配置或连接。" }, { status: 504 });
 }
 
 async function readCredentials(request: Request): Promise<
@@ -259,13 +408,13 @@ function redirect(path: string): Response {
 }
 
 function renderHome(): string {
-  return page("登录", `
+  return page("登录注册", `
     <main class="shell">
       <section class="panel">
         <div>
-          <p class="eyebrow">zhixinx.xyz</p>
-          <h1>登录</h1>
-          <p class="muted">首次使用请先创建管理员账号。创建完成后，继续使用同一表单登录。</p>
+          <p class="eyebrow">zhiyinx.xyz</p>
+          <h1>登录 / 注册</h1>
+          <p class="muted">新用户请先注册账号，注册完成后再使用同一邮箱和密码登录。</p>
         </div>
         <form id="auth-form">
           <label>
@@ -278,7 +427,7 @@ function renderHome(): string {
           </label>
           <div class="actions">
             <button type="submit" data-action="login">登录</button>
-            <button type="button" data-action="setup">创建管理员</button>
+            <button type="submit" data-action="register">注册</button>
           </div>
           <p id="message" class="message" role="status"></p>
         </form>
@@ -287,18 +436,12 @@ function renderHome(): string {
     <script>
       const form = document.querySelector("#auth-form");
       const message = document.querySelector("#message");
-      let action = "login";
-
-      document.querySelectorAll("button[data-action]").forEach((button) => {
-        button.addEventListener("click", () => {
-          action = button.dataset.action;
-        });
-      });
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
+        const action = event.submitter?.dataset.action || "login";
         const data = Object.fromEntries(new FormData(form).entries());
-        const response = await fetch(action === "setup" ? "/api/setup" : "/api/login", {
+        const response = await fetch(action === "register" ? "/api/register" : "/api/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data)
@@ -310,9 +453,8 @@ function renderHome(): string {
           return;
         }
 
-        if (action === "setup") {
-          message.textContent = "管理员已创建，请点击登录。";
-          action = "login";
+        if (action === "register") {
+          message.textContent = "注册成功，请点击登录。";
           return;
         }
 
@@ -326,7 +468,7 @@ function renderApp(email: string): string {
   return page("控制台", `
     <main class="shell">
       <section class="panel">
-        <p class="eyebrow">zhixinx.xyz</p>
+        <p class="eyebrow">zhiyinx.xyz</p>
         <h1>控制台</h1>
         <p class="muted">当前登录账号：${escapeHtml(email)}</p>
         <button id="logout" type="button">退出登录</button>
@@ -347,7 +489,7 @@ function page(title: string, body: string): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(title)} | zhixinx.xyz</title>
+    <title>${escapeHtml(title)} | zhiyinx.xyz</title>
     <style>
       :root {
         color: #172033;
@@ -430,7 +572,7 @@ function page(title: string, body: string): string {
         font: inherit;
         font-weight: 700;
       }
-      button[data-action="setup"] {
+      button[data-action="register"] {
         background: #eef2ff;
         color: #263a8a;
       }

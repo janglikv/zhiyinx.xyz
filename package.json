@@ -1,13 +1,14 @@
 {
-  "name": "zhixinx-xyz",
+  "name": "zhiyinx-xyz",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local",
+    "dev:remote": "(test -n \"$CLOUDFLARE_API_TOKEN\" || (echo '请先设置 CLOUDFLARE_API_TOKEN' && exit 1)) && wrangler dev --local --port 8790 --var USE_REMOTE_D1_HTTP:true --var CF_ACCOUNT_ID:5231e27427d1d2a36acf213a56d09110 --var CF_D1_DATABASE_ID:f0a155e4-8094-43a6-9745-58f159ef2d14 --var \"CF_API_TOKEN:$CLOUDFLARE_API_TOKEN\"",
     "deploy": "wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply zhixinx-db --local",
-    "db:migrate": "wrangler d1 migrations apply zhixinx-db --remote",
+    "db:migrate:local": "wrangler d1 migrations apply zhiyinx-db --local",
+    "db:migrate": "wrangler d1 migrations apply zhiyinx-db --remote",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-# zhixinx.xyz
+# zhiyinx.xyz
 
 一个部署到 Cloudflare Workers + D1 的简单登录网站。
 
@@ -10,7 +10,16 @@ npm run db:migrate:local
 npm run dev
 ```
 
-打开 `http://localhost:8787`。首次使用先创建管理员账号，之后使用该账号登录。
+打开 `http://localhost:8787`。首次使用先注册账号，注册完成后使用该账号登录。
+
+如果本地开发需要连接线上 D1 数据库：
+
+```bash
+export CLOUDFLARE_API_TOKEN="你的 Cloudflare API Token"
+npm run dev:remote
+```
+
+打开 `http://localhost:8790`。该模式会在本地运行 Worker，并通过 Cloudflare D1 HTTP API 直接读写线上数据库。API Token 至少需要 `D1 Read` 和 `D1 Write` 权限。
 
 ## Cloudflare 部署
 
@@ -23,7 +32,7 @@ npx wrangler login
 2. 创建免费的 D1 数据库：
 
 ```bash
-npx wrangler d1 create zhixinx-db
+npx wrangler d1 create zhiyinx-db
 ```
 
 3. 把命令输出里的 `database_id` 填到 `wrangler.toml`。
@@ -42,11 +51,11 @@ npm run deploy
 
 ## 域名配置
 
-如果域名 DNS 托管在阿里云，先在阿里云域名控制台把 `zhixinx.xyz` 的 nameserver 改成 Cloudflare 给出的两个 nameserver。等待生效后，在 Cloudflare 里：
+如果域名 DNS 托管在阿里云，先在阿里云域名控制台把 `zhiyinx.xyz` 的 nameserver 改成 Cloudflare 给出的两个 nameserver。等待生效后，在 Cloudflare 里：
 
-1. 进入 Websites，添加 `zhixinx.xyz`。
-2. 进入 Workers & Pages，打开 `zhixinx-xyz` Worker。
-3. 在 Settings -> Domains & Routes 添加 Custom Domain，例如 `zhixinx.xyz` 或 `www.zhixinx.xyz`。
+1. 进入 Websites，添加 `zhiyinx.xyz`。
+2. 进入 Workers & Pages，打开 `zhiyinx-xyz` Worker。
+3. 在 Settings -> Domains & Routes 添加 Custom Domain，例如 `zhiyinx.xyz` 或 `www.zhiyinx.xyz`。
 4. 如果同时使用根域名和 `www`，两个域名都添加到 Custom Domain。
 
 Cloudflare 官方文档中，D1 需要先创建数据库并绑定到 Worker，Custom Domain 可以在 Worker 的 Domains & Routes 中添加。
