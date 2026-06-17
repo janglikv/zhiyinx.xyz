@@ -167,7 +167,7 @@ export default function AdminPage({ userEmail, onLogout }: AdminPageProps) {
         </div>
         <div className="user-menu">
           <span className="user-email">{userEmail}</span>
-          <Link to="/console" className="nav-link">
+          <Link to="/desktop" className="nav-link">
             控制台
           </Link>
           <button className="logout-sm" onClick={onLogout}>
