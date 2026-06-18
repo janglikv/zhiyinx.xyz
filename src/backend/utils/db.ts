@@ -75,6 +75,10 @@ class HttpD1Statement implements DbStatement {
   run(): Promise<D1Result> {
     return this.database.query(this.query, this.params);
   }
+
+  all<T = unknown>(): Promise<D1Result<T>> {
+    return this.database.query(this.query, this.params) as Promise<D1Result<T>>;
+  }
 }
 
 export async function withDbTimeout<T>(operation: Promise<T>): Promise<T> {

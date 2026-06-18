@@ -1,0 +1,83 @@
+/* 梦幻立体极光背景 */
+.auroraBg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -2;
+  background: radial-gradient(circle at 50% 50%, #0a0d1d 0%, #03050b 100%);
+  overflow: hidden;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(140px);
+  opacity: 0.18;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.blob1 {
+  top: -15%;
+  left: 15%;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, var(--accent-purple) 0%, transparent 80%);
+  animation: float 28s infinite alternate ease-in-out;
+}
+
+.blob2 {
+  bottom: -20%;
+  right: 10%;
+  width: 750px;
+  height: 750px;
+  background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 80%);
+  animation: float 32s infinite alternate-reverse ease-in-out;
+}
+
+.blob3 {
+  top: 30%;
+  right: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, var(--accent-pink) 0%, transparent 80%);
+  animation: float 24s infinite alternate 3s ease-in-out;
+}
+
+@keyframes float {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate(8%, 12%) scale(1.15) rotate(120deg); }
+  100% { transform: translate(-5%, -8%) scale(0.9) rotate(240deg); }
+}
+
+/* 数字网格层 */
+.gridOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+  background-size: 50px 50px;
+  mask-image: radial-gradient(ellipse at 50% 50%, black 20%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 20%, transparent 80%);
+  pointer-events: none;
+}
+
+/* 亮色模式高级视觉优化 */
+:global(.light) .auroraBg {
+  background: radial-gradient(circle at 50% 50%, #f1f5f9 0%, #f8fafc 100%);
+}
+:global(.light) .blob {
+  opacity: 0.1;
+}
+:global(.light) .gridOverlay {
+  background-image: 
+    linear-gradient(rgba(15, 23, 42, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.015) 1px, transparent 1px);
+}

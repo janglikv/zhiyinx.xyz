@@ -1,5 +1,6 @@
 import { handleAdminRoute } from "./backend/routes/admin";
 import { handleAuthRoute } from "./backend/routes/auth";
+import { handlePostsRoute } from "./backend/routes/posts";
 import type { Env } from "./backend/types";
 
 export default {
@@ -19,6 +20,11 @@ export default {
     const authResponse = await handleAuthRoute(request, env, url);
     if (authResponse) {
       return authResponse;
+    }
+
+    const postsResponse = await handlePostsRoute(request, env, url);
+    if (postsResponse) {
+      return postsResponse;
     }
 
     return new Response("Not Found", { status: 404 });

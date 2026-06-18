@@ -1,0 +1,704 @@
+/* 首页主体样式 */
+.container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 28px;
+  height: 20000px;
+  position: relative;
+}
+
+/* 扁平微型控制控制台架 */
+.controlsBar {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  border-radius: 18px;
+  padding: 10px 14px;
+  margin-bottom: 32px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.subControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+/* 药丸形选项卡组 */
+.pillGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  padding: 5px 12px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.pill:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+/* 当平台被选中时，激活极具质感的品牌渐变发光 */
+.pill:global(.active) {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.pill:global(.active).pill全部 { background: var(--gradient-primary); }
+.pill:global(.active) { background: rgba(255, 255, 255, 0.08); }
+
+/* 平台微标专色渐变 */
+.pill:global(.active).pill知乎 { background: linear-gradient(135deg, #0066ff 0%, #1e40af 100%); }
+.pill:global(.active).pillV2EX { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); }
+.pill:global(.active).pill微博 { background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); }
+.pill:global(.active).pill掘金 { background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%); }
+.pill:global(.active).pillReddit { background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); }
+.pill:global(.active).pill少数派 { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
+.pill:global(.active).pill36氪 { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); }
+
+/* 排序滑块切换开关 */
+.sortSwitch {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-light);
+  padding: 3px;
+  border-radius: 12px;
+  position: relative;
+}
+
+.sortBtn {
+  padding: 5px 14px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.sortBtn:hover {
+  color: var(--text-primary);
+}
+
+.sortBtn:global(.active) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* 帖子卡片网格 */
+.postsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 24px;
+  margin-bottom: 60px;
+}
+
+/* 升华版极其通透的毛玻璃卡片 */
+.postCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  padding: 24px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  transition: var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 悬停时的 3D 微浮光和彩虹渐变顶部发光线 */
+.postCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--gradient-primary);
+  opacity: 0;
+  transition: var(--transition-smooth);
+}
+
+.postCard:hover {
+  transform: translateY(-5px);
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-glow-hover);
+}
+
+.postCard:hover::before {
+  opacity: 0.8;
+}
+
+/* 卡片头部 */
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 磨砂玻璃感的来源徽章 */
+.sourceBadge {
+  padding: 3px 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+}
+
+.sourceBadge[data-source="知乎"] { color: #60a5fa; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.15); }
+.sourceBadge[data-source="V2EX"] { color: #4ade80; background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.15); }
+.sourceBadge[data-source="微博"] { color: #f87171; background: rgba(248, 113, 113, 0.08); border-color: rgba(248, 113, 113, 0.15); }
+.sourceBadge[data-source="掘金"] { color: #3b82f6; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.15); }
+.sourceBadge[data-source="Reddit"] { color: #fb923c; background: rgba(251, 146, 60, 0.08); border-color: rgba(251, 146, 60, 0.15); }
+.sourceBadge[data-source="少数派"] { color: #f87171; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.15); }
+.sourceBadge[data-source="36氪"] { color: #22d3ee; background: rgba(34, 211, 238, 0.08); border-color: rgba(34, 211, 238, 0.15); }
+
+/* 火焰热度徽章 */
+.hotBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-title);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-pink);
+  background: rgba(244, 63, 94, 0.06);
+  padding: 3px 9px;
+  border-radius: 99px;
+  border: 1px solid rgba(244, 63, 94, 0.15);
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.05);
+}
+
+.hotIcon {
+  font-size: 13px;
+  animation: pulse-fire 1.5s infinite alternate ease-in-out;
+}
+
+@keyframes pulse-fire {
+  0% { transform: scale(0.9) translateY(0.5px); filter: brightness(0.9) drop-shadow(0 0 1px rgba(244,63,94,0.3)); }
+  100% { transform: scale(1.15) translateY(-0.5px); filter: brightness(1.3) drop-shadow(0 0 4px rgba(244,63,94,0.6)); }
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.postTitle {
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--text-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  letter-spacing: -0.2px;
+}
+
+.postTitle:hover {
+  color: var(--accent-cyan);
+}
+
+.postDesc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  opacity: 0.85;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 脚部区域 */
+.cardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border-light);
+  padding-top: 16px;
+  margin-top: 4px;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* 评论和收藏按钮微交互 */
+.actionBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition-smooth);
+}
+
+.actionBtn span:first-child {
+  transition: transform 0.3s ease;
+}
+
+.actionBtn:hover {
+  color: var(--text-primary);
+}
+
+.actionBtnFav:hover {
+  color: var(--accent-pink);
+}
+.actionBtnFav:hover span:first-child {
+  transform: scale(1.25);
+}
+
+.actionBtnFav:global(.active) {
+  color: var(--accent-pink);
+  font-weight: 600;
+  animation: heartbeat-bounce 0.4s ease-out;
+}
+.actionBtnFav:global(.active) span:first-child {
+  transform: scale(1);
+}
+
+.actionBtnComment:hover {
+  color: var(--accent-blue);
+}
+.actionBtnComment:hover span:first-child {
+  transform: scale(1.2) rotate(-10deg);
+}
+
+/* 外链图标 */
+.btnOpenLink {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: var(--transition-bounce);
+}
+
+.postCard:hover .btnOpenLink {
+  background: var(--gradient-primary);
+  border-color: transparent;
+  color: #ffffff;
+  transform: scale(1.1) rotate(45deg);
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+}
+
+@keyframes heartbeat-bounce {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.35); }
+  60% { transform: scale(0.85); }
+  85% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* 浮空大圆角毛玻璃 Drawer */
+.drawerOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawerOverlay:global(.active) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  bottom: 20px;
+  width: calc(100% - 40px);
+  max-width: 480px;
+  z-index: 101;
+  background: rgba(12, 16, 36, 0.75);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid var(--border-light);
+  border-radius: 24px;
+  box-shadow: -15px 0 50px rgba(0, 0, 0, 0.6), 0 0 80px rgba(99, 102, 241, 0.08);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(calc(100% + 40px));
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer:global(.active) {
+  transform: translateX(0);
+}
+
+.drawerHeader {
+  padding: 24px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.drawerTitle {
+  font-family: var(--font-title);
+  font-size: 22px;
+  font-weight: 800;
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.drawerClose {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 24px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-smooth);
+}
+
+.drawerClose:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.drawerPostInfo {
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.015);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.drawerPostTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  text-decoration: none;
+  line-height: 1.45;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition-smooth);
+}
+
+.drawerPostTitle:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.drawerCommentsList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.commentItem {
+  background: rgba(255, 255, 255, 0.012);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.commentMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.commentAuthor {
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.commentAuthorAvatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--gradient-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.commentTime {
+  color: var(--text-muted);
+}
+
+.commentText {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.noComments {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 220px;
+  color: var(--text-secondary);
+  gap: 12px;
+  font-size: 14px;
+}
+
+.drawerFooter {
+  padding: 24px;
+  border-top: 1px solid var(--border-light);
+  background: rgba(8, 11, 26, 0.9);
+  border-bottom-left-radius: 24px;
+  border-bottom-right-radius: 24px;
+}
+
+.commentForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.commentInput {
+  width: 100%;
+  min-height: 90px;
+  max-height: 160px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 14px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+  transition: var(--transition-smooth);
+}
+
+.commentInput:focus {
+  border-color: var(--accent-cyan);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.12);
+}
+
+.commentSubmitRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.commentInputTip {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.commentLoginPrompt {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px dashed var(--border-light);
+  border-radius: 14px;
+  padding: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.commentLoginLink {
+  color: var(--accent-cyan);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  margin: 0 4px;
+  transition: var(--transition-smooth);
+}
+.commentLoginLink:hover {
+  color: var(--text-primary);
+}
+
+/* 骨架屏加载状态 Shimmer */
+.skeletonCard {
+  height: 230px;
+  background: rgba(255, 255, 255, 0.008);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.skeletonItem {
+  background: linear-gradient(90deg, rgba(255,255,255,0.015) 25%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.015) 75%);
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.8s infinite ease-in-out;
+  border-radius: 6px;
+}
+
+@keyframes loading-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeletonBadge { width: 55px; height: 18px; border-radius: 6px; }
+.skeletonTitle { width: 90%; height: 20px; border-radius: 6px; }
+.skeletonTitle2 { width: 65%; height: 20px; border-radius: 6px; }
+.skeletonDesc { width: 100%; height: 13px; border-radius: 4px; }
+.skeletonDesc2 { width: 85%; height: 13px; border-radius: 4px; }
+.skeletonFooter { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+.skeletonBtn { width: 60px; height: 18px; border-radius: 6px; }
+
+/* 页面空状态 */
+.emptyState {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 24px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px dashed var(--border-light);
+  border-radius: 24px;
+  backdrop-filter: blur(12px);
+  color: var(--text-secondary);
+  gap: 18px;
+  text-align: center;
+}
+
+.emptyTitle {
+  font-family: var(--font-title);
+  font-size: 22px;
+  font-weight: 800;
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.emptyDesc {
+  font-size: 14px;
+  max-width: 360px;
+  line-height: 1.6;
+}
+
+/* 亮色模式高级视觉优化 */
+:global(.light) .drawer {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: -15px 0 50px rgba(15, 23, 42, 0.06), 0 0 80px rgba(99, 102, 241, 0.03);
+}
+:global(.light) .drawerFooter {
+  background: rgba(248, 250, 252, 0.95);
+}
+:global(.light) .commentItem {
+  background: rgba(15, 23, 42, 0.012);
+}
+:global(.light) .commentInput {
+  background: rgba(15, 23, 42, 0.01);
+}
+:global(.light) .commentInput:focus {
+  background: #ffffff;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.08);
+}
+:global(.light) .commentLoginPrompt {
+  background: rgba(15, 23, 42, 0.005);
+}
+:global(.light) .skeletonCard {
+  background: rgba(15, 23, 42, 0.005);
+}
+:global(.light) .skeletonItem {
+  background: linear-gradient(90deg, rgba(15,23,42,0.01) 25%, rgba(15,23,42,0.03) 50%, rgba(15,23,42,0.01) 75%);
+  background-size: 200% 100%;
+}
+:global(.light) .emptyState {
+  background: rgba(15, 23, 42, 0.005);
+}
+
+@media (max-width: 768px) {
+  .drawer {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    border-radius: 0;
+    border-left: 1px solid var(--border-light);
+    border-top: none;
+    border-bottom: none;
+    border-right: none;
+  }
+  .drawerFooter {
+    border-radius: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .subControls {
+    flex-direction: column;
+    gap: 14px;
+    align-items: stretch;
+  }
+  .postsGrid {
+    grid-template-columns: 1fr;
+  }
+}

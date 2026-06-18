@@ -20,7 +20,20 @@ export async function handleAuthRoute(request: Request, env: Env, url: URL): Pro
 
   if (request.method === "GET" && url.pathname === "/api/me") {
     const user = await getCurrentUser(request, env);
-    return json({ authenticated: Boolean(user), email: user?.email ?? null, role: user?.role ?? null });
+    if (user) {
+      const db = getDb(env);
+      let items: Array<{ id: string; item_type: string; bottom: string; left: string }> = [];
+      try {
+        const queryRes = await withDbTimeout(
+          db.prepare("SELECT id, item_type, bottom, left FROM user_items WHERE user_id = ?").bind(user.id).all<{ id: string; item_type: string; bottom: string; left: string }>()
+        );
+        items = queryRes.results || [];
+      } catch (e) {
+        // ignore
+      }
+      return json({ authenticated: true, email: user.email, role: user.role, items });
+    }
+    return json({ authenticated: false, email: null, role: null, items: [] });
   }
 
   return null;
@@ -47,13 +60,20 @@ async function register(request: Request, env: Env): Promise<Response> {
   }
 
   const password = await hashPassword(body.password);
+  const userId = crypto.randomUUID();
+  const itemId = crypto.randomUUID();
   try {
     await withDbTimeout(
       db.prepare(
         "INSERT INTO users (id, email, password_hash, salt) VALUES (?, ?, ?, ?)"
-      ).bind(crypto.randomUUID(), body.email, password.hash, password.salt).run()
+      ).bind(userId, body.email, password.hash, password.salt).run()
     );
-  } catch {
+    await withDbTimeout(
+      db.prepare(
+        "INSERT INTO user_items (id, user_id, item_type, bottom, left) VALUES (?, ?, ?, ?, ?)"
+      ).bind(itemId, userId, "arrow", "80px", "600px").run()
+    );
+  } catch (e) {
     return dbUnavailableResponse();
   }
 

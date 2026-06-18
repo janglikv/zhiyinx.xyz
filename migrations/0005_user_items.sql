@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS user_items (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  item_type TEXT NOT NULL,
+  bottom TEXT NOT NULL,
+  left TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

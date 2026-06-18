@@ -18,6 +18,7 @@ export type DbStatement = {
   bind(...values: unknown[]): DbStatement;
   first<T = unknown>(): Promise<T | null>;
   run(): Promise<D1Result>;
+  all<T = unknown>(): Promise<D1Result<T>>;
 };
 
 export type DbClient = {

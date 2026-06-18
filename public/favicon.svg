@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- 蓝紫渐变，契合知音平台主色调 -->
+    <linearGradient id="zhiyin-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 外围圆角 Squircle 背景 -->
+  <rect width="512" height="512" rx="128" fill="url(#zhiyin-grad)" />
+
+  <!-- 艺术化几何“音”字矢量图形 -->
+  <!-- 1. “立”字头顶部的圆点 -->
+  <circle cx="256" cy="110" r="16" fill="#ffffff" />
+  
+  <!-- 2. “立”字头的首横 -->
+  <rect x="176" y="145" width="160" height="20" rx="10" fill="#ffffff" />
+  
+  <!-- 3. “立”字头中部的左撇 -->
+  <rect x="205" y="185" width="20" height="45" rx="10" transform="rotate(-15 215 207.5)" fill="#ffffff" />
+  
+  <!-- 4. “立”字头中部的右撇 -->
+  <rect x="287" y="185" width="20" height="45" rx="10" transform="rotate(15 297 207.5)" fill="#ffffff" />
+  
+  <!-- 5. “立”字头底部的长横 -->
+  <rect x="116" y="250" width="280" height="20" rx="10" fill="#ffffff" />
+  
+  <!-- 6. “日”字底的圆角外框 -->
+  <rect x="176" y="305" width="160" height="120" rx="18" fill="none" stroke="#ffffff" stroke-width="20" />
+  
+  <!-- 7. “日”字底中间的一横 (无缝衔接外框内侧) -->
+  <rect x="186" y="355" width="140" height="20" fill="#ffffff" />
+</svg>
