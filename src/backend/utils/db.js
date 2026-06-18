@@ -1,32 +1,24 @@
-import type { DbClient, DbStatement, Env } from "../types";
 import { json } from "./http";
-
-const dbTimeoutMs = 8000;
-
-export function getDb(env: Env): DbClient {
+const dbTimeoutMs = 8e3;
+function getDb(env) {
   if (env.USE_REMOTE_D1_HTTP !== "true") {
     return env.DB;
   }
-
   if (!env.CF_ACCOUNT_ID || !env.CF_D1_DATABASE_ID || !env.CF_API_TOKEN) {
     throw new Error("Remote D1 HTTP API credentials are not configured.");
   }
-
   return new HttpD1Database(env.CF_ACCOUNT_ID, env.CF_D1_DATABASE_ID, env.CF_API_TOKEN);
 }
-
-class HttpD1Database implements DbClient {
-  constructor(
-    private readonly accountId: string,
-    private readonly databaseId: string,
-    private readonly apiToken: string
-  ) {}
-
-  prepare(query: string): DbStatement {
+class HttpD1Database {
+  constructor(accountId, databaseId, apiToken) {
+    this.accountId = accountId;
+    this.databaseId = databaseId;
+    this.apiToken = apiToken;
+  }
+  prepare(query) {
     return new HttpD1Statement(this, query);
   }
-
-  async query(sql: string, params: unknown[]): Promise<D1Result> {
+  async query(sql, params) {
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/d1/database/${this.databaseId}/query`,
       {
@@ -38,55 +30,41 @@ class HttpD1Database implements DbClient {
         body: JSON.stringify({ sql, params })
       }
     );
-    const payload = await response.json<{
-      success: boolean;
-      errors?: Array<{ message?: string }>;
-      result?: D1Result[];
-    }>();
+    const payload = await response.json();
     const result = payload.result?.[0];
-
     if (!response.ok || !payload.success || !result?.success) {
       const message = payload.errors?.map((error) => error.message).filter(Boolean).join("; ");
       throw new Error(message || "Remote D1 HTTP API request failed.");
     }
-
     return result;
   }
 }
-
-class HttpD1Statement implements DbStatement {
-  private params: unknown[] = [];
-
-  constructor(
-    private readonly database: HttpD1Database,
-    private readonly query: string
-  ) {}
-
-  bind(...values: unknown[]): DbStatement {
+class HttpD1Statement {
+  constructor(database, query) {
+    this.database = database;
+    this.query = query;
+  }
+  params = [];
+  bind(...values) {
     this.params = values;
     return this;
   }
-
-  async first<T = unknown>(): Promise<T | null> {
+  async first() {
     const result = await this.database.query(this.query, this.params);
-    return (result.results?.[0] as T | undefined) ?? null;
+    return result.results?.[0] ?? null;
   }
-
-  run(): Promise<D1Result> {
+  run() {
     return this.database.query(this.query, this.params);
   }
-
-  all<T = unknown>(): Promise<D1Result<T>> {
-    return this.database.query(this.query, this.params) as Promise<D1Result<T>>;
+  all() {
+    return this.database.query(this.query, this.params);
   }
 }
-
-export async function withDbTimeout<T>(operation: Promise<T>): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
+async function withDbTimeout(operation) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error("Database request timed out.")), dbTimeoutMs);
   });
-
   try {
     return await Promise.race([operation, timeout]);
   } finally {
@@ -95,7 +73,11 @@ export async function withDbTimeout<T>(operation: Promise<T>): Promise<T> {
     }
   }
 }
-
-export function dbUnavailableResponse(): Response {
-  return json({ error: "数据库连接失败，请检查远程 D1 配置或连接。" }, { status: 504 });
+function dbUnavailableResponse() {
+  return json({ error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u8FDC\u7A0B D1 \u914D\u7F6E\u6216\u8FDE\u63A5\u3002" }, { status: 504 });
 }
+export {
+  dbUnavailableResponse,
+  getDb,
+  withDbTimeout
+};
