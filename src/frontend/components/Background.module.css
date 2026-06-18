@@ -68,16 +68,3 @@
   -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 20%, transparent 80%);
   pointer-events: none;
 }
-
-/* 亮色模式高级视觉优化 */
-:global(.light) .auroraBg {
-  background: radial-gradient(circle at 50% 50%, #f1f5f9 0%, #f8fafc 100%);
-}
-:global(.light) .blob {
-  opacity: 0.1;
-}
-:global(.light) .gridOverlay {
-  background-image: 
-    linear-gradient(rgba(15, 23, 42, 0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.015) 1px, transparent 1px);
-}

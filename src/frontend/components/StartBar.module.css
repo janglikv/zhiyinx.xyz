@@ -8,38 +8,7 @@
   transition: var(--transition-smooth);
 }
 
-:global(.light) .headerGlass {
-  background: rgba(255, 255, 255, 0.75);
-}
 
-/* 幽雅的主题切换按钮 */
-.btnThemeToggle {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-light);
-  color: var(--text-secondary);
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 15px;
-  transition: var(--transition-smooth);
-}
-.btnThemeToggle:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--border-hover);
-  color: var(--text-primary);
-  transform: scale(1.05);
-}
-
-:global(.light) .btnThemeToggle {
-  background: rgba(15, 23, 42, 0.04);
-}
-:global(.light) .btnThemeToggle:hover {
-  background: rgba(15, 23, 42, 0.08);
-}
 
 /* 让 Header 里的登录注册按钮默认更温和、不刺眼 */
 .headerGlass :global(.btn-primary) {
@@ -55,17 +24,6 @@
   box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
 }
 
-:global(.light) .headerGlass :global(.btn-primary) {
-  background: rgba(15, 23, 42, 0.05);
-  color: var(--text-primary);
-  border: 1px solid var(--border-light);
-}
-:global(.light) .headerGlass :global(.btn-primary):hover {
-  background: var(--gradient-primary);
-  color: #ffffff;
-  border-color: transparent;
-  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.15);
-}
 
 .headerContent {
   display: flex;

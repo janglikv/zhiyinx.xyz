@@ -6,11 +6,9 @@ type StartBarProps = {
   me: MeResponse;
   onLogout: () => void;
   onOpenLogin: () => void;
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
 };
 
-export default function StartBar({ me, onLogout, onOpenLogin, theme, onToggleTheme }: StartBarProps) {
+export default function StartBar({ me, onLogout, onOpenLogin }: StartBarProps) {
   const barRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -27,14 +25,6 @@ export default function StartBar({ me, onLogout, onOpenLogin, theme, onToggleThe
         </a>
 
         <div className={styles.userNav}>
-          <button
-            className={styles.btnThemeToggle}
-            onClick={onToggleTheme}
-            title={theme === "light" ? "切换至暗色模式" : "切换至亮色模式"}
-            aria-label="切换主题"
-          >
-            {theme === "light" ? "🌙" : "☀️"}
-          </button>
           {me.authenticated ? (
             <>
               <div className={styles.avatarBadge}>

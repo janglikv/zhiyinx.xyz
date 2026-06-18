@@ -21,27 +21,6 @@ const AdminPage = lazy(() => import("./pages/AdminPage"));
 export default function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    const saved = localStorage.getItem("zhiyin-theme");
-    if (saved === "light" || saved === "dark") return saved;
-    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-      return "light";
-    }
-    return "dark";
-  });
-
-  useEffect(() => {
-    if (theme === "light") {
-      document.documentElement.classList.add("light");
-    } else {
-      document.documentElement.classList.remove("light");
-    }
-    localStorage.setItem("zhiyin-theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
 
   const fetchAndSetMe = async () => {
     try {
@@ -129,15 +108,13 @@ export default function App() {
     <>
       {isAdmin ? (
         <Suspense fallback={null}>
-          <AdminPage userEmail={me.email || ""} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />
+          <AdminPage userEmail={me.email || ""} onLogout={handleLogout} />
         </Suspense>
       ) : (
         <HomePage
           me={me}
           onLogout={handleLogout}
           onOpenLogin={() => setIsLoginOpen(true)}
-          theme={theme}
-          onToggleTheme={toggleTheme}
         />
       )}
       

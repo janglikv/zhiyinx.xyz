@@ -11,10 +11,6 @@
   color: #ffffff;
 }
 
-:global(.light) .wrapper {
-  color: #000000;
-}
-
 .handdrawnArrow {
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.05));
 }

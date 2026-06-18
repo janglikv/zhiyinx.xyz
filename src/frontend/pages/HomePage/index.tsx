@@ -9,11 +9,9 @@ type HomePageProps = {
   me: MeResponse;
   onLogout: () => void;
   onOpenLogin: () => void;
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
 };
 
-export default function HomePage({ me, onLogout, onOpenLogin, theme, onToggleTheme }: HomePageProps) {
+export default function HomePage({ me, onLogout, onOpenLogin }: HomePageProps) {
   return (
     <>
       <Background />
@@ -37,8 +35,6 @@ export default function HomePage({ me, onLogout, onOpenLogin, theme, onToggleThe
         me={me}
         onLogout={onLogout}
         onOpenLogin={onOpenLogin}
-        theme={theme}
-        onToggleTheme={onToggleTheme}
       />
     </>
   );

@@ -17,11 +17,9 @@ type UserData = {
 type AdminPageProps = {
   userEmail: string;
   onLogout: () => void;
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
 };
 
-export default function AdminPage({ userEmail, onLogout, theme, onToggleTheme }: AdminPageProps) {
+export default function AdminPage({ userEmail, onLogout }: AdminPageProps) {
   const [users, setUsers] = useState<UserData[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -286,14 +284,6 @@ export default function AdminPage({ userEmail, onLogout, theme, onToggleTheme }:
             <span className="logo-text">知音 · 后台管理</span>
           </div>
           <div className="user-nav">
-            <button
-              className="btn-theme-toggle"
-              onClick={onToggleTheme}
-              title={theme === "light" ? "切换至暗色模式" : "切换至亮色模式"}
-              aria-label="切换主题"
-            >
-              {theme === "light" ? "🌙" : "☀️"}
-            </button>
             <div className="avatar-badge">
               <div className="avatar" style={{ background: "var(--accent-purple)" }}>A</div>
               <span className="avatar-email">{userEmail}</span>
