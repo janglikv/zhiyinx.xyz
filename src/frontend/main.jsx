@@ -8,7 +8,7 @@ if (!container) throw new Error("Failed to find root element");
 const root = createRoot(container);
 root.render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <App />
     </BrowserRouter>
   </StrictMode>

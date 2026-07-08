@@ -27,7 +27,12 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       });
 
       if (destroyed || !containerRef.current) {
-        app.destroy();
+        app.destroy({
+          removeView: true,
+          stageOptions: {
+            children: true,
+          },
+        });
         return;
       }
 
@@ -38,16 +43,22 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         fontSize: 24,
         fontWeight: "bold",
         fill: "#ffffff",
-        stroke: "#6366f1",
-        strokeThickness: 4,
-        dropShadow: true,
-        dropShadowColor: "#000000",
-        dropShadowBlur: 4,
-        dropShadowAngle: Math.PI / 6,
-        dropShadowDistance: 6,
+        stroke: {
+          color: "#6366f1",
+          width: 4,
+        },
+        dropShadow: {
+          color: "#000000",
+          blur: 4,
+          angle: Math.PI / 6,
+          distance: 6,
+        },
       });
 
-      const text = new PIXI.Text("细胞吞噬 · PixiJS 渲染引擎已启动 🦠", style);
+      const text = new PIXI.Text({
+        text: "细胞吞噬 · PixiJS 渲染引擎已启动 🦠",
+        style,
+      });
       text.anchor.set(0.5);
       text.x = app.screen.width / 2;
       text.y = app.screen.height / 2;
@@ -61,11 +72,14 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
     return () => {
       destroyed = true;
-      app.destroy(true, {
-        children: true,
-        texture: true,
-        baseTexture: true,
-      });
+      if (app.renderer) {
+        app.destroy({
+          removeView: true,
+          stageOptions: {
+            children: true,
+          },
+        });
+      }
     };
   }, []);
 
