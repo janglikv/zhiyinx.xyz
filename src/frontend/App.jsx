@@ -2,6 +2,7 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Main from "./pages/main";
 import ProfilePage from "./pages/profile";
+import GamePage from "./pages/games";
 import LoginDialog from "./components/LoginDialog";
 import Background from "./components/Background";
 const AdminPage = lazy(() => import("./pages/admin"));
@@ -100,6 +101,16 @@ function App() {
           path="/profile"
           element={
             <ProfilePage
+              me={me}
+              onLogout={handleLogout}
+              onOpenLogin={() => setIsLoginOpen(true)}
+            />
+          }
+        />
+        <Route
+          path="/games/:gameId"
+          element={
+            <GamePage
               me={me}
               onLogout={handleLogout}
               onOpenLogin={() => setIsLoginOpen(true)}
