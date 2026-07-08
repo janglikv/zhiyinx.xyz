@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Background from "../components/Background";
+import Background from "../../components/Background";
 function AdminPage({ userEmail, onLogout }) {
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -11,16 +11,6 @@ function AdminPage({ userEmail, onLogout }) {
   const [resetLoading, setResetLoading] = useState(false);
   const [toastText, setToastText] = useState("");
   const [showToast, setShowToast] = useState(false);
-  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
-  const [activeItemUser, setActiveItemUser] = useState(null);
-  const [itemLoading, setItemLoading] = useState(false);
-  const updateLocalItem = (idx, field, val) => {
-    if (!activeItemUser) return;
-    const newItems = [...activeItemUser.items];
-    const numericVal = val.replace(/[^0-9]/g, "");
-    newItems[idx] = { ...newItems[idx], [field]: numericVal };
-    setActiveItemUser({ ...activeItemUser, items: newItems });
-  };
   const triggerToast = (msg) => {
     setToastText(msg);
     setShowToast(true);
@@ -87,96 +77,6 @@ function AdminPage({ userEmail, onLogout }) {
       alert(err.message || "\u8BF7\u6C42\u51FA\u9519");
     } finally {
       setResetLoading(false);
-    }
-  };
-  const handleSaveItem = async (itemId, bottom, left) => {
-    setItemLoading(true);
-    try {
-      const res = await fetch("/api/admin/users/update-item", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          itemId,
-          bottom: `${bottom}px`,
-          left: `${left}px`
-        })
-      });
-      if (res.ok) {
-        triggerToast("\u2705 \u7269\u54C1\u4FEE\u6539\u6210\u529F");
-        fetchUsers();
-      } else {
-        const data = await res.json();
-        alert(data.error || "\u4FDD\u5B58\u5931\u8D25");
-      }
-    } catch {
-      alert("\u7F51\u7EDC\u8BF7\u6C42\u5931\u8D25");
-    } finally {
-      setItemLoading(false);
-    }
-  };
-  const handleDeleteItem = async (itemId) => {
-    if (!confirm("\u786E\u5B9A\u8981\u5220\u9664\u8FD9\u4E2A\u7269\u54C1\u5417\uFF1F")) return;
-    setItemLoading(true);
-    try {
-      const res = await fetch("/api/admin/users/delete-item", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId })
-      });
-      if (res.ok) {
-        triggerToast("\u274C \u7269\u54C1\u5DF2\u5220\u9664");
-        if (activeItemUser) {
-          setActiveItemUser({
-            ...activeItemUser,
-            items: activeItemUser.items.filter((i) => i.id !== itemId)
-          });
-        }
-        fetchUsers();
-      } else {
-        const data = await res.json();
-        alert(data.error || "\u5220\u9664\u5931\u8D25");
-      }
-    } catch {
-      alert("\u7F51\u7EDC\u8BF7\u6C42\u5931\u8D25");
-    } finally {
-      setItemLoading(false);
-    }
-  };
-  const handleAddItem = async (itemType) => {
-    if (!activeItemUser) return;
-    setItemLoading(true);
-    const defaultBottom = itemType === "arrow" ? "80" : "160";
-    const defaultLeft = itemType === "arrow" ? "600" : "360";
-    try {
-      const res = await fetch("/api/admin/users/add-item", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: activeItemUser.id,
-          itemType,
-          bottom: `${defaultBottom}px`,
-          left: `${defaultLeft}px`
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        triggerToast(`\u2728 \u5DF2\u6210\u529F\u65B0\u589E\u4E00\u4E2A${itemType === "arrow" ? "\u5927\u7BAD\u5934" : "\u6742\u8D27\u94FA"}`);
-        setActiveItemUser({
-          ...activeItemUser,
-          items: [
-            ...activeItemUser.items,
-            { id: data.itemId, item_type: itemType, bottom: defaultBottom, left: defaultLeft }
-          ]
-        });
-        fetchUsers();
-      } else {
-        const data = await res.json();
-        alert(data.error || "\u65B0\u589E\u5931\u8D25");
-      }
-    } catch {
-      alert("\u7F51\u7EDC\u8BF7\u6C42\u5931\u8D25");
-    } finally {
-      setItemLoading(false);
     }
   };
   const confirmDeleteUser = async (userId, email) => {
@@ -360,24 +260,6 @@ function AdminPage({ userEmail, onLogout }) {
                                 </button>
                                 <button
       className="btn btn-ghost"
-      onClick={() => {
-        setActiveItemUser({
-          id: user.id,
-          email: user.email,
-          items: (user.items || []).map((item) => ({
-            ...item,
-            bottom: item.bottom.replace(/[^0-9]/g, ""),
-            left: item.left.replace(/[^0-9]/g, "")
-          }))
-        });
-        setIsItemModalOpen(true);
-      }}
-      style={{ padding: "4px 10px", fontSize: "12px", borderRadius: "6px" }}
-    >
-                                  管理物品
-                                </button>
-                                <button
-      className="btn btn-ghost"
       onClick={() => confirmDeleteUser(user.id, user.email)}
       style={{ padding: "4px 10px", fontSize: "12px", borderRadius: "6px", color: "var(--accent-pink)", borderColor: "rgba(236, 72, 153, 0.2)" }}
     >
@@ -452,112 +334,6 @@ function AdminPage({ userEmail, onLogout }) {
     style={{ borderRadius: "10px" }}
   >
                 {resetLoading ? "\u5904\u7406\u4E2D..." : "\u786E\u8BA4\u91CD\u7F6E"}
-              </button>
-            </div>
-          </div>
-        </div>}
-
-      {
-    /* 物品管理 Modal */
-  }
-      {isItemModalOpen && activeItemUser && <div className={`modal-overlay active`} onClick={() => {
-    setIsItemModalOpen(false);
-    setActiveItemUser(null);
-  }}>
-          <div className="modal-content" style={{ maxWidth: "560px" }} onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => {
-    setIsItemModalOpen(false);
-    setActiveItemUser(null);
-  }}>
-              &times;
-            </button>
-            <div className="modal-header">
-              <h2 className="modal-title">管理用户物品</h2>
-              <p className="modal-subtitle">正在配置用户 <strong>{activeItemUser.email}</strong> 的挂件装饰 (可有多个)</p>
-            </div>
-            
-            <div style={{ maxHeight: "300px", overflowY: "auto", marginBottom: "20px", paddingRight: "4px" }}>
-              {activeItemUser.items.length === 0 ? <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-secondary)" }}>
-                  📭 暂无任何物品，点击下方按钮添加。
-                </div> : activeItemUser.items.map((item, idx) => <div key={item.id} style={{ display: "flex", flexDirection: "column", paddingBottom: "12px", marginBottom: "12px", borderBottom: "1px solid var(--border-light)" }}>
-                    <div style={{ fontSize: "12px", fontWeight: "bold", color: item.item_type === "arrow" ? "var(--accent-purple)" : "var(--accent-cyan)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span>{item.item_type === "arrow" ? "\u{1F3F9}" : "\u{1F3EA}"}</span>
-                      <span>物品类型：{item.item_type === "arrow" ? "\u624B\u7ED8\u5927\u7BAD\u5934" : "\u6742\u8D27\u94FA"}</span>
-                    </div>
-                    
-                    <div style={{ display: "flex", alignItems: "flex-end", gap: "12px" }}>
-                      <div style={{ flex: 1 }}>
-                        <label className="form-label" style={{ fontSize: "11px", marginBottom: "4px", display: "block" }}>Bottom</label>
-                        <input
-    type="text"
-    className="form-input"
-    placeholder="例如 80px"
-    value={item.bottom}
-    onChange={(e) => updateLocalItem(idx, "bottom", e.target.value)}
-    style={{ padding: "8px 12px", fontSize: "13px" }}
-  />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="form-label" style={{ fontSize: "11px", marginBottom: "4px", display: "block" }}>Left</label>
-                        <input
-    type="text"
-    className="form-input"
-    placeholder="例如 50%"
-    value={item.left}
-    onChange={(e) => updateLocalItem(idx, "left", e.target.value)}
-    style={{ padding: "8px 12px", fontSize: "13px" }}
-  />
-                      </div>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <button
-    className="btn btn-primary"
-    onClick={() => handleSaveItem(item.id, item.bottom, item.left)}
-    disabled={itemLoading}
-    style={{ padding: "8px 14px", borderRadius: "8px", fontSize: "12px", height: "38px" }}
-  >
-                          保存
-                        </button>
-                        <button
-    className="btn btn-ghost"
-    onClick={() => handleDeleteItem(item.id)}
-    disabled={itemLoading}
-    style={{ padding: "8px 14px", borderRadius: "8px", fontSize: "12px", height: "38px", color: "var(--accent-pink)", borderColor: "rgba(236, 72, 153, 0.2)" }}
-  >
-                          删除
-                        </button>
-                      </div>
-                    </div>
-                  </div>)}
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-    className="btn btn-ghost"
-    onClick={() => handleAddItem("arrow")}
-    disabled={itemLoading}
-    style={{ borderRadius: "10px", borderColor: "var(--accent-purple)", color: "var(--accent-purple)", padding: "8px 12px", fontSize: "12px" }}
-  >
-                  + 新增手绘大箭头
-                </button>
-                <button
-    className="btn btn-ghost"
-    onClick={() => handleAddItem("grocery")}
-    disabled={itemLoading}
-    style={{ borderRadius: "10px", borderColor: "var(--accent-cyan)", color: "var(--accent-cyan)", padding: "8px 12px", fontSize: "12px" }}
-  >
-                  + 新增杂货铺
-                </button>
-              </div>
-              <button
-    className="btn btn-ghost"
-    onClick={() => {
-      setIsItemModalOpen(false);
-      setActiveItemUser(null);
-    }}
-    style={{ borderRadius: "10px", padding: "8px 16px", fontSize: "12px" }}
-  >
-                关闭弹窗
               </button>
             </div>
           </div>

@@ -1,8 +1,10 @@
 import { useEffect, useState, lazy, Suspense } from "react";
-import HomePage from "./pages/HomePage";
-import LoginDialog from "./pages/LoginDialog";
+import { Routes, Route, Navigate } from "react-router-dom";
+import Main from "./pages/main";
+import ProfilePage from "./pages/profile";
+import LoginDialog from "./components/LoginDialog";
 import Background from "./components/Background";
-const AdminPage = lazy(() => import("./pages/AdminPage"));
+const AdminPage = lazy(() => import("./pages/admin"));
 function App() {
   const [me, setMe] = useState(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -78,13 +80,35 @@ function App() {
   }
   const isAdmin = me.authenticated && me.role === "admin";
   return <>
-      {isAdmin ? <Suspense fallback={null}>
+      {isAdmin ? (
+        <Suspense fallback={null}>
           <AdminPage userEmail={me.email || ""} onLogout={handleLogout} />
-        </Suspense> : <HomePage
-    me={me}
-    onLogout={handleLogout}
-    onOpenLogin={() => setIsLoginOpen(true)}
-  />}
+        </Suspense>
+      ) : (
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <Main
+                me={me}
+                onLogout={handleLogout}
+                onOpenLogin={() => setIsLoginOpen(true)}
+              />
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProfilePage
+                me={me}
+                onLogout={handleLogout}
+                onOpenLogin={() => setIsLoginOpen(true)}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      )}
       
       <LoginDialog
     isOpen={isLoginOpen}

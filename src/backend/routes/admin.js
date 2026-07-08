@@ -19,15 +19,6 @@ async function handleAdminRoute(request, env, url) {
   if (request.method === "POST" && url.pathname === "/api/admin/users/delete") {
     return deleteUser(request, env);
   }
-  if (request.method === "POST" && url.pathname === "/api/admin/users/update-item") {
-    return updateUserItem(request, env);
-  }
-  if (request.method === "POST" && url.pathname === "/api/admin/users/add-item") {
-    return addUserItem(request, env);
-  }
-  if (request.method === "POST" && url.pathname === "/api/admin/users/delete-item") {
-    return deleteUserItem(request, env);
-  }
   return null;
 }
 async function listUsers(env) {
@@ -36,24 +27,7 @@ async function listUsers(env) {
     const usersResult = await withDbTimeout(
       db.prepare("SELECT id, email, role, created_at FROM users ORDER BY created_at DESC").run()
     );
-    const users = usersResult.results || [];
-    const itemsResult = await withDbTimeout(
-      db.prepare("SELECT id, user_id, item_type, bottom, left FROM user_items").run()
-    );
-    const items = itemsResult.results || [];
-    const usersWithItems = users.map((user) => {
-      const userItems = items.filter((item) => item.user_id === user.id);
-      return {
-        ...user,
-        items: userItems.map((item) => ({
-          id: item.id,
-          item_type: item.item_type,
-          bottom: item.bottom,
-          left: item.left
-        }))
-      };
-    });
-    return json({ users: usersWithItems });
+    return json({ users: usersResult.results || [] });
   } catch {
     return dbUnavailableResponse();
   }
@@ -115,70 +89,6 @@ async function deleteUser(request, env) {
       return json({ error: "\u4E0D\u80FD\u5220\u9664\u7BA1\u7406\u5458\u8D26\u53F7" }, { status: 400 });
     }
     await withDbTimeout(db.prepare("DELETE FROM users WHERE id = ?").bind(userId).run());
-    return json({ ok: true });
-  } catch {
-    return dbUnavailableResponse();
-  }
-}
-async function updateUserItem(request, env) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-  const { itemId, bottom, left } = body;
-  if (typeof itemId !== "string" || typeof bottom !== "string" || typeof left !== "string") {
-    return json({ error: "\u53C2\u6570\u65E0\u6548" }, { status: 400 });
-  }
-  const db = getDb(env);
-  try {
-    await withDbTimeout(
-      db.prepare("UPDATE user_items SET bottom = ?, left = ? WHERE id = ?").bind(bottom, left, itemId).run()
-    );
-    return json({ ok: true });
-  } catch {
-    return dbUnavailableResponse();
-  }
-}
-async function addUserItem(request, env) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-  const { userId, itemType, bottom, left } = body;
-  if (typeof userId !== "string" || typeof itemType !== "string" || typeof bottom !== "string" || typeof left !== "string") {
-    return json({ error: "\u53C2\u6570\u65E0\u6548" }, { status: 400 });
-  }
-  const db = getDb(env);
-  try {
-    const newId = crypto.randomUUID();
-    await withDbTimeout(
-      db.prepare("INSERT INTO user_items (id, user_id, item_type, bottom, left) VALUES (?, ?, ?, ?, ?)").bind(newId, userId, itemType, bottom, left).run()
-    );
-    return json({ ok: true, itemId: newId });
-  } catch {
-    return dbUnavailableResponse();
-  }
-}
-async function deleteUserItem(request, env) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-  const { itemId } = body;
-  if (typeof itemId !== "string") {
-    return json({ error: "\u7269\u54C1 ID \u65E0\u6548" }, { status: 400 });
-  }
-  const db = getDb(env);
-  try {
-    await withDbTimeout(
-      db.prepare("DELETE FROM user_items WHERE id = ?").bind(itemId).run()
-    );
     return json({ ok: true });
   } catch {
     return dbUnavailableResponse();
