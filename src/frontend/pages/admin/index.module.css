@@ -1,0 +1,212 @@
+.adminLayout {
+  min-height: 100vh;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+.headerGlass {
+  background: rgba(5, 7, 15, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border-light);
+  padding: 8px 0;
+  margin-bottom: 32px;
+  position: relative;
+  z-index: 100;
+}
+
+.headerContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logoGroup {
+  display: flex;
+  align-items: center;
+}
+
+.logoText {
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: 800;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.userNav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatarBadge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  padding: 4px 10px 4px 4px;
+  border-radius: 12px;
+}
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 11px;
+}
+
+.avatarEmail {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.postCard {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+  transition: var(--transition-smooth);
+}
+
+.adminTableRow {
+  transition: var(--transition-smooth);
+}
+
+.adminTableRow:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.formLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+.formInput {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: var(--transition-smooth);
+  width: 100%;
+}
+
+.formInput:focus {
+  border-color: var(--accent-purple);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.12);
+}
+
+/* 弹窗遮罩 */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 16px;
+}
+
+.modalOverlay:global(.active) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modalContent {
+  background: rgba(10, 14, 30, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  padding: 36px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.8), 0 0 100px rgba(99, 102, 241, 0.12);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  transform: scale(0.92) translateY(10px);
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.modalOverlay:global(.active) .modalContent {
+  transform: scale(1) translateY(0);
+}
+
+.modalClose {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-smooth);
+}
+
+.modalClose:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.modalHeader {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.modalTitle {
+  font-family: var(--font-title);
+  font-size: 24px;
+  font-weight: 800;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+}
+
+.modalSubtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}

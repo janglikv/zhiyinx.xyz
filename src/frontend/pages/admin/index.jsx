@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Background from "../../components/Background";
+import styles from "./index.module.css";
 function AdminPage({ userEmail, onLogout }) {
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -131,18 +132,18 @@ function AdminPage({ userEmail, onLogout }) {
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
     return users.filter((u) => u.created_at && u.created_at.startsWith(todayStr)).length;
   };
-  return <div className="admin-layout">
+  return <div className={styles.adminLayout}>
     <Background />
 
-    <header className="header-glass">
-      <div className="container header-content">
-        <div className="logo-group">
-          <span className="logo-text">知音 · 后台管理</span>
+    <header className={styles.headerGlass}>
+      <div className={`container ${styles.headerContent}`}>
+        <div className={styles.logoGroup}>
+          <span className={styles.logoText}>知音 · 后台管理</span>
         </div>
-        <div className="user-nav">
-          <div className="avatar-badge">
-            <div className="avatar" style={{ background: "var(--accent-purple)" }}>A</div>
-            <span className="avatar-email">{userEmail}</span>
+        <div className={styles.userNav}>
+          <div className={styles.avatarBadge}>
+            <div className={styles.avatar} style={{ background: "var(--accent-purple)" }}>A</div>
+            <span className={styles.avatarEmail}>{userEmail}</span>
           </div>
           <button className="btn btn-ghost" onClick={onLogout}>
             退出登录
@@ -156,14 +157,14 @@ function AdminPage({ userEmail, onLogout }) {
         /* 数据面板卡片 */
       }
       <section className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "32px" }}>
-        <div className="post-card" style={{ flexDirection: "row", alignItems: "center", gap: "20px", padding: "24px" }}>
+        <div className={styles.postCard} style={{ flexDirection: "row", alignItems: "center", gap: "20px", padding: "24px" }}>
           <div style={{ fontSize: "36px" }}>👥</div>
           <div>
             <span style={{ fontSize: "13px", color: "var(--text-secondary)", display: "block" }}>用户总数</span>
             <h3 style={{ fontSize: "28px", fontWeight: 700, marginTop: "4px" }}>{users.length}</h3>
           </div>
         </div>
-        <div className="post-card" style={{ flexDirection: "row", alignItems: "center", gap: "20px", padding: "24px" }}>
+        <div className={styles.postCard} style={{ flexDirection: "row", alignItems: "center", gap: "20px", padding: "24px" }}>
           <div style={{ fontSize: "36px" }}>✨</div>
           <div>
             <span style={{ fontSize: "13px", color: "var(--text-secondary)", display: "block" }}>今日新增</span>
@@ -176,7 +177,7 @@ function AdminPage({ userEmail, onLogout }) {
       {
         /* 用户管理主表格卡片 */
       }
-      <section className="post-card" style={{ display: "block", padding: "24px" }}>
+      <section className={styles.postCard} style={{ display: "block", padding: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", marginBottom: "20px", borderBottom: "1px solid var(--border-light)", paddingBottom: "16px" }}>
           <div>
             <h3 style={{ fontSize: "18px", fontWeight: 700 }}>用户目录</h3>
@@ -186,7 +187,7 @@ function AdminPage({ userEmail, onLogout }) {
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <input
               type="text"
-              className="form-input"
+              className={styles.formInput}
               placeholder="搜索用户邮箱或 ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -225,7 +226,7 @@ function AdminPage({ userEmail, onLogout }) {
                 </td>
               </tr> : filteredUsers.map((user) => {
                 const isSelf = user.role === "admin" || user.email === userEmail;
-                return <tr key={user.id} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.03)" }} className="admin-table-row">
+                return <tr key={user.id} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.03)" }} className={styles.adminTableRow}>
                   <td style={{ padding: "12px 8px" }}>
                     <span
                       onClick={() => copyToClipboard(user.id)}
@@ -283,28 +284,28 @@ function AdminPage({ userEmail, onLogout }) {
     {
       /* 重置密码 Modal */
     }
-    {isResetModalOpen && activeUser && <div className={`modal-overlay active`} onClick={() => {
+    {isResetModalOpen && activeUser && <div className={`${styles.modalOverlay} active`} onClick={() => {
       setIsResetModalOpen(false);
       setActiveUser(null);
     }}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={() => {
+      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        <button className={styles.modalClose} onClick={() => {
           setIsResetModalOpen(false);
           setActiveUser(null);
         }}>
           &times;
         </button>
-        <div className="modal-header">
-          <h2 className="modal-title">重置用户密码</h2>
-          <p className="modal-subtitle">正在为用户 <strong>{activeUser.email}</strong> 设置新密码</p>
+        <div className={styles.modalHeader}>
+          <h2 className={styles.modalTitle}>重置用户密码</h2>
+          <p className={styles.modalSubtitle}>正在为用户 <strong>{activeUser.email}</strong> 设置新密码</p>
         </div>
 
-        <div className="form-group" style={{ marginBottom: "20px" }}>
-          <label className="form-label">输入新密码 (最少 8 位)</label>
+        <div className={styles.formGroup} style={{ marginBottom: "20px" }}>
+          <label className={styles.formLabel}>输入新密码 (最少 8 位)</label>
           <div style={{ display: "flex", gap: "8px" }}>
             <input
               type="text"
-              className="form-input"
+              className={styles.formInput}
               placeholder="请输入新密码"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
