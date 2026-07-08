@@ -1,12 +1,9 @@
 import { useEffect, useRef } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
 import * as PIXI from "pixi.js";
-import Background from "../../../components/Background";
-import Header from "../../../components/Header";
+import GameLayout from "../../../components/GameLayout";
 
 function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const containerRef = useRef(null);
-  const navigate = useNavigate();
 
 
   useEffect(() => {
@@ -84,85 +81,21 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   }, []);
 
   return (
-    <>
-      <Background />
-      <Header me={me} onLogout={onLogout} onOpenLogin={onOpenLogin} />
-
-      <main
+    <GameLayout title="细胞吞噬" icon="🦠" me={me} onLogout={onLogout} onOpenLogin={onOpenLogin}>
+      {/* 800x600 固定非全屏 Canvas 窗口 */}
+      <div
+        ref={containerRef}
         style={{
-          minHeight: "100vh",
-          position: "relative",
-          padding: "24px",
-          paddingTop: "80px",
-          paddingBottom: "40px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          borderRadius: "16px",
+          overflow: "hidden",
+          border: "2px solid var(--border-light)",
+          background: "#0a0e1e",
+          boxShadow: "inset 0 0 20px rgba(0, 0, 0, 0.8)",
+          width: "800px",
+          height: "600px",
         }}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "var(--bg-panel)",
-            border: "1px solid var(--border-light)",
-            borderRadius: "24px",
-            padding: "24px",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            boxShadow: "var(--shadow-glow), 0 20px 50px rgba(0, 0, 0, 0.35)",
-            animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both",
-          }}
-        >
-          {/* 游戏面板 Header 特征 */}
-          <div
-            style={{
-              width: "100%",
-              maxWidth: "800px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "16px",
-              fontFamily: "var(--font-title)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span style={{ fontSize: "20px" }}>🦠</span>
-              <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
-                细胞吞噬
-              </h2>
-            </div>
-            <button
-              onClick={() => navigate("/")}
-              className="btn btn-ghost"
-              style={{
-                padding: "6px 14px",
-                fontSize: "12px",
-                borderRadius: "8px",
-              }}
-            >
-              返回大厅
-            </button>
-          </div>
-
-          {/* 800x600 固定非全屏 Canvas 窗口 */}
-          <div
-            ref={containerRef}
-            style={{
-              borderRadius: "16px",
-              overflow: "hidden",
-              border: "2px solid var(--border-light)",
-              background: "#0a0e1e",
-              boxShadow: "inset 0 0 20px rgba(0, 0, 0, 0.8)",
-              width: "800px",
-              height: "600px",
-            }}
-          />
-        </div>
-      </main>
-    </>
+      />
+    </GameLayout>
   );
 }
 
