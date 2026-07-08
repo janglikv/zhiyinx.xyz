@@ -1,8 +1,8 @@
-import { useParams, useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import Background from "../../components/Background";
 import Header from "../../components/Header";
 
-// 游戏配置表
+// 统一的游戏配置表
 export const GAMES_CONFIG = {
   tetris: {
     title: "俄罗斯方块",
@@ -54,12 +54,11 @@ export const GAMES_CONFIG = {
   }
 };
 
-function GamePage({ me, onLogout, onOpenLogin }) {
-  const { gameId } = useParams();
+function GamePlaceholder({ gameId, me, onLogout, onOpenLogin }) {
   const navigate = useNavigate();
   const game = GAMES_CONFIG[gameId];
 
-  // 安全检查：如果访问了不存在的游戏，重定向回首页
+  // 安全检查：如果传入了不存在的游戏ID，返回主页
   if (!game) {
     return <Navigate to="/" replace />;
   }
@@ -237,4 +236,4 @@ function GamePage({ me, onLogout, onOpenLogin }) {
   );
 }
 
-export default GamePage;
+export default GamePlaceholder;

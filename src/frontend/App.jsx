@@ -2,7 +2,12 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Main from "./pages/main";
 import ProfilePage from "./pages/profile";
-import GamePage from "./pages/games";
+import CellEaterPage from "./pages/games/cell";
+import TetrisPage from "./pages/games/tetris";
+import FlappyPage from "./pages/games/flappy";
+import TankPage from "./pages/games/tank";
+import SnakePage from "./pages/games/snake";
+import MinesweeperPage from "./pages/games/minesweeper";
 import LoginDialog from "./components/LoginDialog";
 import Background from "./components/Background";
 const AdminPage = lazy(() => import("./pages/admin"));
@@ -107,16 +112,12 @@ function App() {
             />
           }
         />
-        <Route
-          path="/games/:gameId"
-          element={
-            <GamePage
-              me={me}
-              onLogout={handleLogout}
-              onOpenLogin={() => setIsLoginOpen(true)}
-            />
-          }
-        />
+        <Route path="/games/cell" element={<CellEaterPage me={me} onLogout={handleLogout} onOpenLogin={() => setIsLoginOpen(true)} />} />
+        <Route path="/games/tetris" element={<TetrisPage me={me} onLogout={handleLogout} onOpenLogin={() => setIsLoginOpen(true)} />} />
+        <Route path="/games/flappy" element={<FlappyPage me={me} onLogout={handleLogout} onOpenLogin={() => setIsLoginOpen(true)} />} />
+        <Route path="/games/tank" element={<TankPage me={me} onLogout={handleLogout} onOpenLogin={() => setIsLoginOpen(true)} />} />
+        <Route path="/games/snake" element={<SnakePage me={me} onLogout={handleLogout} onOpenLogin={() => setIsLoginOpen(true)} />} />
+        <Route path="/games/minesweeper" element={<MinesweeperPage me={me} onLogout={handleLogout} onOpenLogin={() => setIsLoginOpen(true)} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     )}

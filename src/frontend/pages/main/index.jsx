@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../../components/Background";
 import Header from "../../components/Header";
-import { GAMES_CONFIG } from "../games";
+import { GAMES_CONFIG } from "../../components/GamePlaceholder";
 
 function Main({ me, onLogout, onOpenLogin }) {
   const navigate = useNavigate();
@@ -26,7 +26,6 @@ function Main({ me, onLogout, onOpenLogin }) {
           fontFamily: "var(--font-body)",
         }}
       >
-
         {/* 游戏卡片网格 */}
         <section
           className="container"
@@ -36,6 +35,7 @@ function Main({ me, onLogout, onOpenLogin }) {
             gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
             gap: "24px",
             animation: "fadeInUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both",
+            marginTop: "32px",
           }}
         >
           {Object.entries(GAMES_CONFIG).map(([id, game]) => {
@@ -128,9 +128,8 @@ function Main({ me, onLogout, onOpenLogin }) {
                   {game.description}
                 </p>
 
-                {/* 开始游戏按钮 */}
-                <button
-                  className="btn"
+                {/* 开始游戏按钮 (改为div，消除冒泡/button事件干扰) */}
+                <div
                   style={{
                     width: "100%",
                     background: isHovered ? game.color : "rgba(255, 255, 255, 0.02)",
@@ -142,11 +141,12 @@ function Main({ me, onLogout, onOpenLogin }) {
                     borderRadius: "12px",
                     fontWeight: 600,
                     fontSize: "13px",
+                    textAlign: "center",
                     transition: "all 0.3s ease",
                   }}
                 >
                   进入游戏 →
-                </button>
+                </div>
               </div>
             );
           })}
@@ -157,6 +157,7 @@ function Main({ me, onLogout, onOpenLogin }) {
 }
 
 export { Main as default };
+
 
 
 
