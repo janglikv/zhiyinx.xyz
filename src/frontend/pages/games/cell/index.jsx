@@ -45,15 +45,57 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           tentacleLength: 14,
           color: color,
         });
-        // 6个细胞等距水平排开，左右完美留白对称（x: 120 ~ 680）
-        cell.x = 120 + index * 112;
-        cell.y = app.screen.height / 2;
-        app.stage.addChild(cell);
-        cells.push(cell);
+      // 6个细胞等距水平排开，左右完美留白对称（x: 120 ~ 680）
+      cell.x = 120 + index * 112;
+      cell.y = app.screen.height / 2;
+      app.stage.addChild(cell);
+      cells.push(cell);
+    });
+
+    // 绑定交互事件支持按下拖拽衍生鞭毛
+    let activeCell = null;
+
+    app.stage.eventMode = "static";
+    app.stage.hitArea = app.screen;
+
+    app.stage.on("pointerdown", (event) => {
+      const globalPos = event.global;
+      // 寻找距离最近的细胞
+      let minDistance = Infinity;
+      let nearestCell = null;
+      cells.forEach((cell) => {
+        const dist = Math.hypot(globalPos.x - cell.x, globalPos.y - cell.y);
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearestCell = cell;
+        }
       });
 
-      // 动画时间累加器
-      let time = 0;
+      if (nearestCell) {
+        activeCell = nearestCell;
+        activeCell.setTargetPoint({ x: globalPos.x, y: globalPos.y });
+      }
+    });
+
+    app.stage.on("pointermove", (event) => {
+      if (activeCell) {
+        const globalPos = event.global;
+        activeCell.setTargetPoint({ x: globalPos.x, y: globalPos.y });
+      }
+    });
+
+    const handlePointerUp = () => {
+      if (activeCell) {
+        activeCell.clearTargetPoint();
+        activeCell = null;
+      }
+    };
+
+    app.stage.on("pointerup", handlePointerUp);
+    app.stage.on("pointerupoutside", handlePointerUp);
+
+    // 动画时间累加器
+    let time = 0;
 
       app.ticker.add((ticker) => {
         time += ticker.deltaTime * 0.05;

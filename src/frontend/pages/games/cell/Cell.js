@@ -141,24 +141,67 @@ export class Cell extends PIXI.Container {
     this.cellWallGraphics.stroke({ color: this.wallColor, width: this.wallThickness, alpha: 0.22 });
     this.cellWallGraphics.fill({ color: this.wallColor, alpha: 0.02 });
 
-    // 3. 绘制半透明鞭毛 (小振幅温和蠕动)
+    // 3. 处理母细胞旋转
+    if (this.targetPoint && this.targetTentacleIndex !== undefined && this.targetTentacleIndex !== null) {
+      const localTarget = this.toLocal(this.targetPoint);
+      // 目标点在当前细胞坐标系中的绝对弧度
+      const targetAngleLocal = Math.atan2(localTarget.y, localTarget.x);
+      
+      // 当前锁定鞭毛的本地基础角度
+      const baseAngle = (this.targetTentacleIndex * 2 * Math.PI) / this.numTentacles;
+      
+      // 想要让锁定鞭毛对准目标方向，细胞容器需要旋转：角度差 = 目标方向 - 鞭毛基础角度
+      // 通过插值平滑旋转
+      let angleDiff = targetAngleLocal - baseAngle;
+      angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff)); // 限制在 [-PI, PI]
+      this.rotation += angleDiff * 0.15;
+    }
+
+    // 4. 绘制半透明鞭毛
     this.tentacleGraphics.clear();
+
+    const targetIndex = (this.targetPoint && this.targetTentacleIndex !== null) ? this.targetTentacleIndex : -1;
+
     for (let i = 0; i < this.numTentacles; i++) {
       const baseAngle = (i * 2 * Math.PI) / this.numTentacles;
-      
       const flagellaStartRadius = this.radius + 6;
       let lastX = Math.cos(baseAngle) * flagellaStartRadius;
       let lastY = Math.sin(baseAngle) * flagellaStartRadius;
 
       const segments = 18;
+      const isTarget = i === targetIndex;
+
+      // 如果是目标鞭毛，计算根部到本地目标点的总长度
+      let targetLength = this.tentacleLength;
+      if (isTarget && this.targetPoint) {
+        const localTarget = this.toLocal(this.targetPoint);
+        const dx = localTarget.x - lastX;
+        const dy = localTarget.y - lastY;
+        targetLength = Math.hypot(dx, dy);
+      }
+
+      // 我们可以在 Cell 实例上为每根鞭毛记录一个当前的伸展状态，以实现平滑的过渡
+      if (!this.tentacleStates) {
+        this.tentacleStates = Array.from({ length: this.numTentacles }, () => ({
+          currentLength: this.tentacleLength,
+        }));
+      }
+
+      const state = this.tentacleStates[i];
+
+      // 状态平滑过渡 (Lerp)
+      const lerpSpeed = 0.15;
+      state.currentLength += (targetLength - state.currentLength) * lerpSpeed;
+
       for (let j = 0; j < segments; j++) {
         const ratio = j / segments;
 
-        const amplitude = 0.08 * ratio;
+        // 自然的蠕动幅度，如果正在被拖拽，则减少蠕动的抖动
+        const amplitude = 0.08 * ratio * (isTarget ? 0.2 : 1.0);
         const wave = Math.sin(time * 1.2 - ratio * 4.0 + i * 1.3) * amplitude;
         
         const angle = baseAngle + wave;
-        const dist = flagellaStartRadius + this.tentacleLength * ratio;
+        const dist = flagellaStartRadius + state.currentLength * ratio;
         const x = Math.cos(angle) * dist;
         const y = Math.sin(angle) * dist;
 
@@ -168,16 +211,59 @@ export class Cell extends PIXI.Container {
 
         this.tentacleGraphics.moveTo(lastX, lastY);
         this.tentacleGraphics.lineTo(x, y);
-        this.tentacleGraphics.stroke({ color, width: thickness, alpha });
+        this.tentacleGraphics.stroke({ color, width: thickness, alpha: Math.min(alpha, 1.0) });
 
         if (j === segments - 1) {
-          this.tentacleGraphics.circle(x, y, 0.2);
-          this.tentacleGraphics.fill({ color: this.tentacleColor, alpha: 0.4 });
+          // 去除圆点，改为向左右分叉绘制两个分支
+          const forkLength = isTarget ? 12.0 : 8.0; // 增长分叉
+          const forkAngle = 0.85; // 扩大角度约50度
+          
+          // 左分叉
+          const leftAngle = angle + forkAngle;
+          const leftX = x + Math.cos(leftAngle) * forkLength;
+          const leftY = y + Math.sin(leftAngle) * forkLength;
+          this.tentacleGraphics.moveTo(x, y);
+          this.tentacleGraphics.lineTo(leftX, leftY);
+          this.tentacleGraphics.stroke({ color, width: thickness, alpha: Math.min(alpha, 1.0) });
+          // 右分叉
+          const rightAngle = angle - forkAngle;
+          const rightX = x + Math.cos(rightAngle) * forkLength;
+          const rightY = y + Math.sin(rightAngle) * forkLength;
+          this.tentacleGraphics.moveTo(x, y);
+          this.tentacleGraphics.lineTo(rightX, rightY);
+          this.tentacleGraphics.stroke({ color, width: thickness, alpha: Math.min(alpha, 1.0) });
         }
 
         lastX = x;
         lastY = y;
       }
     }
+  }
+
+  setTargetPoint(point) {
+    this.targetPoint = point;
+    // 首次按下拖拽时锁死最近的鞭毛
+    if (this.targetTentacleIndex === undefined || this.targetTentacleIndex === null) {
+      const localTarget = this.toLocal(point);
+      let minDist = Infinity;
+      let targetIndex = 0;
+      for (let i = 0; i < this.numTentacles; i++) {
+        const baseAngle = (i * 2 * Math.PI) / this.numTentacles;
+        const flagellaStartRadius = this.radius + 6;
+        const rootX = Math.cos(baseAngle) * flagellaStartRadius;
+        const rootY = Math.sin(baseAngle) * flagellaStartRadius;
+        const dist = Math.hypot(localTarget.x - rootX, localTarget.y - rootY);
+        if (dist < minDist) {
+          minDist = dist;
+          targetIndex = i;
+        }
+      }
+      this.targetTentacleIndex = targetIndex;
+    }
+  }
+
+  clearTargetPoint() {
+    this.targetPoint = null;
+    this.targetTentacleIndex = null;
   }
 }
