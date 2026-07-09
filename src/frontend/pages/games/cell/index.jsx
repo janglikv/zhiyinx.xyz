@@ -117,7 +117,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           if (activeTip) {
             let nearestMatch = null;
             let minDist = Infinity;
-            const connectThreshold = 50; // 检测是否有靠近的鞭毛终端
+            const connectThreshold = 25; // 缩小检测范围，减少误判定，仅当十分贴近时触发连接
 
             cells.forEach(otherCell => {
               if (otherCell === activeCell) return;
