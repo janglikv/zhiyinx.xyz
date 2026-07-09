@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import * as PIXI from "pixi.js";
 import GameLayout from "../../../components/GameLayout";
+import { Cell } from "./Cell";
 
 function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const containerRef = useRef(null);
-
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -35,32 +35,30 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
       containerRef.current.appendChild(app.canvas);
 
-      const style = new PIXI.TextStyle({
-        fontFamily: "Outfit, Arial, sans-serif",
-        fontSize: 24,
-        fontWeight: "bold",
-        fill: "#ffffff",
-        stroke: {
-          color: "#6366f1",
-          width: 4,
-        },
-        dropShadow: {
-          color: "#000000",
-          blur: 4,
-          angle: Math.PI / 6,
-          distance: 6,
-        },
+      const cells = [];
+      const colors = ["white", "green", "blue", "purple", "orange", "red"];
+
+      colors.forEach((color, index) => {
+        const cell = new Cell({
+          radius: 12,
+          numTentacles: 8,
+          tentacleLength: 14,
+          color: color,
+        });
+        // 6个细胞等距水平排开，左右完美留白对称（x: 120 ~ 680）
+        cell.x = 120 + index * 112;
+        cell.y = app.screen.height / 2;
+        app.stage.addChild(cell);
+        cells.push(cell);
       });
 
-      const text = new PIXI.Text({
-        text: "细胞吞噬 · PixiJS 渲染引擎已启动 🦠",
-        style,
-      });
-      text.anchor.set(0.5);
-      text.x = app.screen.width / 2;
-      text.y = app.screen.height / 2;
+      // 动画时间累加器
+      let time = 0;
 
-      app.stage.addChild(text);
+      app.ticker.add((ticker) => {
+        time += ticker.deltaTime * 0.05;
+        cells.forEach((cell) => cell.update(time));
+      });
     }
 
     initPixi().catch((err) => {
