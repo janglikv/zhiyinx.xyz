@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as PIXI from "pixi.js";
 import GameLayout from "../../../components/GameLayout";
 import { createCellDrawers } from "./cellGraphics";
-import { drawConnection } from "./connectionGraphics";
+import { drawConnection, drawDetachedBurst } from "./connectionGraphics";
 import {
   AUTO_GROWTH_INTERVAL,
   BEAD_SPACING,
@@ -63,6 +63,7 @@ function mountCellGame(container, level, onGameEnd) {
       const animatedParts = [];
       const cells = [];
       const connections = [];
+      const detachedBursts = [];
       // 输送速度是自增的两倍，因此逻辑帧间隔取自增间隔的一半。
       const logicInterval = AUTO_GROWTH_INTERVAL / 2;
       let logicAccumulator = 0;
@@ -71,18 +72,27 @@ function mountCellGame(container, level, onGameEnd) {
       let hoveredCell = null;
       let previewRoute = null;
       let previewTarget = null;
+      const queuedConnections = [];
       let slashActive = false;
       let slashPoints = [];
       let slashFade = 0;
       let aiAccumulator = 0;
       let gameResult = null;
 
+      function retractConnection(connection) {
+        if (connection.retracting) return;
+        connection.retracting = true;
+        connection.source.refundEnergy(connection.energyPackets.length);
+        connection.energyPackets = [];
+      }
+
       function finishSlash() {
         slashActive = false;
         slashFade = 1;
         connections.forEach((connection) => {
-          if (connection.retracting || connection.progress === 0) return;
+          if (connection.ownerTeam !== "green" || connection.retracting || connection.progress === 0) return;
           let hit = false;
+          let cutRatio = 0;
           let previousPathPoint = getPathPoint(connection, 0);
           const pathSteps = Math.max(2, Math.ceil(48 * connection.progress));
 
@@ -96,6 +106,7 @@ function mountCellGame(container, level, onGameEnd) {
                 || pointToSegmentDistance(slashEnd, previousPathPoint, pathPoint) < 6
               ) {
                 hit = true;
+                cutRatio = (pathIndex / pathSteps) * connection.progress;
                 break;
               }
             }
@@ -103,11 +114,72 @@ function mountCellGame(container, level, onGameEnd) {
           }
 
           if (hit) {
-            connection.retracting = true;
-            connection.source.refundEnergy(connection.energyPackets.length);
+            const pathLength = Math.hypot(
+              connection.endX - connection.startX,
+              connection.endY - connection.startY,
+            );
+            const proximalBeads = Math.min(
+              connection.grownBeads,
+              Math.floor((pathLength * cutRatio) / BEAD_SPACING) + 1,
+            );
+            const burstPackets = [];
+            const distalBeads = connection.grownBeads - proximalBeads;
+            for (let index = 0; index < distalBeads; index += 1) {
+              const distance = Math.max(pathLength * cutRatio, pathLength * connection.progress - index * BEAD_SPACING);
+              burstPackets.push({
+                ratio: distance / pathLength,
+                source: connection.source,
+                team: connection.source.team,
+                colors: { ...connection.source.colors },
+              });
+            }
+            connection.energyPackets.forEach((packet) => {
+              const ratio = packet.distance / pathLength;
+              if (ratio >= cutRatio) burstPackets.push({ ...packet, ratio });
+              else packet.source.refundEnergy(1);
+            });
             connection.energyPackets = [];
+
+            if (burstPackets.length > 0) {
+              const burst = {
+                graphics: new PIXI.Graphics(),
+                target: connection.target,
+                pathLength,
+                packets: burstPackets,
+                getPoint: (ratio) => getPathPoint(connection, ratio),
+              };
+              detachedBursts.push(burst);
+              connectionLayer.addChild(burst.graphics);
+            }
+
+            // 切点前的珠链按原收回动画返还，切点后的珠链脱离后继续进攻。
+            connection.progress = cutRatio;
+            connection.grownBeads = proximalBeads;
+            connection.refundedBeads = 0;
+            connection.retracting = true;
           }
         });
+        for (let queueIndex = queuedConnections.length - 1; queueIndex >= 0; queueIndex -= 1) {
+          const queued = queuedConnections[queueIndex];
+          let hit = false;
+          let previousPathPoint = getPathPoint(queued.route, 0);
+          for (let pathIndex = 1; pathIndex <= 48 && !hit; pathIndex += 1) {
+            const pathPoint = getPathPoint(queued.route, pathIndex / 48);
+            for (let slashIndex = 1; slashIndex < slashPoints.length; slashIndex += 1) {
+              if (
+                pointToSegmentDistance(pathPoint, slashPoints[slashIndex - 1], slashPoints[slashIndex]) < 6
+                || pointToSegmentDistance(slashPoints[slashIndex], previousPathPoint, pathPoint) < 6
+              ) {
+                hit = true;
+                break;
+              }
+            }
+            previousPathPoint = pathPoint;
+          }
+          if (!hit) continue;
+          queued.graphics.destroy();
+          queuedConnections.splice(queueIndex, 1);
+        }
       }
 
       function clearConnectionPreview() {
@@ -227,6 +299,7 @@ function mountCellGame(container, level, onGameEnd) {
           graphics: new PIXI.Graphics(),
           source,
           target,
+          ownerTeam: source.team,
           progress: 0,
           requiredBeads: Math.floor(pathLength / BEAD_SPACING) + 1,
           grownBeads: 0,
@@ -434,6 +507,7 @@ function mountCellGame(container, level, onGameEnd) {
 
         cell.on("pointerdown", (event) => {
           if (gameResult || cellData.team !== "green") return;
+          clearConnectionPreview();
           pressedCell = cellData;
           selection.visible = true;
           drawConnectionPreview(event.global.x, event.global.y);
@@ -452,7 +526,28 @@ function mountCellGame(container, level, onGameEnd) {
         });
         cell.on("pointerup", () => {
           if (pressedCell?.team === "green" && pressedCell !== cellData) {
-            startConnection(pressedCell, cellData);
+            const route = previewRoute ? { ...previewRoute } : chooseRoute(pressedCell, cellData);
+            if (route) {
+              const pathLength = Math.hypot(route.endX - route.startX, route.endY - route.startY);
+              const requiredBeads = Math.floor(pathLength / BEAD_SPACING) + 1;
+              if (pressedCell.value >= requiredBeads) {
+                startConnection(pressedCell, cellData, route);
+              } else {
+                // 能量不足时锁定本次操作，达到预瞄造价后自动执行。
+                const queued = {
+                  graphics: new PIXI.Graphics(),
+                  source: pressedCell,
+                  target: cellData,
+                  route,
+                  requiredBeads,
+                };
+                queuedConnections.push(queued);
+                connectionLayer.addChild(queued.graphics);
+                drawConnectionPreviewGraphics(
+                  queued.graphics, pressedCell, route, true, requiredBeads,
+                );
+              }
+            }
           }
           clearConnectionPreview();
         });
@@ -504,12 +599,9 @@ function mountCellGame(container, level, onGameEnd) {
             cell.changeValue(refund);
           }
 
-          const isBuildingConnection = connections.some((connection) => (
-            connection.source === cell
-            && !connection.retracting
-            && connection.progress < 1
-          ));
-          if (cell.autoGrow && !isBuildingConnection && logicTick % 2 === 0 && cell.value < MAX_ENERGY) {
+          const outgoingConnections = connections.filter((connection) => connection.source === cell);
+          // 输出触手会占用细胞全部生产能力，完全收回后才恢复自增。
+          if (cell.autoGrow && outgoingConnections.length === 0 && logicTick % 2 === 0 && cell.value < MAX_ENERGY) {
             cell.changeValue(1);
           }
 
@@ -523,10 +615,7 @@ function mountCellGame(container, level, onGameEnd) {
           if (!cell.defendingRetreat && cell.value < 1 && hostileIncoming && outgoing.length > 0) {
             cell.defendingRetreat = true;
             outgoing.forEach((connection) => {
-              if (connection.retracting) return;
-              connection.retracting = true;
-              connection.source.refundEnergy(connection.energyPackets.length);
-              connection.energyPackets = [];
+              retractConnection(connection);
             });
           }
           // 零能量时先完整收回触手，返还的珠链能量可用于抵消正在抵达的攻击。
@@ -573,7 +662,10 @@ function mountCellGame(container, level, onGameEnd) {
             && connection.progress === 1
             && (connection.target.team !== cell.team || connection.target.value < MAX_ENERGY)
           ));
-          if (outgoing.length === 0 || cell.value < 1) return;
+          if (outgoing.length === 0) return;
+
+          const redirectedGrowth = logicTick % 2 === 0;
+          if (!redirectedGrowth && cell.value < 1) return;
 
           const connection = outgoing[cell.sendCursor % outgoing.length];
           cell.sendCursor += 1;
@@ -583,7 +675,8 @@ function mountCellGame(container, level, onGameEnd) {
             team: cell.team,
             colors: { ...cell.colors },
           });
-          cell.changeValue(-1);
+          // 有输出触手时，自增能量直接进入触手；另一半输送速度才消耗细胞储备。
+          if (!redirectedGrowth) cell.changeValue(-1);
         });
       }
 
@@ -595,6 +688,17 @@ function mountCellGame(container, level, onGameEnd) {
           aiAccumulator += ticker.deltaMS;
           if (aiAccumulator >= level.ai.thinkInterval) {
             aiAccumulator = 0;
+            // 已完成占领的支援线不再长期占用 AI 来源细胞的自增能力。
+            connections.forEach((connection) => {
+              if (
+                connection.source.team === "red"
+                && connection.target.team === "red"
+                && connection.progress === 1
+                && connection.target.value >= level.ai.reserveEnergy
+              ) {
+                retractConnection(connection);
+              }
+            });
             const move = chooseAiMove(cells, connections, chooseRoute, level.ai);
             if (move) startConnection(move.source, move.target, move.route);
           }
@@ -619,6 +723,37 @@ function mountCellGame(container, level, onGameEnd) {
         while (logicAccumulator >= logicInterval) {
           logicAccumulator -= logicInterval;
           runLogicTick();
+        }
+
+        for (let index = 0; index < queuedConnections.length; index += 1) {
+          const queued = queuedConnections[index];
+          const { source, target, route, requiredBeads } = queued;
+          if (source.team !== "green") {
+            queued.graphics.destroy();
+            queuedConnections.splice(index, 1);
+            index -= 1;
+            continue;
+          }
+
+          route.startX = source.x + Math.cos(route.sourcePortAngle) * source.radius;
+          route.startY = source.y + Math.sin(route.sourcePortAngle) * source.radius;
+          route.endX = target.x - Math.cos(route.targetPortAngle) * target.radius;
+          route.endY = target.y - Math.sin(route.targetPortAngle) * target.radius;
+          const committedEnergy = connections.reduce((total, connection) => (
+            connection.source === source && !connection.retracting && connection.progress < 1
+              ? total + connection.requiredBeads - connection.grownBeads
+              : total
+          ), 0);
+          const availableEnergy = Math.max(0, source.value - committedEnergy);
+          drawConnectionPreviewGraphics(
+            queued.graphics, source, route, true, requiredBeads, availableEnergy,
+          );
+          if (availableEnergy < requiredBeads) continue;
+
+          startConnection(source, target, route);
+          queued.graphics.destroy();
+          queuedConnections.splice(index, 1);
+          index -= 1;
         }
 
         connections.forEach((connection) => {
@@ -655,9 +790,7 @@ function mountCellGame(container, level, onGameEnd) {
 
             // 刚好耗尽能量但珠链已经足够时仍可继续伸到终点。
             if (connection.source.value < 1 && connection.grownBeads < connection.requiredBeads) {
-              connection.retracting = true;
-              connection.source.refundEnergy(connection.energyPackets.length);
-              connection.energyPackets = [];
+              retractConnection(connection);
             }
 
             // 未支付下一颗小细胞的能量前，触手只能前进到已生成珠链的末端。
@@ -680,6 +813,22 @@ function mountCellGame(container, level, onGameEnd) {
           syncConnectionEndpoints(connection);
           drawConnection(connection);
         });
+        for (let index = detachedBursts.length - 1; index >= 0; index -= 1) {
+          const burst = detachedBursts[index];
+          const ratioStep = ((ticker.deltaMS / 90) * BEAD_SPACING) / burst.pathLength;
+          burst.packets.forEach((packet) => { packet.ratio += ratioStep; });
+          burst.packets = burst.packets.filter((packet) => {
+            if (packet.ratio < 1) return true;
+            burst.target.pendingIncoming.push(packet);
+            return false;
+          });
+          if (burst.packets.length > 0) {
+            drawDetachedBurst(burst);
+          } else {
+            burst.graphics.destroy();
+            detachedBursts.splice(index, 1);
+          }
+        }
         if (pressedCell && previewRoute) {
           // 路径保持不变时只重绘状态，使能量分段无需移动指针也能实时更新。
           previewRoute.startX = pressedCell.x
@@ -690,7 +839,12 @@ function mountCellGame(container, level, onGameEnd) {
             - Math.cos(previewRoute.targetPortAngle) * previewTarget.radius;
           previewRoute.endY = previewTarget.y
             - Math.sin(previewRoute.targetPortAngle) * previewTarget.radius;
-          drawConnectionPreviewGraphics(previewGraphics, pressedCell, previewRoute, Boolean(hoveredCell));
+          drawConnectionPreviewGraphics(
+            previewGraphics,
+            pressedCell,
+            previewRoute,
+            Boolean(hoveredCell),
+          );
         }
         for (let index = connections.length - 1; index >= 0; index -= 1) {
           if (!connections[index].retracting || connections[index].progress > 0) continue;
@@ -703,10 +857,13 @@ function mountCellGame(container, level, onGameEnd) {
             || cells.some((cell) => cell.pendingIncoming.some((packet) => packet.team === team))
             || connections.some((connection) => (
               connection.energyPackets.some((packet) => packet.team === team)
-            ));
+            ))
+            || detachedBursts.some((burst) => burst.packets.some((packet) => packet.team === team));
           if (!hasTeamEnergy("red")) gameResult = "win";
           if (!hasTeamEnergy("green")) gameResult = "lose";
           if (gameResult) {
+            queuedConnections.forEach((queued) => queued.graphics.destroy());
+            queuedConnections.length = 0;
             clearConnectionPreview();
             onGameEnd(gameResult);
           }

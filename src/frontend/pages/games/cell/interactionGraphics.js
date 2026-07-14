@@ -12,12 +12,19 @@ export function drawSlashTrail(graphics, points) {
   }
 }
 
-export function drawConnectionPreview(graphics, source, route, hasCellTarget) {
+export function drawConnectionPreview(
+  graphics,
+  source,
+  route,
+  hasCellTarget,
+  lockedBeadCount = null,
+  availableEnergy = source?.value,
+) {
   graphics.clear();
   if (!source || !route) return;
   const previewLength = Math.hypot(route.endX - route.startX, route.endY - route.startY);
-  const beadCount = Math.floor(previewLength / BEAD_SPACING) + 1;
-  const affordableBeads = Math.floor(source.value);
+  const beadCount = lockedBeadCount ?? Math.floor(previewLength / BEAD_SPACING) + 1;
+  const affordableBeads = Math.floor(availableEnergy);
   const hasEnoughEnergy = hasCellTarget && affordableBeads >= beadCount;
 
   for (let index = 0; index < beadCount; index += 1) {

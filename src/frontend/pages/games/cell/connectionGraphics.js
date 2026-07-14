@@ -54,3 +54,18 @@ export function drawConnection(connection) {
       .circle(x - 0.45, y - 0.5, 0.58).fill({ color: 0xffffff, alpha: 0.95 });
   });
 }
+
+export function drawDetachedBurst(burst) {
+  burst.graphics.clear();
+  burst.packets.forEach((packet, index) => {
+    const point = burst.getPoint(packet.ratio);
+    const radius = index === 0 ? 3 : 2.5;
+    burst.graphics
+      .circle(point.x + 0.6, point.y + 0.7, radius + 1)
+      .fill({ color: packet.colors.dark, alpha: 0.9 })
+      .circle(point.x, point.y, radius)
+      .fill({ color: packet.colors.main })
+      .circle(point.x - 0.7, point.y - 0.8, radius * 0.35)
+      .fill({ color: 0xffffff, alpha: 0.4 });
+  });
+}
