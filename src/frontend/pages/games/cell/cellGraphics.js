@@ -22,6 +22,13 @@ export function createCellDrawers(colors) {
       .circle(-0.6, -0.8, radius * 0.48).fill({ color: colors.highlight, alpha: 0.75 });
   }
 
+  function drawFlagellum(graphics, length) {
+    graphics.clear()
+      .moveTo(-1, 0)
+      .lineTo(length, 0)
+      .stroke({ color: colors.highlight, width: 1.25, alpha: 0.76 });
+  }
+
   function drawPore(graphics, radius) {
     graphics.clear()
       .circle(0.3, 0.5, radius + 0.7).fill({ color: colors.poreRing, alpha: 0.85 })
@@ -63,5 +70,5 @@ export function createCellDrawers(colors) {
       .circle(0, 0, radius).stroke({ color: 0xffffff, width: target ? 2.2 : 1.8, alpha: target ? 1 : 0.95 });
   }
 
-  return { drawShadow, drawBody, drawBump, drawPore, drawCenter, drawSheen, drawHint };
+  return { drawShadow, drawBody, drawBump, drawFlagellum, drawPore, drawCenter, drawSheen, drawHint };
 }

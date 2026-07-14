@@ -7,8 +7,13 @@ import {
   AUTO_GROWTH_INTERVAL,
   BEAD_SPACING,
   CUT_ATTACK_SPEED_MULTIPLIER,
+  CUT_FULL_LOSS_DISTANCE,
+  CUT_MAX_LOSS_RATE,
+  CUT_MIN_LOSS_RATE,
   GAME_HEIGHT,
   GAME_WIDTH,
+  LARGE_CELL_GROWTH_MULTIPLIER,
+  LARGE_CELL_THRESHOLD,
   MAX_ENERGY,
 } from "./gameConfig";
 import { chooseAiMove } from "./aiController";
@@ -141,12 +146,24 @@ function mountCellGame(container, level, onGameEnd) {
             });
             connection.energyPackets = [];
 
-            if (burstPackets.length > 0) {
+            const lossRate = Math.max(
+              CUT_MIN_LOSS_RATE,
+              Math.min(CUT_MAX_LOSS_RATE, pathLength / CUT_FULL_LOSS_DISTANCE),
+            );
+            const originalBurstCount = burstPackets.length;
+            const survivingCount = Math.floor(originalBurstCount * (1 - lossRate));
+            // 均匀移除损耗珠节，避免损耗集中在进攻队列的头部或尾部。
+            const survivingPackets = burstPackets.filter((_, index) => (
+              Math.floor(((index + 1) * survivingCount) / originalBurstCount)
+              > Math.floor((index * survivingCount) / originalBurstCount)
+            ));
+
+            if (survivingPackets.length > 0) {
               const burst = {
                 graphics: new PIXI.Graphics(),
                 target: connection.target,
                 pathLength,
-                packets: burstPackets,
+                packets: survivingPackets,
                 getPoint: (ratio) => getPathPoint(connection, ratio),
               };
               detachedBursts.push(burst);
@@ -322,7 +339,7 @@ function mountCellGame(container, level, onGameEnd) {
         const bumpCount = Math.round((Math.PI * 2 * detailRadius) / 8);
         const poreCount = Math.max(2, Math.round((detailRadius ** 2 - 9 ** 2) / 55));
         const {
-          drawShadow, drawBody, drawBump, drawPore, drawCenter, drawSheen, drawHint,
+          drawShadow, drawBody, drawBump, drawFlagellum, drawPore, drawCenter, drawSheen, drawHint,
         } = createCellDrawers(colors);
 
         const cell = new PIXI.Container();
@@ -336,10 +353,21 @@ function mountCellGame(container, level, onGameEnd) {
         shadow.filters = [new PIXI.BlurFilter({ strength: 4 })];
 
         const membrane = new PIXI.Container();
+        const flagella = new PIXI.Container();
+        const flagellumSprites = [];
         const bumpSprites = [];
         const bumpAngleOffset = Math.random() * Math.PI * 2;
         const bumpOrder = [];
         const poreOrder = [];
+        for (let index = 0; index < 12; index += 1) {
+          const angle = bumpAngleOffset + (index / 12) * Math.PI * 2;
+          const length = 10 + (index % 3) * 2.5;
+          const flagellum = new PIXI.Graphics();
+          drawFlagellum(flagellum, length);
+          flagellum.visible = false;
+          flagella.addChild(flagellum);
+          flagellumSprites.push({ flagellum, angle, length, phase: index * 0.91, appearance: 0, targetVisible: false });
+        }
         // 不规则的膜突起是参考图中最明显的轮廓特征。
         for (let index = 0; index < bumpCount; index += 1) {
           // 黄金角让新增位置看起来随机，同时避免大量凸起挤在同一区域。
@@ -401,10 +429,11 @@ function mountCellGame(container, level, onGameEnd) {
         drawHint(targetHint, cellRadius, true);
         targetHint.visible = false;
 
-        cell.addChild(shadow, membrane, body, sheen, pores, center, value, selection, targetHint);
+        cell.addChild(shadow, flagella, membrane, body, sheen, pores, center, value, selection, targetHint);
         app.stage.addChild(cell);
         const animatedPart = {
           bumpSprites,
+          flagellumSprites,
           poreSprites,
           sheenShape,
           sheenRange: cellRadius * 0.35,
@@ -425,6 +454,9 @@ function mountCellGame(container, level, onGameEnd) {
           animatedPart.radius = radius;
           const radiusAtDetailLimit = 14 + Math.sqrt(60) * 1.6;
           animatedPart.detailScale = currentValue > 60 ? radius / radiusAtDetailLimit : 1;
+          flagellumSprites.forEach((item) => {
+            item.targetVisible = !isEmpty && currentValue > LARGE_CELL_THRESHOLD;
+          });
           cell.hitArea = new PIXI.Circle(0, 0, Math.max(20, radius + 5));
           value.text = String(Math.floor(currentValue));
           value.visible = !isEmpty;
@@ -473,6 +505,7 @@ function mountCellGame(container, level, onGameEnd) {
           Object.assign(colors, capturingColors);
 
           bumpSprites.forEach(({ bump, radius }) => drawBump(bump, radius));
+          flagellumSprites.forEach(({ flagellum, length }) => drawFlagellum(flagellum, length));
           poreSprites.forEach(({ pore, radius }) => drawPore(pore, radius));
           drawCenter(center, isEmpty);
           drawSheen(sheenShape, cellData.radius);
@@ -603,7 +636,8 @@ function mountCellGame(container, level, onGameEnd) {
           const outgoingConnections = connections.filter((connection) => connection.source === cell);
           // 输出触手会占用细胞全部生产能力，完全收回后才恢复自增。
           if (cell.autoGrow && outgoingConnections.length === 0 && logicTick % 2 === 0 && cell.value < MAX_ENERGY) {
-            cell.changeValue(1);
+            const growth = cell.value > LARGE_CELL_THRESHOLD ? LARGE_CELL_GROWTH_MULTIPLIER : 1;
+            cell.changeValue(growth);
           }
 
           if (cell.pendingIncoming.length === 0) return;
@@ -612,15 +646,16 @@ function mountCellGame(container, level, onGameEnd) {
           const outgoing = connections.filter((connection) => (
             connection.source === cell && connection.progress > 0
           ));
+          const retractableOutgoing = outgoing.filter((connection) => !connection.retracting);
 
-          if (!cell.defendingRetreat && cell.value < 1 && hostileIncoming && outgoing.length > 0) {
+          if (!cell.defendingRetreat && cell.value < 1 && hostileIncoming && retractableOutgoing.length > 0) {
             cell.defendingRetreat = true;
-            outgoing.forEach((connection) => {
+            retractableOutgoing.forEach((connection) => {
               retractConnection(connection);
             });
+            // 只留一个逻辑帧让触手开始返还，不能在完整撤回期间免疫已经抵达的攻击。
+            return;
           }
-          // 零能量时先完整收回触手，返还的珠链能量可用于抵消正在抵达的攻击。
-          if (cell.defendingRetreat && outgoing.length > 0) return;
           cell.defendingRetreat = false;
 
           const incoming = cell.pendingIncoming.splice(0);
@@ -639,7 +674,7 @@ function mountCellGame(container, level, onGameEnd) {
           const friendly = cell.team === "green" ? greenIncoming : redIncoming;
           const hostile = cell.team === "green" ? redIncoming : greenIncoming;
           const balance = cell.value + friendly.length - hostile.length;
-          if (balance >= 0 || hostile.length === 0) {
+          if (balance > 0 || hostile.length === 0) {
             const nextValue = Math.min(MAX_ENERGY, balance);
             const overflow = Math.max(0, balance - MAX_ENERGY);
             if (overflow > 0) {
@@ -647,6 +682,13 @@ function mountCellGame(container, level, onGameEnd) {
             }
             cell.value = nextValue;
             cell.render(nextValue);
+            return;
+          }
+
+          if (balance === 0) {
+            // 攻防完全抵消时原阵营失去控制，避免 0 能量细胞永久形成动态平衡。
+            cell.value = 0;
+            cell.neutralize();
             return;
           }
 
@@ -666,18 +708,23 @@ function mountCellGame(container, level, onGameEnd) {
           if (outgoing.length === 0) return;
 
           const redirectedGrowth = logicTick % 2 === 0;
-          if (!redirectedGrowth && cell.value < 1) return;
+          const freePackets = redirectedGrowth ? 1 : 0;
+          const paidPackets = Math.min(1 - freePackets, Math.floor(cell.value));
+          const packetCount = freePackets + paidPackets;
+          if (packetCount === 0) return;
 
-          const connection = outgoing[cell.sendCursor % outgoing.length];
-          cell.sendCursor += 1;
-          connection.energyPackets.push({
-            distance: 0,
-            source: cell,
-            team: cell.team,
-            colors: { ...cell.colors },
-          });
-          // 有输出触手时，自增能量直接进入触手；另一半输送速度才消耗细胞储备。
-          if (!redirectedGrowth) cell.changeValue(-1);
+          for (let index = 0; index < packetCount; index += 1) {
+            const connection = outgoing[cell.sendCursor % outgoing.length];
+            cell.sendCursor += 1;
+            connection.energyPackets.push({
+              distance: 0,
+              source: cell,
+              team: cell.team,
+              colors: { ...cell.colors },
+            });
+          }
+          // 触手输送固定为自增基础速度的两倍，不受细胞大小影响。
+          if (paidPackets > 0) cell.changeValue(-paidPackets);
         });
       }
 
@@ -874,7 +921,22 @@ function mountCellGame(container, level, onGameEnd) {
         }
 
         // 各突起错开摆动，避免整圈同步产生机械式呼吸感。
-        animatedParts.forEach(({ bumpSprites, poreSprites, sheenShape, sheenRange, radius, detailScale }, cellIndex) => {
+        animatedParts.forEach(({
+          bumpSprites, flagellumSprites, poreSprites, sheenShape, sheenRange, radius, detailScale,
+        }, cellIndex) => {
+          flagellumSprites.forEach((item) => {
+            const target = item.targetVisible ? 1 : 0;
+            item.appearance += (target - item.appearance) * Math.min(1, ticker.deltaMS / 260);
+            const sway = Math.sin(elapsed * 0.035 + item.phase + cellIndex) * 0.13;
+            item.flagellum.position.set(
+              Math.cos(item.angle) * (radius - 1),
+              Math.sin(item.angle) * (radius - 1),
+            );
+            item.flagellum.rotation = item.angle + sway;
+            item.flagellum.visible = item.appearance > 0.01;
+            item.flagellum.alpha = item.appearance;
+            item.flagellum.scale.set(item.appearance * detailScale);
+          });
           bumpSprites.forEach((item) => {
             const angleDelta = Math.atan2(
               Math.sin(item.targetAngle - item.angle),

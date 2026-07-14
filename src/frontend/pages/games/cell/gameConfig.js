@@ -2,6 +2,11 @@ export const AUTO_GROWTH_INTERVAL = 1000;
 export const MAX_ENERGY = 99;
 export const BEAD_SPACING = 6;
 export const CUT_ATTACK_SPEED_MULTIPLIER = 2;
+export const CUT_MIN_LOSS_RATE = 0.25;
+export const CUT_MAX_LOSS_RATE = 0.6;
+export const CUT_FULL_LOSS_DISTANCE = 800;
+export const LARGE_CELL_THRESHOLD = 50;
+export const LARGE_CELL_GROWTH_MULTIPLIER = 2;
 export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 540;
 
