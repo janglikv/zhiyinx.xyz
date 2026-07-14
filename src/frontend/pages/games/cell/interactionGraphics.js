@@ -12,12 +12,13 @@ export function drawSlashTrail(graphics, points) {
   }
 }
 
-export function drawConnectionPreview(graphics, source, route) {
+export function drawConnectionPreview(graphics, source, route, hasCellTarget) {
   graphics.clear();
   if (!source || !route) return;
   const previewLength = Math.hypot(route.endX - route.startX, route.endY - route.startY);
   const beadCount = Math.floor(previewLength / BEAD_SPACING) + 1;
   const affordableBeads = Math.floor(source.value);
+  const hasEnoughEnergy = hasCellTarget && affordableBeads >= beadCount;
 
   for (let index = 0; index < beadCount; index += 1) {
     const ratio = beadCount === 1 ? 0 : index / (beadCount - 1);
@@ -33,7 +34,10 @@ export function drawConnectionPreview(graphics, source, route) {
     const normalY = directionX;
     const side = index % 2 === 0 ? 1 : -1;
     const radius = index === beadCount - 1 ? 3.1 : 2.6;
-    const statusColor = index < affordableBeads ? 0xb8c0c8 : 0x50565e;
+    const statusColor = hasEnoughEnergy
+      ? 0x54c92b
+      : index < affordableBeads ? 0xb8c0c8 : 0x50565e;
+    const bodyColor = hasEnoughEnergy ? 0x54c92b : 0x9aa1a8;
     graphics
       .moveTo(point.x + normalX * radius * side, point.y + normalY * radius * side)
       .quadraticCurveTo(
@@ -43,7 +47,7 @@ export function drawConnectionPreview(graphics, source, route) {
         point.y - directionY * 3.5 + normalY * 7 * side,
       )
       .stroke({ color: statusColor, width: 1.2, alpha: 0.18 })
-      .circle(point.x, point.y, radius).fill({ color: 0x9aa1a8, alpha: 0.14 })
+      .circle(point.x, point.y, radius).fill({ color: bodyColor, alpha: 0.14 })
       .circle(point.x, point.y, radius).stroke({ color: statusColor, width: 0.8, alpha: 0.24 })
       .circle(point.x - 0.7, point.y - 0.8, radius * 0.34).fill({ color: 0xffffff, alpha: 0.08 });
   }

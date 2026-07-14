@@ -1,13 +1,15 @@
 export const AUTO_GROWTH_INTERVAL = 1000;
 export const MAX_ENERGY = 99;
 export const BEAD_SPACING = 6;
+export const GAME_WIDTH = 960;
+export const GAME_HEIGHT = 540;
 
 export function getInitialCells() {
   return [
     {
-      x: 260,
-      y: 300,
-      value: "99",
+      x: 312,
+      y: 270,
+      value: "15",
       colors: {
         shadow: 0x00150c, dark: 0x0b5e27, main: 0x54c92b, light: 0x69dc32,
         highlight: 0xc1f56a, outline: 0x173f1c, poreRing: 0x2b8e21,
@@ -16,8 +18,8 @@ export function getInitialCells() {
       options: { team: "green" },
     },
     {
-      x: 400,
-      y: 300,
+      x: 480,
+      y: 270,
       value: "0",
       colors: {
         shadow: 0x11151a, dark: 0x424952, main: 0x737d88, light: 0x929ca7,
@@ -27,9 +29,9 @@ export function getInitialCells() {
       options: { grows: false, empty: true, team: "neutral" },
     },
     {
-      x: 540,
-      y: 300,
-      value: "99",
+      x: 648,
+      y: 270,
+      value: "15",
       colors: {
         shadow: 0x240506, dark: 0x852427, main: 0xd94343, light: 0xee5553,
         highlight: 0xff9a82, outline: 0x5d171b, poreRing: 0xb52f32,

@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import Background from "./Background";
 import Header from "./Header";
 
-export default function GameLayout({ children, title, icon, me, onLogout, onOpenLogin }) {
+export default function GameLayout({ children, title, icon, me, onLogout, onOpenLogin, contentWidth = 800 }) {
   const navigate = useNavigate();
 
   return (
@@ -42,7 +42,7 @@ export default function GameLayout({ children, title, icon, me, onLogout, onOpen
           <div
             style={{
               width: "100%",
-              maxWidth: "800px",
+              maxWidth: contentWidth,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",

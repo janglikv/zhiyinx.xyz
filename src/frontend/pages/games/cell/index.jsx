@@ -3,9 +3,17 @@ import * as PIXI from "pixi.js";
 import GameLayout from "../../../components/GameLayout";
 import { createCellDrawers } from "./cellGraphics";
 import { drawConnection } from "./connectionGraphics";
-import { AUTO_GROWTH_INTERVAL, BEAD_SPACING, getInitialCells, MAX_ENERGY } from "./gameConfig";
+import {
+  AUTO_GROWTH_INTERVAL,
+  BEAD_SPACING,
+  GAME_HEIGHT,
+  GAME_WIDTH,
+  getInitialCells,
+  MAX_ENERGY,
+} from "./gameConfig";
 import { drawConnectionPreview as drawConnectionPreviewGraphics, drawSlashTrail } from "./interactionGraphics";
 import { getPathPoint, pointToSegmentDistance, syncConnectionEndpoints } from "./pathUtils";
+import backgroundImage from "./background.png";
 
 function mountCellGame(container) {
     const app = new PIXI.Application();
@@ -13,13 +21,14 @@ function mountCellGame(container) {
 
     async function initPixi() {
       await app.init({
-        width: 800,
-        height: 600,
-        backgroundColor: 0x07080b,
+        width: GAME_WIDTH,
+        height: GAME_HEIGHT,
+        backgroundColor: 0x111820,
         antialias: true,
         resolution: window.devicePixelRatio || 1,
         autoDensity: true,
       });
+      const backgroundTexture = await PIXI.Assets.load(backgroundImage);
 
       if (destroyed) {
         try {
@@ -32,18 +41,15 @@ function mountCellGame(container) {
 
       container.appendChild(app.canvas);
 
-      // 绘制背景网格
-      const bgGraphics = new PIXI.Graphics();
-      bgGraphics.stroke({ color: 0x111622, width: 1.5 });
-      for (let x = 0; x < 800; x += 50) {
-        bgGraphics.moveTo(x, 0);
-        bgGraphics.lineTo(x, 600);
-      }
-      for (let y = 0; y < 600; y += 50) {
-        bgGraphics.moveTo(0, y);
-        bgGraphics.lineTo(800, y);
-      }
-      app.stage.addChild(bgGraphics);
+      const background = new PIXI.Sprite(backgroundTexture);
+      const backgroundScale = Math.max(
+        GAME_WIDTH / backgroundTexture.width,
+        GAME_HEIGHT / backgroundTexture.height,
+      );
+      background.anchor.set(0.5);
+      background.position.set(GAME_WIDTH / 2, GAME_HEIGHT / 2);
+      background.scale.set(backgroundScale);
+      app.stage.addChild(background);
 
       const connectionLayer = new PIXI.Container();
       app.stage.addChild(connectionLayer);
@@ -93,6 +99,7 @@ function mountCellGame(container) {
 
           if (hit) {
             connection.retracting = true;
+            connection.source.refundEnergy(connection.energyPackets.length);
             connection.energyPackets = [];
           }
         });
@@ -197,17 +204,22 @@ function mountCellGame(container) {
           return;
         }
         previewRoute = chooseRoute(pressedCell, previewTarget);
-        drawConnectionPreviewGraphics(previewGraphics, pressedCell, previewRoute);
+        drawConnectionPreviewGraphics(previewGraphics, pressedCell, previewRoute, Boolean(hoveredCell));
       }
 
       function startConnection(source, target) {
-        const route = chooseRoute(source, target);
+        // 使用玩家确认时看到的路径，避免松手后重新选路导致预瞄造价失效。
+        const route = previewTarget === target && previewRoute
+          ? { ...previewRoute }
+          : chooseRoute(source, target);
+        const pathLength = Math.hypot(route.endX - route.startX, route.endY - route.startY);
 
         connections.push({
           graphics: new PIXI.Graphics(),
           source,
           target,
           progress: 0,
+          requiredBeads: Math.floor(pathLength / BEAD_SPACING) + 1,
           grownBeads: 0,
           refundedBeads: 0,
           energyPackets: [],
@@ -392,13 +404,19 @@ function mountCellGame(container) {
           cellData.setFaction("neutral", neutralColors, true);
         };
 
-        const initialValue = grows ? 1 : numericValue;
+        const initialValue = numericValue;
         renderGrowth(initialValue);
         cellData.value = initialValue;
         cellData.render = renderGrowth;
         cellData.changeValue = (delta) => {
           cellData.value = Math.max(0, Math.min(MAX_ENERGY, cellData.value + delta));
           cellData.render(cellData.value);
+        };
+        cellData.pendingRefund = 0;
+        cellData.refundEnergy = (amount) => {
+          const immediateRefund = Math.min(amount, MAX_ENERGY - cellData.value);
+          if (immediateRefund > 0) cellData.changeValue(immediateRefund);
+          cellData.pendingRefund += amount - immediateRefund;
         };
         cellData.autoGrow = grows;
         cellData.pendingIncoming = [];
@@ -409,15 +427,17 @@ function mountCellGame(container) {
           selection.visible = true;
           drawConnectionPreview(event.global.x, event.global.y);
         });
-        cell.on("pointerover", () => {
+        cell.on("pointerover", (event) => {
           if (!pressedCell || pressedCell === cellData) return;
           hoveredCell = cellData;
           targetHint.visible = true;
+          drawConnectionPreview(event.global.x, event.global.y);
         });
-        cell.on("pointerout", () => {
+        cell.on("pointerout", (event) => {
           if (hoveredCell !== cellData) return;
           hoveredCell = null;
           targetHint.visible = false;
+          drawConnectionPreview(event.global.x, event.global.y);
         });
         cell.on("pointerup", () => {
           if (pressedCell && pressedCell !== cellData) {
@@ -466,6 +486,12 @@ function mountCellGame(container) {
         logicTick += 1;
 
         cells.forEach((cell) => {
+          if (cell.pendingRefund > 0 && cell.value < MAX_ENERGY) {
+            const refund = Math.min(cell.pendingRefund, MAX_ENERGY - cell.value);
+            cell.pendingRefund -= refund;
+            cell.changeValue(refund);
+          }
+
           const isBuildingConnection = connections.some((connection) => (
             connection.source === cell
             && !connection.retracting
@@ -481,7 +507,12 @@ function mountCellGame(container) {
             cell.capture(incoming.team, incoming.colors);
             cell.changeValue(1);
           } else if (cell.team === incoming.team) {
-            cell.changeValue(1);
+            if (cell.value < MAX_ENERGY) {
+              cell.changeValue(1);
+            } else {
+              // 能量抵达前目标可能已经充满，退回来源避免被上限吞掉。
+              incoming.source.refundEnergy(1);
+            }
           } else if (Math.floor(cell.value) <= 1) {
             cell.value = 0;
             cell.neutralize();
@@ -505,6 +536,7 @@ function mountCellGame(container) {
           cell.sendCursor += 1;
           connection.energyPackets.push({
             distance: 0,
+            source: cell,
             team: cell.team,
             colors: { ...cell.colors },
           });
@@ -554,13 +586,13 @@ function mountCellGame(container) {
             if (refund > 0) {
               connection.refundedBeads += refund;
               // 触手珠链收回到源细胞时，立即返还生成珠链所消耗的能量。
-              connection.source.changeValue(refund);
+              connection.source.refundEnergy(refund);
             }
           } else if (connection.progress < 1) {
             const desiredProgress = Math.min(1, connection.progress + ticker.deltaMS / 1800);
             const desiredBeads = Math.floor((pathLength * desiredProgress) / BEAD_SPACING) + 1;
             const newBeads = Math.min(
-              desiredBeads - connection.grownBeads,
+              Math.min(desiredBeads, connection.requiredBeads) - connection.grownBeads,
               Math.floor(connection.source.value),
             );
 
@@ -569,13 +601,17 @@ function mountCellGame(container) {
               connection.source.changeValue(-newBeads);
             }
 
-            if (connection.source.value < 1) {
+            // 刚好耗尽能量但珠链已经足够时仍可继续伸到终点。
+            if (connection.source.value < 1 && connection.grownBeads < connection.requiredBeads) {
               connection.retracting = true;
+              connection.source.refundEnergy(connection.energyPackets.length);
               connection.energyPackets = [];
             }
 
             // 未支付下一颗小细胞的能量前，触手只能前进到已生成珠链的末端。
-            const affordableProgress = connection.grownBeads === 0
+            const affordableProgress = connection.grownBeads === connection.requiredBeads
+              ? 1
+              : connection.grownBeads === 0
               ? 0
               : Math.min(1, (connection.grownBeads * BEAD_SPACING - 0.001) / pathLength);
             connection.progress = Math.min(desiredProgress, affordableProgress);
@@ -602,7 +638,7 @@ function mountCellGame(container) {
             - Math.cos(previewRoute.targetPortAngle) * previewTarget.radius;
           previewRoute.endY = previewTarget.y
             - Math.sin(previewRoute.targetPortAngle) * previewTarget.radius;
-          drawConnectionPreviewGraphics(previewGraphics, pressedCell, previewRoute);
+          drawConnectionPreviewGraphics(previewGraphics, pressedCell, previewRoute, Boolean(hoveredCell));
         }
         for (let index = connections.length - 1; index >= 0; index -= 1) {
           if (!connections[index].retracting || connections[index].progress > 0) continue;
@@ -677,9 +713,16 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   useEffect(() => mountCellGame(containerRef.current), []);
 
   return (
-    <GameLayout title="细胞扩张战争" icon="🦠" me={me} onLogout={onLogout} onOpenLogin={onOpenLogin}>
+    <GameLayout
+      title="细胞扩张战争"
+      icon="🦠"
+      me={me}
+      onLogout={onLogout}
+      onOpenLogin={onOpenLogin}
+      contentWidth={GAME_WIDTH}
+    >
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
-        <div style={{ position: "relative", width: "800px", height: "600px" }}>
+        <div style={{ position: "relative", width: GAME_WIDTH, height: GAME_HEIGHT }}>
           <div
             ref={containerRef}
             style={{
@@ -688,8 +731,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
               border: "2px solid var(--border-light)",
               background: "#07080b",
               boxShadow: "inset 0 0 30px rgba(0, 0, 0, 0.9)",
-              width: "800px",
-              height: "600px",
+              width: GAME_WIDTH,
+              height: GAME_HEIGHT,
             }}
           />
         </div>
