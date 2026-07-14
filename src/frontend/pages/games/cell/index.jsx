@@ -1,14 +1,13 @@
 import { useEffect, useRef } from "react";
 import * as PIXI from "pixi.js";
 import GameLayout from "../../../components/GameLayout";
+import { createCellDrawers } from "./cellGraphics";
+import { drawConnection } from "./connectionGraphics";
+import { AUTO_GROWTH_INTERVAL, BEAD_SPACING, getInitialCells, MAX_ENERGY } from "./gameConfig";
+import { drawConnectionPreview as drawConnectionPreviewGraphics, drawSlashTrail } from "./interactionGraphics";
+import { getPathPoint, pointToSegmentDistance, syncConnectionEndpoints } from "./pathUtils";
 
-function CellEaterPage({ me, onLogout, onOpenLogin }) {
-  const containerRef = useRef(null);
-  const appRef = useRef(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
+function mountCellGame(container) {
     const app = new PIXI.Application();
     let destroyed = false;
 
@@ -22,7 +21,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         autoDensity: true,
       });
 
-      if (destroyed || !containerRef.current) {
+      if (destroyed) {
         try {
           app.destroy(true, { children: true });
         } catch (e) {
@@ -31,8 +30,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         return;
       }
 
-      appRef.current = app;
-      containerRef.current.appendChild(app.canvas);
+      container.appendChild(app.canvas);
 
       // 绘制背景网格
       const bgGraphics = new PIXI.Graphics();
@@ -54,41 +52,19 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       const slashGraphics = new PIXI.Graphics();
 
       const animatedParts = [];
-      const growingCells = [];
       const cells = [];
       const connections = [];
-      const autoGrowthInterval = 1000;
       // 输送速度是自增的两倍，因此逻辑帧间隔取自增间隔的一半。
-      const logicInterval = autoGrowthInterval / 2;
+      const logicInterval = AUTO_GROWTH_INTERVAL / 2;
       let logicAccumulator = 0;
       let logicTick = 0;
       let pressedCell = null;
       let hoveredCell = null;
+      let previewRoute = null;
+      let previewTarget = null;
       let slashActive = false;
       let slashPoints = [];
       let slashFade = 0;
-
-      function pointToSegmentDistance(point, start, end) {
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        const lengthSquared = dx * dx + dy * dy;
-        if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
-        const ratio = Math.max(0, Math.min(1,
-          ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared,
-        ));
-        return Math.hypot(point.x - (start.x + dx * ratio), point.y - (start.y + dy * ratio));
-      }
-
-      function drawSlashTrail() {
-        slashGraphics.clear();
-        for (let index = 1; index < slashPoints.length; index += 1) {
-          const strength = index / slashPoints.length;
-          slashGraphics
-            .moveTo(slashPoints[index - 1].x, slashPoints[index - 1].y)
-            .lineTo(slashPoints[index].x, slashPoints[index].y)
-            .stroke({ color: 0xdffcff, width: 1.5 + strength * 4, alpha: 0.3 + strength * 0.7 });
-        }
-      }
 
       function finishSlash() {
         slashActive = false;
@@ -130,58 +106,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         });
         pressedCell = null;
         hoveredCell = null;
-      }
-
-      function drawConnectionPreview(pointerX, pointerY) {
-        if (!pressedCell) return;
-        const targetX = hoveredCell ? hoveredCell.x : pointerX;
-        const targetY = hoveredCell ? hoveredCell.y : pointerY;
-        const dx = targetX - pressedCell.x;
-        const dy = targetY - pressedCell.y;
-        const distance = Math.hypot(dx, dy);
-        if (distance <= pressedCell.radius) return;
-
-        const startX = pressedCell.x + (dx / distance) * pressedCell.radius;
-        const startY = pressedCell.y + (dy / distance) * pressedCell.radius;
-        const endOffset = hoveredCell ? hoveredCell.radius : 4;
-        const endX = targetX - (dx / distance) * endOffset;
-        const endY = targetY - (dy / distance) * endOffset;
-        const previewLength = Math.hypot(endX - startX, endY - startY);
-        const count = Math.floor(previewLength / 8);
-
-        previewGraphics.clear();
-        for (let index = 0; index <= count; index += 1) {
-          const ratio = count === 0 ? 0 : index / count;
-          const x = startX + (endX - startX) * ratio;
-          const y = startY + (endY - startY) * ratio;
-          previewGraphics
-            .circle(x, y, hoveredCell ? 2.2 : 1.7)
-            .fill({ color: hoveredCell ? pressedCell.colors.highlight : pressedCell.colors.main, alpha: 0.6 });
-        }
-      }
-
-      function getPathPoint(route, ratio) {
-        const dx = route.endX - route.startX;
-        const dy = route.endY - route.startY;
-        const length = Math.hypot(dx, dy);
-        const waveCycles = Math.max(0.5, Math.round(length / 75) * 0.5);
-        const offset = Math.sin(ratio * Math.PI * 2 * waveCycles) * 8
-          + Math.sin(ratio * Math.PI) * route.detour;
-        return {
-          x: route.startX + dx * ratio - (dy / length) * offset,
-          y: route.startY + dy * ratio + (dx / length) * offset,
-        };
-      }
-
-      function syncConnectionEndpoints(connection) {
-        connection.startX = connection.source.x
-          + Math.cos(connection.sourcePortAngle) * connection.source.radius;
-        connection.startY = connection.source.y
-          + Math.sin(connection.sourcePortAngle) * connection.source.radius;
-        connection.endX = connection.target.x
-          - Math.cos(connection.targetPortAngle) * connection.target.radius;
-        connection.endY = connection.target.y
-          - Math.sin(connection.targetPortAngle) * connection.target.radius;
+        previewRoute = null;
+        previewTarget = null;
       }
 
       function chooseRoute(source, target) {
@@ -256,6 +182,24 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         return bestRoute;
       }
 
+      function drawConnectionPreview(pointerX, pointerY) {
+        if (!pressedCell) {
+          previewGraphics.clear();
+          previewRoute = null;
+          previewTarget = null;
+          return;
+        }
+        previewTarget = hoveredCell || { x: pointerX, y: pointerY, radius: 4 };
+        if (Math.hypot(previewTarget.x - pressedCell.x, previewTarget.y - pressedCell.y) <= pressedCell.radius) {
+          previewGraphics.clear();
+          previewRoute = null;
+          previewTarget = null;
+          return;
+        }
+        previewRoute = chooseRoute(pressedCell, previewTarget);
+        drawConnectionPreviewGraphics(previewGraphics, pressedCell, previewRoute);
+      }
+
       function startConnection(source, target) {
         const route = chooseRoute(source, target);
 
@@ -273,83 +217,27 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         connectionLayer.addChild(connections.at(-1).graphics);
       }
 
-      function drawConnection(connection) {
-        const { graphics, source, startX, startY, endX, endY, detour, progress, energyPackets, time } = connection;
-        const dx = endX - startX;
-        const dy = endY - startY;
-        const length = Math.hypot(dx, dy);
-        const normalX = -dy / length;
-        const normalY = dx / length;
-        const waveAmplitude = 8;
-        const waveCycles = Math.max(0.5, Math.round(length / 75) * 0.5);
-        const beadSpacing = 6;
-        const travelled = length * progress;
-        const visibleBeads = progress === 0 ? -1 : Math.floor(travelled / beadSpacing);
-
-        graphics.clear();
-        // 头部持续前进，其余小细胞按固定距离跟随，形成蛇行而非末端逐颗追加。
-        for (let index = 0; index <= visibleBeads; index += 1) {
-          const distanceOnPath = Math.max(0, travelled - index * beadSpacing);
-          const ratio = distanceOnPath / length;
-          const pathOffset = Math.sin(ratio * Math.PI * 2 * waveCycles) * waveAmplitude
-            + Math.sin(ratio * Math.PI) * detour;
-          const x = startX + dx * ratio + normalX * pathOffset;
-          const y = startY + dy * ratio + normalY * pathOffset;
-          const radius = index === 0 && progress < 1 ? 3.1 : 2.6;
-          const side = index % 2 === 0 ? 1 : -1;
-          const sway = Math.sin(time * 0.012 + index * 0.9) * 0.8;
-          const flagellaStartX = x + normalX * radius * side;
-          const flagellaStartY = y + normalY * radius * side;
-          const flagellaEndX = x - (dx / length) * 3.5 + normalX * (7 * side + sway);
-          const flagellaEndY = y - (dy / length) * 3.5 + normalY * (7 * side + sway);
-
-          graphics
-            .moveTo(flagellaStartX, flagellaStartY)
-            .quadraticCurveTo(
-              x - (dx / length) * 1.8 + normalX * (4.8 * side - sway * 0.3),
-              y - (dy / length) * 1.8 + normalY * (4.8 * side - sway * 0.3),
-              flagellaEndX,
-              flagellaEndY,
-            )
-            .stroke({ color: source.colors.highlight, width: 1.4, alpha: 0.58 })
-            .circle(x + 0.6, y + 0.7, radius + 1).fill({ color: source.colors.dark, alpha: 0.92 })
-            .circle(x, y, radius).fill({ color: source.colors.main })
-            .circle(x - 0.8, y - 0.9, radius * 0.38)
-            .fill({ color: 0xffffff, alpha: 0.45 });
-        }
-
-        if (progress === 1) {
-          energyPackets.forEach((packet) => {
-            const ratio = packet.distance / length;
-            const pathOffset = Math.sin(ratio * Math.PI * 2 * waveCycles) * waveAmplitude
-              + Math.sin(ratio * Math.PI) * detour;
-            const x = startX + dx * ratio + normalX * pathOffset;
-            const y = startY + dy * ratio + normalY * pathOffset;
-            graphics
-              .circle(x, y, 1.9).fill({ color: packet.colors.highlight })
-              .circle(x - 0.45, y - 0.5, 0.58).fill({ color: 0xffffff, alpha: 0.95 });
-          });
-        }
-      }
-
       function createCell(x, y, text, colors, options = {}) {
         const { grows = true, empty = false, team = "neutral" } = options;
         let isEmpty = empty;
         const neutralColors = { ...colors };
-        const numericValue = Math.min(99, Number(text));
+        const numericValue = Math.min(MAX_ENERGY, Number(text));
         const cellRadius = Math.min(40, Math.max(16, 14 + Math.sqrt(numericValue) * 1.6));
         const detailRadius = 14 + Math.sqrt(60) * 1.6;
         const bumpCount = Math.round((Math.PI * 2 * detailRadius) / 8);
         const poreCount = Math.max(2, Math.round((detailRadius ** 2 - 9 ** 2) / 55));
+        const {
+          drawShadow, drawBody, drawBump, drawPore, drawCenter, drawSheen, drawHint,
+        } = createCellDrawers(colors);
+
         const cell = new PIXI.Container();
         cell.position.set(x, y);
         cell.eventMode = "static";
         cell.cursor = "pointer";
         cell.hitArea = new PIXI.Circle(0, 0, Math.max(20, cellRadius + 5));
 
-        const shadow = new PIXI.Graphics()
-          .ellipse(2, 3, cellRadius + 4, cellRadius + 3)
-          .fill({ color: colors.shadow, alpha: 0.55 });
+        const shadow = new PIXI.Graphics();
+        drawShadow(shadow, cellRadius);
         shadow.filters = [new PIXI.BlurFilter({ strength: 4 })];
 
         const membrane = new PIXI.Container();
@@ -364,31 +252,19 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           const bumpX = Math.cos(angle) * (cellRadius + 1.5);
           const bumpY = Math.sin(angle) * (cellRadius + 1.5);
           const radius = index % 3 === 0 ? 3 : 2.5;
-          const bump = new PIXI.Graphics()
-            .circle(0.6, 0.8, radius + 0.8)
-            .fill({ color: colors.dark })
-            .circle(0, 0, radius)
-            .fill({ color: colors.main })
-            .circle(-0.6, -0.8, radius * 0.48)
-            .fill({ color: colors.highlight, alpha: 0.75 });
+          const bump = new PIXI.Graphics();
+          drawBump(bump, radius);
           bump.position.set(bumpX, bumpY);
           membrane.addChild(bump);
           bumpSprites.push({ bump, x: bumpX, y: bumpY, radius, angle, targetAngle: angle, phase: index * 0.83, appearance: 0, targetVisible: false });
         }
 
-        const body = new PIXI.Graphics()
-          .circle(1, 1.5, cellRadius).fill({ color: colors.shadow })
-          .circle(0, 0, cellRadius).fill({ color: colors.main })
-          .circle(-1.5, -2, cellRadius - 2.5).fill({ color: colors.light })
-          .ellipse(-cellRadius * 0.25, -cellRadius * 0.35, cellRadius * 0.58, cellRadius * 0.42)
-          .fill({ color: colors.highlight, alpha: 0.34 })
-          .circle(0, 0, cellRadius).stroke({ color: colors.outline, width: 1.2, alpha: 0.85 })
-          .circle(0, 0, cellRadius - 1.8).stroke({ color: colors.highlight, width: 0.8, alpha: 0.62 });
+        const body = new PIXI.Graphics();
+        drawBody(body, cellRadius);
 
         const sheen = new PIXI.Container();
-        const sheenShape = new PIXI.Graphics()
-          .ellipse(-cellRadius * 0.7, -cellRadius * 0.25, 7, 13).fill({ color: colors.highlight, alpha: 0.13 })
-          .ellipse(-cellRadius * 0.4, -cellRadius * 0.45, 3, 7).fill({ color: 0xffffff, alpha: 0.11 });
+        const sheenShape = new PIXI.Graphics();
+        drawSheen(sheenShape, cellRadius);
         const sheenMask = new PIXI.Graphics().circle(0, 0, cellRadius - 2).fill(0xffffff);
         sheen.addChild(sheenShape, sheenMask);
         sheen.mask = sheenMask;
@@ -401,22 +277,15 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           const poreX = Math.cos(angle) * distanceFromCenter;
           const poreY = Math.sin(angle) * distanceFromCenter;
           const radius = index % 3 === 0 ? 2.4 : 1.8;
-          const pore = new PIXI.Graphics()
-            .circle(0.3, 0.5, radius + 0.7).fill({ color: colors.poreRing, alpha: 0.85 })
-            .circle(0, 0, radius).fill({ color: colors.pore })
-            .ellipse(-radius * 0.25, -radius * 0.3, radius * 0.52, radius * 0.35)
-            .fill({ color: colors.poreDark, alpha: 0.78 })
-            .circle(-radius * 0.32, -radius * 0.38, Math.max(0.4, radius * 0.16))
-            .fill({ color: colors.highlight, alpha: 0.7 });
+          const pore = new PIXI.Graphics();
+          drawPore(pore, radius);
           pore.position.set(poreX, poreY);
           pores.addChild(pore);
           poreSprites.push({ pore, radius, angle, targetAngle: angle, appearance: 0, targetVisible: false });
         }
 
-        const center = new PIXI.Graphics()
-          .circle(0, 0.5, 9).fill({ color: colors.centerDark, alpha: 0.96 })
-          .circle(-0.5, -0.25, 8.25).fill({ color: colors.center })
-          .circle(0, 0.25, 8.5).stroke({ color: colors.highlight, width: 0.6, alpha: 0.55 });
+        const center = new PIXI.Graphics();
+        drawCenter(center, isEmpty);
         const value = new PIXI.Text({
           text,
           style: {
@@ -430,15 +299,11 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         value.anchor.set(0.5);
         value.position.set(0, 1);
 
-        const selection = new PIXI.Graphics()
-          .circle(0, 0, cellRadius).stroke({ color: colors.highlight, width: 9, alpha: 0.32 })
-          .circle(0, 0, cellRadius).stroke({ color: colors.highlight, width: 5, alpha: 0.58 })
-          .circle(0, 0, cellRadius).stroke({ color: 0xffffff, width: 1.8, alpha: 0.95 });
+        const selection = new PIXI.Graphics();
+        drawHint(selection, cellRadius);
         selection.visible = false;
-        const targetHint = new PIXI.Graphics()
-          .circle(0, 0, cellRadius).stroke({ color: colors.highlight, width: 11, alpha: 0.38 })
-          .circle(0, 0, cellRadius).stroke({ color: colors.highlight, width: 6, alpha: 0.7 })
-          .circle(0, 0, cellRadius).stroke({ color: 0xffffff, width: 2.2, alpha: 1 });
+        const targetHint = new PIXI.Graphics();
+        drawHint(targetHint, cellRadius, true);
         targetHint.visible = false;
 
         cell.addChild(shadow, membrane, body, sheen, pores, center, value, selection, targetHint);
@@ -458,8 +323,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         function renderGrowth(currentValue) {
           const radius = Math.min(40, Math.max(16, 14 + Math.sqrt(currentValue) * 1.6));
           const currentDetailRadius = Math.min(40, Math.max(16, 14 + Math.sqrt(Math.min(currentValue, 60)) * 1.6));
-          const currentBumpCount = isEmpty ? 0 : Math.round((Math.PI * 2 * currentDetailRadius) / 8);
-          const currentPoreCount = isEmpty ? 0 : Math.max(2, Math.round((currentDetailRadius ** 2 - 9 ** 2) / 55));
+          const currentBumpCount = Math.round((Math.PI * 2 * currentDetailRadius) / 8);
+          const currentPoreCount = Math.max(2, Math.round((currentDetailRadius ** 2 - 9 ** 2) / 55));
 
           cellData.radius = radius;
           animatedPart.radius = radius;
@@ -467,17 +332,10 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           animatedPart.detailScale = currentValue > 60 ? radius / radiusAtDetailLimit : 1;
           cell.hitArea = new PIXI.Circle(0, 0, Math.max(20, radius + 5));
           value.text = String(Math.floor(currentValue));
+          value.visible = !isEmpty;
 
-          shadow.clear().ellipse(2, 3, radius + 4, radius + 3)
-            .fill({ color: colors.shadow, alpha: 0.55 });
-          body.clear()
-            .circle(1, 1.5, radius).fill({ color: colors.shadow })
-            .circle(0, 0, radius).fill({ color: colors.main })
-            .circle(-1.5, -2, radius - 2.5).fill({ color: colors.light })
-            .ellipse(-radius * 0.25, -radius * 0.35, radius * 0.58, radius * 0.42)
-            .fill({ color: colors.highlight, alpha: 0.34 })
-            .circle(0, 0, radius).stroke({ color: colors.outline, width: 1.2, alpha: 0.85 })
-            .circle(0, 0, radius - 1.8).stroke({ color: colors.highlight, width: 0.8, alpha: 0.62 });
+          drawShadow(shadow, radius);
+          drawBody(body, radius);
 
           while (bumpOrder.length > currentBumpCount) {
             bumpOrder.splice(Math.floor(Math.random() * bumpOrder.length), 1);
@@ -510,14 +368,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           });
 
           sheenMask.clear().circle(0, 0, radius - 2).fill(0xffffff);
-          selection.clear()
-            .circle(0, 0, radius).stroke({ color: colors.highlight, width: 9, alpha: 0.32 })
-            .circle(0, 0, radius).stroke({ color: colors.highlight, width: 5, alpha: 0.58 })
-            .circle(0, 0, radius).stroke({ color: 0xffffff, width: 1.8, alpha: 0.95 });
-          targetHint.clear()
-            .circle(0, 0, radius).stroke({ color: colors.highlight, width: 11, alpha: 0.38 })
-            .circle(0, 0, radius).stroke({ color: colors.highlight, width: 6, alpha: 0.7 })
-            .circle(0, 0, radius).stroke({ color: 0xffffff, width: 2.2, alpha: 1 });
+          drawHint(selection, radius);
+          drawHint(targetHint, radius, true);
         }
 
         cellData.setFaction = (nextTeam, capturingColors, emptyState) => {
@@ -525,37 +377,13 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           cellData.team = nextTeam;
           Object.assign(colors, capturingColors);
 
-          bumpSprites.forEach(({ bump, radius }) => {
-            bump.clear()
-              .circle(0.6, 0.8, radius + 0.8).fill({ color: colors.dark })
-              .circle(0, 0, radius).fill({ color: colors.main })
-              .circle(-0.6, -0.8, radius * 0.48).fill({ color: colors.highlight, alpha: 0.75 });
-          });
-          poreSprites.forEach(({ pore, radius }) => {
-            pore.clear()
-              .circle(0.3, 0.5, radius + 0.7).fill({ color: colors.poreRing, alpha: 0.85 })
-              .circle(0, 0, radius).fill({ color: colors.pore })
-              .ellipse(-radius * 0.25, -radius * 0.3, radius * 0.52, radius * 0.35)
-              .fill({ color: colors.poreDark, alpha: 0.78 })
-              .circle(-radius * 0.32, -radius * 0.38, Math.max(0.4, radius * 0.16))
-              .fill({ color: colors.highlight, alpha: 0.7 });
-          });
-          center.clear()
-            .circle(0, 0.5, 9).fill({ color: colors.centerDark, alpha: 0.96 })
-            .circle(-0.5, -0.25, 8.25).fill({ color: colors.center })
-            .circle(0, 0.25, 8.5).stroke({ color: colors.highlight, width: 0.6, alpha: 0.55 });
-          sheenShape.clear()
-            .ellipse(-cellData.radius * 0.7, -cellData.radius * 0.25, 7, 13)
-            .fill({ color: colors.highlight, alpha: 0.13 })
-            .ellipse(-cellData.radius * 0.4, -cellData.radius * 0.45, 3, 7)
-            .fill({ color: 0xffffff, alpha: 0.11 });
+          bumpSprites.forEach(({ bump, radius }) => drawBump(bump, radius));
+          poreSprites.forEach(({ pore, radius }) => drawPore(pore, radius));
+          drawCenter(center, isEmpty);
+          drawSheen(sheenShape, cellData.radius);
 
           renderGrowth(cellData.value);
           cellData.autoGrow = !emptyState;
-          if (!emptyState) {
-            cellData.targetValue = 99;
-            if (!growingCells.includes(cellData)) growingCells.push(cellData);
-          }
         };
         cellData.capture = (capturingTeam, capturingColors) => {
           if (isEmpty) cellData.setFaction(capturingTeam, capturingColors, false);
@@ -568,13 +396,13 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         renderGrowth(initialValue);
         cellData.value = initialValue;
         cellData.render = renderGrowth;
+        cellData.changeValue = (delta) => {
+          cellData.value = Math.max(0, Math.min(MAX_ENERGY, cellData.value + delta));
+          cellData.render(cellData.value);
+        };
         cellData.autoGrow = grows;
         cellData.pendingIncoming = [];
         cellData.sendCursor = 0;
-        if (grows && numericValue > initialValue) {
-          cellData.targetValue = numericValue;
-          growingCells.push(cellData);
-        }
 
         cell.on("pointerdown", (event) => {
           pressedCell = cellData;
@@ -599,21 +427,9 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         });
       }
 
-      createCell(260, 300, "99", {
-        shadow: 0x00150c, dark: 0x0b5e27, main: 0x54c92b, light: 0x69dc32,
-        highlight: 0xc1f56a, outline: 0x173f1c, poreRing: 0x2b8e21,
-        pore: 0x17641e, poreDark: 0x0a3c18, centerDark: 0x0a2c17, center: 0x163c1e,
-      }, { team: "green" });
-      createCell(400, 300, "0", {
-        shadow: 0x11151a, dark: 0x424952, main: 0x737d88, light: 0x929ca7,
-        highlight: 0xd2d9df, outline: 0x30363d, poreRing: 0x59616b,
-        pore: 0x424952, poreDark: 0x272d34, centerDark: 0x15191e, center: 0x2b3138,
-      }, { grows: false, empty: true, team: "neutral" });
-      createCell(540, 300, "99", {
-        shadow: 0x240506, dark: 0x852427, main: 0xd94343, light: 0xee5553,
-        highlight: 0xff9a82, outline: 0x5d171b, poreRing: 0xb52f32,
-        pore: 0x8f2025, poreDark: 0x581319, centerDark: 0x2d0a0c, center: 0x4c1719,
-      }, { team: "red" });
+      getInitialCells().forEach(({ x, y, value, colors, options }) => {
+        createCell(x, y, value, colors, options);
+      });
       app.stage.addChild(slashGraphics);
 
       app.stage.eventMode = "static";
@@ -633,7 +449,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         if (Math.hypot(event.global.x - lastPoint.x, event.global.y - lastPoint.y) < 3) return;
         slashPoints.push({ x: event.global.x, y: event.global.y });
         if (slashPoints.length > 50) slashPoints.shift();
-        drawSlashTrail();
+        drawSlashTrail(slashGraphics, slashPoints);
       });
       app.stage.on("pointerup", (event) => {
         if (slashActive) finishSlash();
@@ -655,27 +471,23 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             && !connection.retracting
             && connection.progress < 1
           ));
-          if (cell.autoGrow && !isBuildingConnection && logicTick % 2 === 0 && cell.value < 99) {
-            cell.value += 1;
-            cell.render(cell.value);
+          if (cell.autoGrow && !isBuildingConnection && logicTick % 2 === 0 && cell.value < MAX_ENERGY) {
+            cell.changeValue(1);
           }
 
           const incoming = cell.pendingIncoming.shift();
           if (!incoming) return;
           if (cell.team === "neutral") {
             cell.capture(incoming.team, incoming.colors);
-            cell.value = Math.min(99, cell.value + 1);
-            cell.render(cell.value);
+            cell.changeValue(1);
           } else if (cell.team === incoming.team) {
-            cell.value = Math.min(99, cell.value + 1);
-            cell.render(cell.value);
+            cell.changeValue(1);
           } else if (Math.floor(cell.value) <= 1) {
             cell.value = 0;
             cell.neutralize();
             cell.capture(incoming.team, incoming.colors);
           } else {
-            cell.value -= 1;
-            cell.render(cell.value);
+            cell.changeValue(-1);
           }
         });
 
@@ -685,7 +497,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             connection.source === cell
             && !connection.retracting
             && connection.progress === 1
-            && (connection.target.team !== cell.team || connection.target.value < 99)
+            && (connection.target.team !== cell.team || connection.target.value < MAX_ENERGY)
           ));
           if (outgoing.length === 0 || cell.value < 1) return;
 
@@ -696,8 +508,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             team: cell.team,
             colors: { ...cell.colors },
           });
-          cell.value -= 1;
-          cell.render(cell.value);
+          cell.changeValue(-1);
         });
       }
 
@@ -729,30 +540,25 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         connections.forEach((connection) => {
           syncConnectionEndpoints(connection);
           connection.time += ticker.deltaMS;
+          const pathLength = Math.hypot(
+            connection.endX - connection.startX,
+            connection.endY - connection.startY,
+          );
           if (connection.retracting) {
             connection.progress = Math.max(0, connection.progress - ticker.deltaMS / 650);
-            const pathLength = Math.hypot(
-              connection.endX - connection.startX,
-              connection.endY - connection.startY,
-            );
             const remainingBeads = connection.progress === 0
               ? 0
-              : Math.floor((pathLength * connection.progress) / 6) + 1;
+              : Math.floor((pathLength * connection.progress) / BEAD_SPACING) + 1;
             const totalRefunded = connection.grownBeads - remainingBeads;
             const refund = totalRefunded - connection.refundedBeads;
             if (refund > 0) {
               connection.refundedBeads += refund;
               // 触手珠链收回到源细胞时，立即返还生成珠链所消耗的能量。
-              connection.source.value = Math.min(99, connection.source.value + refund);
-              connection.source.render(connection.source.value);
+              connection.source.changeValue(refund);
             }
           } else if (connection.progress < 1) {
-            const pathLength = Math.hypot(
-              connection.endX - connection.startX,
-              connection.endY - connection.startY,
-            );
             const desiredProgress = Math.min(1, connection.progress + ticker.deltaMS / 1800);
-            const desiredBeads = Math.floor((pathLength * desiredProgress) / 6) + 1;
+            const desiredBeads = Math.floor((pathLength * desiredProgress) / BEAD_SPACING) + 1;
             const newBeads = Math.min(
               desiredBeads - connection.grownBeads,
               Math.floor(connection.source.value),
@@ -760,8 +566,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
             if (newBeads > 0) {
               connection.grownBeads += newBeads;
-              connection.source.value -= newBeads;
-              connection.source.render(connection.source.value);
+              connection.source.changeValue(-newBeads);
             }
 
             if (connection.source.value < 1) {
@@ -772,15 +577,11 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             // 未支付下一颗小细胞的能量前，触手只能前进到已生成珠链的末端。
             const affordableProgress = connection.grownBeads === 0
               ? 0
-              : Math.min(1, (connection.grownBeads * 6 - 0.001) / pathLength);
+              : Math.min(1, (connection.grownBeads * BEAD_SPACING - 0.001) / pathLength);
             connection.progress = Math.min(desiredProgress, affordableProgress);
           } else {
-            const pathLength = Math.hypot(
-              connection.endX - connection.startX,
-              connection.endY - connection.startY,
-            );
             connection.energyPackets.forEach((packet) => {
-              packet.distance += (ticker.deltaMS / 90) * 6;
+              packet.distance += (ticker.deltaMS / 90) * BEAD_SPACING;
             });
             connection.energyPackets = connection.energyPackets.filter((packet) => {
               if (packet.distance < pathLength) return true;
@@ -791,6 +592,18 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           syncConnectionEndpoints(connection);
           drawConnection(connection);
         });
+        if (pressedCell && previewRoute) {
+          // 路径保持不变时只重绘状态，使能量分段无需移动指针也能实时更新。
+          previewRoute.startX = pressedCell.x
+            + Math.cos(previewRoute.sourcePortAngle) * pressedCell.radius;
+          previewRoute.startY = pressedCell.y
+            + Math.sin(previewRoute.sourcePortAngle) * pressedCell.radius;
+          previewRoute.endX = previewTarget.x
+            - Math.cos(previewRoute.targetPortAngle) * previewTarget.radius;
+          previewRoute.endY = previewTarget.y
+            - Math.sin(previewRoute.targetPortAngle) * previewTarget.radius;
+          drawConnectionPreviewGraphics(previewGraphics, pressedCell, previewRoute);
+        }
         for (let index = connections.length - 1; index >= 0; index -= 1) {
           if (!connections[index].retracting || connections[index].progress > 0) continue;
           connections[index].graphics.destroy();
@@ -850,23 +663,18 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
     return () => {
       destroyed = true;
-      if (appRef.current) {
-        try {
-          appRef.current.destroy(true, { children: true });
-        } catch (e) {
-          // 静默忽略
-        }
-        appRef.current = null;
-      } else {
-        // 如果 init 还没有完成就退出了，用 app 实例直接尝试安全销毁
-        try {
-          app.destroy(true, { children: true });
-        } catch (e) {
-          // 静默忽略
-        }
+      try {
+        app.destroy(true, { children: true });
+      } catch (e) {
+        // 初始化尚未完成时，由 initPixi 中的 destroyed 分支负责销毁。
       }
     };
-  }, []);
+}
+
+function CellEaterPage({ me, onLogout, onOpenLogin }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => mountCellGame(containerRef.current), []);
 
   return (
     <GameLayout title="细胞扩张战争" icon="🦠" me={me} onLogout={onLogout} onOpenLogin={onOpenLogin}>
