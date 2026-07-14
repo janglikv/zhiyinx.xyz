@@ -1,6 +1,7 @@
 export const AUTO_GROWTH_INTERVAL = 1000;
 export const MAX_ENERGY = 99;
 export const BEAD_SPACING = 6;
+export const CUT_ATTACK_SPEED_MULTIPLIER = 2;
 export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 540;
 

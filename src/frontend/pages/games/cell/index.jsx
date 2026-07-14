@@ -6,6 +6,7 @@ import { drawConnection, drawDetachedBurst } from "./connectionGraphics";
 import {
   AUTO_GROWTH_INTERVAL,
   BEAD_SPACING,
+  CUT_ATTACK_SPEED_MULTIPLIER,
   GAME_HEIGHT,
   GAME_WIDTH,
   MAX_ENERGY,
@@ -815,7 +816,10 @@ function mountCellGame(container, level, onGameEnd) {
         });
         for (let index = detachedBursts.length - 1; index >= 0; index -= 1) {
           const burst = detachedBursts[index];
-          const ratioStep = ((ticker.deltaMS / 90) * BEAD_SPACING) / burst.pathLength;
+          const ratioStep = (
+            ((ticker.deltaMS / 90) * BEAD_SPACING * CUT_ATTACK_SPEED_MULTIPLIER)
+            / burst.pathLength
+          );
           burst.packets.forEach((packet) => { packet.ratio += ratioStep; });
           burst.packets = burst.packets.filter((packet) => {
             if (packet.ratio < 1) return true;
