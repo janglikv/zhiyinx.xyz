@@ -7,6 +7,8 @@ export const CUT_MAX_LOSS_RATE = 0.6;
 export const CUT_FULL_LOSS_DISTANCE = 800;
 export const LARGE_CELL_THRESHOLD = 50;
 export const LARGE_CELL_GROWTH_MULTIPLIER = 2;
+export const TRANSFER_MEDIUM_DIFFERENCE = 10;
+export const TRANSFER_HIGH_DIFFERENCE = 30;
 export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 540;
 

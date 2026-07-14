@@ -12,12 +12,14 @@ import {
   CUT_MIN_LOSS_RATE,
   GAME_HEIGHT,
   GAME_WIDTH,
-  LARGE_CELL_GROWTH_MULTIPLIER,
   LARGE_CELL_THRESHOLD,
   MAX_ENERGY,
 } from "./gameConfig";
 import { chooseAiMove } from "./aiController";
 import { CELL_LEVELS } from "./levelConfigs";
+import {
+  advanceEnergyPackets, createConnectionState, hasTeamEnergy, runGameLogic,
+} from "./gameSimulation";
 import { drawConnectionPreview as drawConnectionPreviewGraphics, drawSlashTrail } from "./interactionGraphics";
 import { getPathPoint, pointToSegmentDistance, syncConnectionEndpoints } from "./pathUtils";
 import backgroundImage from "./background.png";
@@ -88,7 +90,7 @@ function mountCellGame(container, level, onGameEnd) {
       function retractConnection(connection) {
         if (connection.retracting) return;
         connection.retracting = true;
-        connection.source.refundEnergy(connection.energyPackets.length);
+        connection.energyPackets.forEach((packet) => packet.source.refundEnergy(1));
         connection.energyPackets = [];
       }
 
@@ -140,8 +142,11 @@ function mountCellGame(container, level, onGameEnd) {
               });
             }
             connection.energyPackets.forEach((packet) => {
-              const ratio = packet.distance / pathLength;
-              if (ratio >= cutRatio) burstPackets.push({ ...packet, ratio });
+              const travelledRatio = packet.distance / pathLength;
+              const ratio = packet.reverse ? 1 - travelledRatio : travelledRatio;
+              // 回流包朝触手根部移动，切断后直接返还，不能误算成远端进攻能量。
+              if (packet.reverse) packet.source.refundEnergy(1);
+              else if (ratio >= cutRatio) burstPackets.push({ ...packet, ratio });
               else packet.source.refundEnergy(1);
             });
             connection.energyPackets = [];
@@ -322,7 +327,7 @@ function mountCellGame(container, level, onGameEnd) {
           requiredBeads: Math.floor(pathLength / BEAD_SPACING) + 1,
           grownBeads: 0,
           refundedBeads: 0,
-          energyPackets: [],
+          ...createConnectionState(),
           time: 0,
           ...route,
         });
@@ -536,7 +541,6 @@ function mountCellGame(container, level, onGameEnd) {
         };
         cellData.autoGrow = grows;
         cellData.pendingIncoming = [];
-        cellData.sendCursor = 0;
         cellData.defendingRetreat = false;
 
         cell.on("pointerdown", (event) => {
@@ -624,108 +628,7 @@ function mountCellGame(container, level, onGameEnd) {
       });
 
       function runLogicTick() {
-        logicTick += 1;
-
-        cells.forEach((cell) => {
-          if (cell.pendingRefund > 0 && cell.value < MAX_ENERGY) {
-            const refund = Math.min(cell.pendingRefund, MAX_ENERGY - cell.value);
-            cell.pendingRefund -= refund;
-            cell.changeValue(refund);
-          }
-
-          const outgoingConnections = connections.filter((connection) => connection.source === cell);
-          // 输出触手会占用细胞全部生产能力，完全收回后才恢复自增。
-          if (cell.autoGrow && outgoingConnections.length === 0 && logicTick % 2 === 0 && cell.value < MAX_ENERGY) {
-            const growth = cell.value > LARGE_CELL_THRESHOLD ? LARGE_CELL_GROWTH_MULTIPLIER : 1;
-            cell.changeValue(growth);
-          }
-
-          if (cell.pendingIncoming.length === 0) return;
-          const hostileIncoming = cell.team !== "neutral"
-            && cell.pendingIncoming.some((packet) => packet.team !== cell.team);
-          const outgoing = connections.filter((connection) => (
-            connection.source === cell && connection.progress > 0
-          ));
-          const retractableOutgoing = outgoing.filter((connection) => !connection.retracting);
-
-          if (!cell.defendingRetreat && cell.value < 1 && hostileIncoming && retractableOutgoing.length > 0) {
-            cell.defendingRetreat = true;
-            retractableOutgoing.forEach((connection) => {
-              retractConnection(connection);
-            });
-            // 只留一个逻辑帧让触手开始返还，不能在完整撤回期间免疫已经抵达的攻击。
-            return;
-          }
-          cell.defendingRetreat = false;
-
-          const incoming = cell.pendingIncoming.splice(0);
-          const greenIncoming = incoming.filter((packet) => packet.team === "green");
-          const redIncoming = incoming.filter((packet) => packet.team === "red");
-
-          if (cell.team === "neutral") {
-            const balance = greenIncoming.length - redIncoming.length;
-            if (balance === 0) return;
-            const winners = balance > 0 ? greenIncoming : redIncoming;
-            cell.value = Math.abs(balance);
-            cell.setFaction(winners[0].team, winners[0].colors, false);
-            return;
-          }
-
-          const friendly = cell.team === "green" ? greenIncoming : redIncoming;
-          const hostile = cell.team === "green" ? redIncoming : greenIncoming;
-          const balance = cell.value + friendly.length - hostile.length;
-          if (balance > 0 || hostile.length === 0) {
-            const nextValue = Math.min(MAX_ENERGY, balance);
-            const overflow = Math.max(0, balance - MAX_ENERGY);
-            if (overflow > 0) {
-              friendly.slice(-overflow).forEach((packet) => packet.source.refundEnergy(1));
-            }
-            cell.value = nextValue;
-            cell.render(nextValue);
-            return;
-          }
-
-          if (balance === 0) {
-            // 攻防完全抵消时原阵营失去控制，避免 0 能量细胞永久形成动态平衡。
-            cell.value = 0;
-            cell.neutralize();
-            return;
-          }
-
-          // 同帧攻击统一净额结算，避免红绿输入按队列顺序导致阵营疯狂闪烁。
-          cell.value = Math.abs(balance);
-          cell.setFaction(hostile[0].team, hostile[0].colors, false);
-        });
-
-        // 每个源细胞每帧只选择一条已建立连接，避免多连接导致瞬时跳变。
-        cells.forEach((cell) => {
-          const outgoing = connections.filter((connection) => (
-            connection.source === cell
-            && !connection.retracting
-            && connection.progress === 1
-            && (connection.target.team !== cell.team || connection.target.value < MAX_ENERGY)
-          ));
-          if (outgoing.length === 0) return;
-
-          const redirectedGrowth = logicTick % 2 === 0;
-          const freePackets = redirectedGrowth ? 1 : 0;
-          const paidPackets = Math.min(1 - freePackets, Math.floor(cell.value));
-          const packetCount = freePackets + paidPackets;
-          if (packetCount === 0) return;
-
-          for (let index = 0; index < packetCount; index += 1) {
-            const connection = outgoing[cell.sendCursor % outgoing.length];
-            cell.sendCursor += 1;
-            connection.energyPackets.push({
-              distance: 0,
-              source: cell,
-              team: cell.team,
-              colors: { ...cell.colors },
-            });
-          }
-          // 触手输送固定为自增基础速度的两倍，不受细胞大小影响。
-          if (paidPackets > 0) cell.changeValue(-paidPackets);
-        });
+        logicTick = runGameLogic({ cells, connections, logicTick, retractConnection });
       }
 
       let elapsed = 0;
@@ -736,7 +639,7 @@ function mountCellGame(container, level, onGameEnd) {
           aiAccumulator += ticker.deltaMS;
           if (aiAccumulator >= level.ai.thinkInterval) {
             aiAccumulator = 0;
-            // 已完成占领的支援线不再长期占用 AI 来源细胞的自增能力。
+            // 目标储备充足后收回支援线，让 AI 将连接成本用于新的目标。
             connections.forEach((connection) => {
               if (
                 connection.source.team === "red"
@@ -806,7 +709,10 @@ function mountCellGame(container, level, onGameEnd) {
 
         connections.forEach((connection) => {
           syncConnectionEndpoints(connection);
-          connection.time += ticker.deltaMS;
+          // 管道空闲时冻结摆动，只有生长、收回或存在有效能量差时才表现为流动。
+          if (connection.progress < 1 || connection.retracting || connection.flowing) {
+            connection.time += ticker.deltaMS;
+          }
           const pathLength = Math.hypot(
             connection.endX - connection.startX,
             connection.endY - connection.startY,
@@ -849,14 +755,7 @@ function mountCellGame(container, level, onGameEnd) {
               : Math.min(1, (connection.grownBeads * BEAD_SPACING - 0.001) / pathLength);
             connection.progress = Math.min(desiredProgress, affordableProgress);
           } else {
-            connection.energyPackets.forEach((packet) => {
-              packet.distance += (ticker.deltaMS / 90) * BEAD_SPACING;
-            });
-            connection.energyPackets = connection.energyPackets.filter((packet) => {
-              if (packet.distance < pathLength) return true;
-              connection.target.pendingIncoming.push(packet);
-              return false;
-            });
+            advanceEnergyPackets(connection, ticker.deltaMS, pathLength);
           }
           syncConnectionEndpoints(connection);
           drawConnection(connection);
@@ -904,14 +803,8 @@ function mountCellGame(container, level, onGameEnd) {
         }
 
         if (!gameResult) {
-          const hasTeamEnergy = (team) => cells.some((cell) => cell.team === team)
-            || cells.some((cell) => cell.pendingIncoming.some((packet) => packet.team === team))
-            || connections.some((connection) => (
-              connection.energyPackets.some((packet) => packet.team === team)
-            ))
-            || detachedBursts.some((burst) => burst.packets.some((packet) => packet.team === team));
-          if (!hasTeamEnergy("red")) gameResult = "win";
-          if (!hasTeamEnergy("green")) gameResult = "lose";
+          if (!hasTeamEnergy("red", cells, connections, detachedBursts)) gameResult = "win";
+          if (!hasTeamEnergy("green", cells, connections, detachedBursts)) gameResult = "lose";
           if (gameResult) {
             queuedConnections.forEach((queued) => queued.graphics.destroy());
             queuedConnections.length = 0;
