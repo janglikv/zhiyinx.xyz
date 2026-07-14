@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as PIXI from "pixi.js";
 import GameLayout from "../../../components/GameLayout";
 import { createCellDrawers } from "./cellGraphics";
@@ -8,14 +8,15 @@ import {
   BEAD_SPACING,
   GAME_HEIGHT,
   GAME_WIDTH,
-  getInitialCells,
   MAX_ENERGY,
 } from "./gameConfig";
+import { chooseAiMove } from "./aiController";
+import { CELL_LEVELS } from "./levelConfigs";
 import { drawConnectionPreview as drawConnectionPreviewGraphics, drawSlashTrail } from "./interactionGraphics";
 import { getPathPoint, pointToSegmentDistance, syncConnectionEndpoints } from "./pathUtils";
 import backgroundImage from "./background.png";
 
-function mountCellGame(container) {
+function mountCellGame(container, level, onGameEnd) {
     const app = new PIXI.Application();
     let destroyed = false;
 
@@ -25,7 +26,8 @@ function mountCellGame(container) {
         height: GAME_HEIGHT,
         backgroundColor: 0x111820,
         antialias: true,
-        resolution: window.devicePixelRatio || 1,
+        // 960×540 场景在高分屏无需按完整设备倍率渲染，可显著降低像素填充压力。
+        resolution: Math.min(window.devicePixelRatio || 1, 1.5),
         autoDensity: true,
       });
       const backgroundTexture = await PIXI.Assets.load(backgroundImage);
@@ -40,6 +42,7 @@ function mountCellGame(container) {
       }
 
       container.appendChild(app.canvas);
+      app.ticker.maxFPS = 60;
 
       const background = new PIXI.Sprite(backgroundTexture);
       const backgroundScale = Math.max(
@@ -71,6 +74,8 @@ function mountCellGame(container) {
       let slashActive = false;
       let slashPoints = [];
       let slashFade = 0;
+      let aiAccumulator = 0;
+      let gameResult = null;
 
       function finishSlash() {
         slashActive = false;
@@ -119,8 +124,12 @@ function mountCellGame(container) {
 
       function chooseRoute(source, target) {
         const baseAngle = Math.atan2(target.y - source.y, target.x - source.x);
-        const portOffsets = [0, 0.24, -0.24, 0.46, -0.46];
-        const detours = [0, 28, -28, 40, -40, 56, -56, 72, -72];
+        const portOffsets = [0, 0.3, -0.3];
+        const detours = [0, 32, -32, 64, -64];
+        const connectionSamples = connections.map((connection) => ({
+          connection,
+          points: Array.from({ length: 12 }, (_, index) => getPathPoint(connection, (index + 1) / 13)),
+        }));
         let bestRoute = null;
         let bestScore = Infinity;
 
@@ -144,17 +153,16 @@ function mountCellGame(container) {
               let score = Math.abs(detour) * 0.35 + (Math.abs(sourceOffset) + Math.abs(targetOffset)) * 18;
               let blocked = false;
 
-              for (let step = 1; step < 32 && !blocked; step += 1) {
-                const point = getPathPoint(route, step / 32);
+              for (let step = 1; step < 21 && !blocked; step += 1) {
+                const point = getPathPoint(route, step / 21);
                 blocked = cells.some((cell) => {
                   if (cell === source || cell === target) return false;
                   return Math.hypot(point.x - cell.x, point.y - cell.y) <= cell.radius + 10;
                 });
                 if (blocked) break;
 
-                connections.forEach((connection) => {
-                  for (let otherStep = 1; otherStep < 24; otherStep += 1) {
-                    const otherPoint = getPathPoint(connection, otherStep / 24);
+                connectionSamples.forEach(({ points }) => {
+                  for (const otherPoint of points) {
                     const distance = Math.hypot(point.x - otherPoint.x, point.y - otherPoint.y);
                     if (distance < 14) score += (14 - distance) ** 2 * 0.4;
                   }
@@ -162,7 +170,7 @@ function mountCellGame(container) {
               }
               if (blocked) continue;
 
-              connections.forEach((connection) => {
+              connectionSamples.forEach(({ connection }) => {
                 const sourceEndpoint = connection.source === source
                   ? [connection.startX, connection.startY]
                   : connection.target === source ? [connection.endX, connection.endY] : null;
@@ -207,11 +215,12 @@ function mountCellGame(container) {
         drawConnectionPreviewGraphics(previewGraphics, pressedCell, previewRoute, Boolean(hoveredCell));
       }
 
-      function startConnection(source, target) {
+      function startConnection(source, target, selectedRoute = null) {
         // 使用玩家确认时看到的路径，避免松手后重新选路导致预瞄造价失效。
-        const route = previewTarget === target && previewRoute
+        const route = selectedRoute || (previewTarget === target && previewRoute
           ? { ...previewRoute }
-          : chooseRoute(source, target);
+          : chooseRoute(source, target));
+        if (!route) return;
         const pathLength = Math.hypot(route.endX - route.startX, route.endY - route.startY);
 
         connections.push({
@@ -421,8 +430,10 @@ function mountCellGame(container) {
         cellData.autoGrow = grows;
         cellData.pendingIncoming = [];
         cellData.sendCursor = 0;
+        cellData.defendingRetreat = false;
 
         cell.on("pointerdown", (event) => {
+          if (gameResult || cellData.team !== "green") return;
           pressedCell = cellData;
           selection.visible = true;
           drawConnectionPreview(event.global.x, event.global.y);
@@ -440,15 +451,16 @@ function mountCellGame(container) {
           drawConnectionPreview(event.global.x, event.global.y);
         });
         cell.on("pointerup", () => {
-          if (pressedCell && pressedCell !== cellData) {
+          if (pressedCell?.team === "green" && pressedCell !== cellData) {
             startConnection(pressedCell, cellData);
           }
           clearConnectionPreview();
         });
       }
 
-      getInitialCells().forEach(({ x, y, value, colors, options }) => {
-        createCell(x, y, value, colors, options);
+      level.cells.forEach(({ x, y, value, colors, options }) => {
+        // 阵营切换会改写颜色，实例必须复制一份，避免污染关卡配置和重开状态。
+        createCell(x, y, value, { ...colors }, options);
       });
       app.stage.addChild(slashGraphics);
 
@@ -501,25 +513,56 @@ function mountCellGame(container) {
             cell.changeValue(1);
           }
 
-          const incoming = cell.pendingIncoming.shift();
-          if (!incoming) return;
-          if (cell.team === "neutral") {
-            cell.capture(incoming.team, incoming.colors);
-            cell.changeValue(1);
-          } else if (cell.team === incoming.team) {
-            if (cell.value < MAX_ENERGY) {
-              cell.changeValue(1);
-            } else {
-              // 能量抵达前目标可能已经充满，退回来源避免被上限吞掉。
-              incoming.source.refundEnergy(1);
-            }
-          } else if (Math.floor(cell.value) <= 1) {
-            cell.value = 0;
-            cell.neutralize();
-            cell.capture(incoming.team, incoming.colors);
-          } else {
-            cell.changeValue(-1);
+          if (cell.pendingIncoming.length === 0) return;
+          const hostileIncoming = cell.team !== "neutral"
+            && cell.pendingIncoming.some((packet) => packet.team !== cell.team);
+          const outgoing = connections.filter((connection) => (
+            connection.source === cell && connection.progress > 0
+          ));
+
+          if (!cell.defendingRetreat && cell.value < 1 && hostileIncoming && outgoing.length > 0) {
+            cell.defendingRetreat = true;
+            outgoing.forEach((connection) => {
+              if (connection.retracting) return;
+              connection.retracting = true;
+              connection.source.refundEnergy(connection.energyPackets.length);
+              connection.energyPackets = [];
+            });
           }
+          // 零能量时先完整收回触手，返还的珠链能量可用于抵消正在抵达的攻击。
+          if (cell.defendingRetreat && outgoing.length > 0) return;
+          cell.defendingRetreat = false;
+
+          const incoming = cell.pendingIncoming.splice(0);
+          const greenIncoming = incoming.filter((packet) => packet.team === "green");
+          const redIncoming = incoming.filter((packet) => packet.team === "red");
+
+          if (cell.team === "neutral") {
+            const balance = greenIncoming.length - redIncoming.length;
+            if (balance === 0) return;
+            const winners = balance > 0 ? greenIncoming : redIncoming;
+            cell.value = Math.abs(balance);
+            cell.setFaction(winners[0].team, winners[0].colors, false);
+            return;
+          }
+
+          const friendly = cell.team === "green" ? greenIncoming : redIncoming;
+          const hostile = cell.team === "green" ? redIncoming : greenIncoming;
+          const balance = cell.value + friendly.length - hostile.length;
+          if (balance >= 0 || hostile.length === 0) {
+            const nextValue = Math.min(MAX_ENERGY, balance);
+            const overflow = Math.max(0, balance - MAX_ENERGY);
+            if (overflow > 0) {
+              friendly.slice(-overflow).forEach((packet) => packet.source.refundEnergy(1));
+            }
+            cell.value = nextValue;
+            cell.render(nextValue);
+            return;
+          }
+
+          // 同帧攻击统一净额结算，避免红绿输入按队列顺序导致阵营疯狂闪烁。
+          cell.value = Math.abs(balance);
+          cell.setFaction(hostile[0].team, hostile[0].colors, false);
         });
 
         // 每个源细胞每帧只选择一条已建立连接，避免多连接导致瞬时跳变。
@@ -547,6 +590,15 @@ function mountCellGame(container) {
       let elapsed = 0;
       app.ticker.add((ticker) => {
         elapsed += ticker.deltaTime;
+
+        if (!gameResult) {
+          aiAccumulator += ticker.deltaMS;
+          if (aiAccumulator >= level.ai.thinkInterval) {
+            aiAccumulator = 0;
+            const move = chooseAiMove(cells, connections, chooseRoute, level.ai);
+            if (move) startConnection(move.source, move.target, move.route);
+          }
+        }
 
         if (!slashActive && slashFade > 0) {
           slashFade = Math.max(0, slashFade - ticker.deltaMS / 260);
@@ -646,6 +698,20 @@ function mountCellGame(container) {
           connections.splice(index, 1);
         }
 
+        if (!gameResult) {
+          const hasTeamEnergy = (team) => cells.some((cell) => cell.team === team)
+            || cells.some((cell) => cell.pendingIncoming.some((packet) => packet.team === team))
+            || connections.some((connection) => (
+              connection.energyPackets.some((packet) => packet.team === team)
+            ));
+          if (!hasTeamEnergy("red")) gameResult = "win";
+          if (!hasTeamEnergy("green")) gameResult = "lose";
+          if (gameResult) {
+            clearConnectionPreview();
+            onGameEnd(gameResult);
+          }
+        }
+
         // 各突起错开摆动，避免整圈同步产生机械式呼吸感。
         animatedParts.forEach(({ bumpSprites, poreSprites, sheenShape, sheenRange, radius, detailScale }, cellIndex) => {
           bumpSprites.forEach((item) => {
@@ -709,8 +775,22 @@ function mountCellGame(container) {
 
 function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const containerRef = useRef(null);
+  const [levelIndex, setLevelIndex] = useState(0);
+  const [result, setResult] = useState(null);
+  const [restartKey, setRestartKey] = useState(0);
+  const level = CELL_LEVELS[levelIndex];
 
-  useEffect(() => mountCellGame(containerRef.current), []);
+  useEffect(() => mountCellGame(containerRef.current, level, setResult), [level, restartKey]);
+
+  function selectLevel(nextIndex) {
+    setLevelIndex(nextIndex);
+    setResult(null);
+  }
+
+  function restartLevel() {
+    setResult(null);
+    setRestartKey((value) => value + 1);
+  }
 
   return (
     <GameLayout
@@ -722,6 +802,22 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       contentWidth={GAME_WIDTH}
     >
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
+        <div style={{ width: GAME_WIDTH, display: "flex", alignItems: "center", gap: "10px" }}>
+          {CELL_LEVELS.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              className={index === levelIndex ? "btn btn-primary" : "btn btn-ghost"}
+              onClick={() => selectLevel(index)}
+              style={{ padding: "7px 14px", fontSize: "12px" }}
+            >
+              第 {item.id} 关
+            </button>
+          ))}
+          <span style={{ marginLeft: "6px", color: "var(--text-secondary)", fontSize: "13px" }}>
+            {level.name} · {level.description}
+          </span>
+        </div>
         <div style={{ position: "relative", width: GAME_WIDTH, height: GAME_HEIGHT }}>
           <div
             ref={containerRef}
@@ -735,6 +831,27 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
               height: GAME_HEIGHT,
             }}
           />
+          {result && (
+            <div
+              style={{
+                position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: "16px",
+                background: "rgba(5, 8, 10, 0.72)", borderRadius: "16px",
+              }}
+            >
+              <strong style={{ color: "white", fontSize: "32px" }}>
+                {result === "win" ? "关卡胜利" : "菌落失守"}
+              </strong>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button type="button" className="btn btn-ghost" onClick={restartLevel}>重新挑战</button>
+                {result === "win" && levelIndex < CELL_LEVELS.length - 1 && (
+                  <button type="button" className="btn btn-primary" onClick={() => selectLevel(levelIndex + 1)}>
+                    下一关
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </GameLayout>
