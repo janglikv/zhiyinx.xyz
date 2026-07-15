@@ -3,6 +3,16 @@ import * as PIXI from "pixi.js";
 export const MAX_ENERGY = 99;
 export const LARGE_CELL_THRESHOLD = 50;
 
+/**
+ * 自增速率（能量/秒）：任何能量（含 0）都会长；越大越快。
+ * rate = max(GROWTH_MIN, GROWTH_BASE + value * GROWTH_PER_UNIT)
+ * 例：0→0.35/s，1→0.35/s，15→0.68/s，50→2.1/s，80→3.3/s
+ */
+export const GROWTH_BASE = 0.08;
+export const GROWTH_PER_UNIT = 0.04;
+/** 空细胞也要能长回来，不低于该速率 */
+export const GROWTH_MIN = 0.35;
+
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
 }
@@ -199,6 +209,8 @@ export class Cell {
     this.colors = derivePalette(color);
     this.value = Math.min(MAX_ENERGY, Number(value));
     this._selected = false;
+    /** 自增小数累计，满 1 进位 */
+    this._growthAcc = 0;
 
     const drawers = createCellDrawers(this.colors);
     this._draw = drawers;
@@ -351,7 +363,27 @@ export class Cell {
     this._renderGrowth(this.value);
   }
 
+  /**
+   * 自增能量：能量为 0 也会长；越大越快，封顶 MAX_ENERGY。
+   * @param {number} deltaMS
+   */
+  tickGrowth(deltaMS) {
+    if (this.value >= MAX_ENERGY) {
+      this._growthAcc = 0;
+      return;
+    }
+    const raw = GROWTH_BASE + Math.max(0, this.value) * GROWTH_PER_UNIT;
+    const rate = Math.max(GROWTH_MIN, raw);
+    this._growthAcc += rate * (deltaMS / 1000);
+    if (this._growthAcc < 1) return;
+    const add = Math.floor(this._growthAcc);
+    this._growthAcc -= add;
+    this.changeValue(add);
+  }
+
   update(deltaMS, elapsed, cellIndex = 0) {
+    this.tickGrowth(deltaMS);
+
     if (this._selected) {
       this._selection.alpha = 0.55 + Math.sin(elapsed * 0.08 + cellIndex) * 0.45;
     }
@@ -438,7 +470,8 @@ export class Cell {
 
     this.container.hitArea = new PIXI.Circle(0, 0, Math.max(20, radius + 5));
     this._valueText.text = String(Math.floor(currentValue));
-    this._valueText.visible = currentValue > 0;
+    // 0 也显示，方便看到空细胞仍在自增
+    this._valueText.visible = true;
 
     this._draw.drawShadow(this._shadow, radius);
     this._draw.drawBody(this._body, radius);
