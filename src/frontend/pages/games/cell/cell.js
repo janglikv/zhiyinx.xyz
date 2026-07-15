@@ -7,6 +7,10 @@ function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
 }
 
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
 function unpack(color) {
   return [(color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff];
 }
@@ -15,86 +19,150 @@ function pack(r, g, b) {
   return (clampByte(r) << 16) | (clampByte(g) << 8) | clampByte(b);
 }
 
-/** t=0 为 a，t=1 为 b */
-function mixColor(a, b, t) {
-  const [ar, ag, ab] = unpack(a);
-  const [br, bg, bb] = unpack(b);
-  return pack(
-    ar + (br - ar) * t,
-    ag + (bg - ag) * t,
-    ab + (bb - ab) * t,
-  );
+function rgbToHsl(r, g, b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return [h / 6, s, l];
 }
 
-/** 仅用 base 色推导绘制所需的全部色阶 */
+function hslToRgb(h, s, l) {
+  if (s === 0) {
+    const gray = l * 255;
+    return [gray, gray, gray];
+  }
+
+  const hue2rgb = (p, q, t) => {
+    let tt = t;
+    if (tt < 0) tt += 1;
+    if (tt > 1) tt -= 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [
+    hue2rgb(p, q, h + 1 / 3) * 255,
+    hue2rgb(p, q, h) * 255,
+    hue2rgb(p, q, h - 1 / 3) * 255,
+  ];
+}
+
+/**
+ * 在 HSL 空间调节 base 色：
+ * - h：色相偏移（0~1）
+ * - sMul / lMul：饱和度、亮度倍率
+ * - s / l：饱和度、亮度加减
+ */
+function adjustColor(base, { h = 0, s = 0, l = 0, sMul = 1, lMul = 1 } = {}) {
+  const [r, g, b] = unpack(base);
+  const [hh, ss, ll] = rgbToHsl(r, g, b);
+  const nextH = ((hh + h) % 1 + 1) % 1;
+  const nextS = clamp01(ss * sMul + s);
+  const nextL = clamp01(ll * lMul + l);
+  return pack(...hslToRgb(nextH, nextS, nextL));
+}
+
+/**
+ * 仅用 base 色推导绘制所需的全部色阶。
+ * 用 HSL 压暗/提亮并保持饱和，避免 RGB 掺白导致发灰发飘。
+ */
 export function derivePalette(base) {
   return {
     main: base,
-    light: mixColor(base, 0xffffff, 0.22),
-    highlight: mixColor(base, 0xffffff, 0.58),
-    dark: mixColor(base, 0x000000, 0.55),
-    shadow: mixColor(base, 0x000000, 0.88),
-    outline: mixColor(base, 0x000000, 0.72),
-    poreRing: mixColor(base, 0x000000, 0.38),
-    pore: mixColor(base, 0x000000, 0.55),
-    poreDark: mixColor(base, 0x000000, 0.72),
-    centerDark: mixColor(base, 0x000000, 0.78),
-    center: mixColor(base, 0x000000, 0.65),
+    // 受光面：略提亮并加一点饱和
+    light: adjustColor(base, { l: 0.1, sMul: 1.08 }),
+    // 高光：提亮但保留色相，略偏暖，不做发白
+    highlight: adjustColor(base, { l: 0.2, sMul: 0.92, h: 0.025 }),
+    // 暗部：压低亮度、抬高饱和，轮廓更立体
+    dark: adjustColor(base, { lMul: 0.42, sMul: 1.25 }),
+    shadow: adjustColor(base, { lMul: 0.1, sMul: 0.95 }),
+    outline: adjustColor(base, { lMul: 0.24, sMul: 1.2 }),
+    poreRing: adjustColor(base, { lMul: 0.52, sMul: 1.28 }),
+    pore: adjustColor(base, { lMul: 0.38, sMul: 1.22 }),
+    poreDark: adjustColor(base, { lMul: 0.22, sMul: 1.1 }),
+    centerDark: adjustColor(base, { lMul: 0.14, sMul: 0.9 }),
+    center: adjustColor(base, { lMul: 0.28, sMul: 1.0 }),
   };
 }
 
 function createCellDrawers(colors) {
   function drawShadow(graphics, radius) {
-    graphics.clear().ellipse(2, 3, radius + 4, radius + 3)
-      .fill({ color: colors.shadow, alpha: 0.55 });
+    // 不用 BlurFilter：半径变化时滤镜包围盒会留下方形残影。
+    // 多层半透明椭圆模拟柔和投影。
+    graphics.clear()
+      .ellipse(3, 4, radius + 8, radius + 6).fill({ color: colors.shadow, alpha: 0.12 })
+      .ellipse(2.5, 3.5, radius + 5.5, radius + 4).fill({ color: colors.shadow, alpha: 0.18 })
+      .ellipse(2, 3, radius + 3.5, radius + 2.5).fill({ color: colors.shadow, alpha: 0.28 })
+      .ellipse(1.5, 2.5, radius + 1.5, radius + 1).fill({ color: colors.shadow, alpha: 0.22 });
   }
 
   function drawBody(graphics, radius) {
     graphics.clear()
-      .circle(1, 1.5, radius).fill({ color: colors.shadow })
+      // 底侧暗边，增强体积感
+      .circle(1.2, 1.8, radius).fill({ color: colors.shadow })
+      .circle(0.4, 0.6, radius).fill({ color: colors.dark, alpha: 0.55 })
       .circle(0, 0, radius).fill({ color: colors.main })
-      .circle(-1.5, -2, radius - 2.5).fill({ color: colors.light })
-      .ellipse(-radius * 0.25, -radius * 0.35, radius * 0.58, radius * 0.42)
-      .fill({ color: colors.highlight, alpha: 0.34 })
-      .circle(0, 0, radius).stroke({ color: colors.outline, width: 1.2, alpha: 0.85 })
-      .circle(0, 0, radius - 1.8).stroke({ color: colors.highlight, width: 0.8, alpha: 0.62 });
+      // 左上受光
+      .circle(-radius * 0.18, -radius * 0.22, radius * 0.78).fill({ color: colors.light, alpha: 0.72 })
+      .ellipse(-radius * 0.28, -radius * 0.38, radius * 0.48, radius * 0.34)
+      .fill({ color: colors.highlight, alpha: 0.42 })
+      .circle(0, 0, radius).stroke({ color: colors.outline, width: 1.35, alpha: 0.92 })
+      .circle(0, 0, radius - 1.6).stroke({ color: colors.light, width: 0.9, alpha: 0.45 });
   }
 
   function drawBump(graphics, radius) {
     graphics.clear()
-      .circle(0.6, 0.8, radius + 0.8).fill({ color: colors.dark })
+      .circle(0.7, 0.9, radius + 0.85).fill({ color: colors.dark })
       .circle(0, 0, radius).fill({ color: colors.main })
-      .circle(-0.6, -0.8, radius * 0.48).fill({ color: colors.highlight, alpha: 0.75 });
+      .circle(-0.55, -0.7, radius * 0.42).fill({ color: colors.light, alpha: 0.9 })
+      .circle(-0.75, -0.95, radius * 0.22).fill({ color: colors.highlight, alpha: 0.7 });
   }
 
   function drawFlagellum(graphics, length) {
     graphics.clear()
       .moveTo(-1, 0)
       .lineTo(length, 0)
-      .stroke({ color: colors.highlight, width: 1.25, alpha: 0.76 });
+      .stroke({ color: colors.light, width: 1.25, alpha: 0.82 });
   }
 
   function drawPore(graphics, radius) {
     graphics.clear()
-      .circle(0.3, 0.5, radius + 0.7).fill({ color: colors.poreRing, alpha: 0.85 })
+      .circle(0.35, 0.55, radius + 0.75).fill({ color: colors.dark, alpha: 0.9 })
       .circle(0, 0, radius).fill({ color: colors.pore })
       .ellipse(-radius * 0.25, -radius * 0.3, radius * 0.52, radius * 0.35)
-      .fill({ color: colors.poreDark, alpha: 0.78 })
+      .fill({ color: colors.poreDark, alpha: 0.82 })
       .circle(-radius * 0.32, -radius * 0.38, Math.max(0.4, radius * 0.16))
-      .fill({ color: colors.highlight, alpha: 0.7 });
+      .fill({ color: colors.light, alpha: 0.65 });
   }
 
   function drawCenter(graphics) {
     graphics.clear()
-      .circle(0, 0.5, 9).fill({ color: colors.centerDark, alpha: 0.96 })
-      .circle(-0.5, -0.25, 8.25).fill({ color: colors.center })
-      .circle(0, 0.25, 8.5).stroke({ color: colors.highlight, width: 0.6, alpha: 0.55 });
+      .circle(0.6, 0.8, 9.2).fill({ color: colors.shadow, alpha: 0.55 })
+      .circle(0, 0.5, 9).fill({ color: colors.centerDark, alpha: 0.98 })
+      .circle(-0.5, -0.25, 8.1).fill({ color: colors.center })
+      .ellipse(-2.2, -2.4, 3.6, 2.1).fill({ color: colors.light, alpha: 0.28 })
+      .circle(0, 0.25, 8.4).stroke({ color: colors.outline, width: 0.7, alpha: 0.75 });
   }
 
   function drawSheen(graphics, radius) {
     graphics.clear()
-      .ellipse(-radius * 0.7, -radius * 0.25, 7, 13).fill({ color: colors.highlight, alpha: 0.13 })
-      .ellipse(-radius * 0.4, -radius * 0.45, 3, 7).fill({ color: 0xffffff, alpha: 0.11 });
+      .ellipse(-radius * 0.68, -radius * 0.28, 7.5, 13.5).fill({ color: colors.highlight, alpha: 0.18 })
+      .ellipse(-radius * 0.42, -radius * 0.48, 2.8, 6.2).fill({ color: colors.light, alpha: 0.16 });
   }
 
   function drawHint(graphics, radius, target = false) {
@@ -148,7 +216,6 @@ export class Cell {
 
     this._shadow = new PIXI.Graphics();
     drawers.drawShadow(this._shadow, cellRadius);
-    this._shadow.filters = [new PIXI.BlurFilter({ strength: 4 })];
 
     this._membrane = new PIXI.Container();
     this._flagella = new PIXI.Container();
