@@ -2,10 +2,15 @@
 export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 540;
 
+/** 阵营色：绿=玩家，红=AI，灰=中立（不自增、不可操作） */
+export const COLOR_PLAYER = 0x54c92b;
+export const COLOR_ENEMY = 0xd94343;
+export const COLOR_NEUTRAL = 0x737d88;
+
 export const INITIAL_CELLS = [
-  { x: 312, y: 270, value: 15, color: 0x54c92b },
-  { x: 480, y: 270, value: 0, color: 0x737d88 },
-  { x: 648, y: 270, value: 15, color: 0xd94343 },
+  { x: 312, y: 270, value: 22, color: COLOR_PLAYER },
+  { x: 480, y: 270, value: 0, color: COLOR_NEUTRAL },
+  { x: 648, y: 270, value: 15, color: COLOR_ENEMY },
 ];
 
 /** 能量上限 / 显示阈值 */
@@ -16,10 +21,25 @@ export const ENERGY_EPS = 1e-6;
 /**
  * 自增速率（能量/秒）：rate = max(GROWTH_MIN, GROWTH_BASE + value * GROWTH_PER_UNIT)
  * 例：0→0.35/s，15→0.68/s，50→2.1/s，80→3.3/s
+ * 中立色（COLOR_NEUTRAL）不参与自增。
  */
 export const GROWTH_BASE = 0.08;
 export const GROWTH_PER_UNIT = 0.04;
 export const GROWTH_MIN = 0.35;
+
+/**
+ * AI 决策（状态机 + 可控抖动）
+ * think 间隔内做意图评估；开火仍走 combat 连发。
+ */
+export const AI_SEED = 1;
+export const AI_THINK_MIN_MS = 280;
+export const AI_THINK_MAX_MS = 520;
+/** 低于此能量（相对开火成本）优先蓄能 */
+export const AI_CHARGE_COST_MULT = 1.6;
+/** 高于此能量可进入全力压制 */
+export const AI_PRESS_COST_MULT = 3.2;
+/** 同目标最短保持时间，避免抖动换目标 */
+export const AI_HOLD_TARGET_MS = 900;
 
 /** 半径线性动画速度（像素/秒） */
 export const RADIUS_ANIM_SPEED = 36;

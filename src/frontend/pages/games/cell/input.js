@@ -187,13 +187,16 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
   }
 
   /**
-   * 细胞 pointerdown：开始瞄准。
+   * 细胞 pointerdown：仅玩家阵营（绿色）可拖拽瞄准。
+   * 敌/中立仍可被射线选为目标，但不能作为发射源。
    * @param {import("./cell").Cell} cell
    * @param {PIXI.FederatedPointerEvent} event
    */
   function onCellPointerDown(cell, event) {
     event.stopPropagation();
     endCutGesture();
+
+    if (!cell.isPlayer()) return;
 
     dragSource = cell;
     dragMoved = false;

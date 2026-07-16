@@ -7,6 +7,9 @@ import {
   GROWTH_MIN,
   RADIUS_ANIM_SPEED,
   ENERGY_EPS,
+  COLOR_PLAYER,
+  COLOR_ENEMY,
+  COLOR_NEUTRAL,
 } from "./constants";
 
 // 对外仍可从 cell 入口引用这些常量
@@ -18,6 +21,9 @@ export {
   GROWTH_MIN,
   RADIUS_ANIM_SPEED,
   ENERGY_EPS,
+  COLOR_PLAYER,
+  COLOR_ENEMY,
+  COLOR_NEUTRAL,
 };
 
 function clampByte(value) {
@@ -235,9 +241,10 @@ export class Cell {
 
     this.container = new PIXI.Container();
     this.container.position.set(x, y);
+    // 瞄准射线需要命中所有细胞；仅玩家细胞显示可拖拽光标
     this.container.eventMode = "static";
-    this.container.cursor = "pointer";
     this.container.hitArea = new PIXI.Circle(0, 0, Math.max(20, cellRadius + 5));
+    this._syncInteraction();
 
     this._shadow = new PIXI.Graphics();
     drawers.drawShadow(this._shadow, cellRadius);
@@ -389,13 +396,37 @@ export class Cell {
     this._draw.drawSheen(this._sheenShape, this.radius);
     this._valueText.style.stroke = { color: this.colors.centerDark, width: 0.8 };
     this._applyRadiusVisuals(this.radius, { force: true });
+    this._syncInteraction();
+  }
+
+  isPlayer() {
+    return this.color === COLOR_PLAYER;
+  }
+
+  isEnemy() {
+    return this.color === COLOR_ENEMY;
+  }
+
+  isNeutral() {
+    return this.color === COLOR_NEUTRAL;
+  }
+
+  /** 中立不自增；被染色后随阵营恢复 */
+  canGrow() {
+    return !this.isNeutral();
+  }
+
+  _syncInteraction() {
+    // 玩家可拖；敌/中立仅作瞄准落点，不显示 pointer
+    this.container.cursor = this.isPlayer() ? "pointer" : "default";
   }
 
   /**
-   * 自增能量（浮点连续）：能量为 0 也会长；越大越快，封顶 MAX_ENERGY。
+   * 自增能量（浮点连续）：中立跳过；其余能量为 0 也会长；越大越快，封顶 MAX_ENERGY。
    * @param {number} deltaMS
    */
   tickGrowth(deltaMS) {
+    if (!this.canGrow()) return;
     if (this.value >= MAX_ENERGY - ENERGY_EPS) {
       this.value = MAX_ENERGY;
       return;

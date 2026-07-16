@@ -13,6 +13,7 @@ import {
 import { createCombat } from "./combat";
 import { createAimSystem } from "./aim";
 import { createInputSystem } from "./input";
+import { createAI } from "./ai";
 
 /**
  * 挂载 Pixi 场景：组装系统并固定 ticker 顺序。
@@ -103,12 +104,15 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
       cells.push(cell);
     });
 
+    // —— 敌人 AI（仅红色；与玩家共用 combat） ——
+    const ai = createAI({ cells, combat });
+
     // 细胞后挂载：准星环与刀光需在细胞之上
     app.stage.addChild(aim.aimRing);
     app.stage.addChild(input.cutTrail);
 
     // —— 固定 ticker 管道 ——
-    // 1 cells  2 fireLinks  3 blade  4 aimRing  5 linkLines  6 bullets
+    // 1 cells  2 ai  3 fireLinks  4 blade  5 aimRing  6 linkLines  7 bullets
     app.ticker.add((ticker) => {
       elapsed += ticker.deltaTime;
       const dt = ticker.deltaMS;
@@ -117,6 +121,7 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
         cell.update(dt, elapsed, index);
       });
 
+      ai.update(dt);
       combat.tickFireLinks(dt);
       input.tickBlade(dt);
       aim.tickAimRing(dt);
@@ -180,7 +185,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           }}
         >
           <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-            射线瞄准连发 · 异色可互连 · 同色互连后连为准 · 划刀切断 · 越大越快 · 同色 +1 · 异色 -1
+            仅操作绿色 · 红色 AI · 灰色中立不自增 · 射线连发 · 划刀切断 · 异色伤害 / 同色治疗
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
             <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>背景</span>
