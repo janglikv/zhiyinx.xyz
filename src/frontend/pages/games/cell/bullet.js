@@ -2,7 +2,9 @@ import * as PIXI from "pixi.js";
 import { derivePalette } from "./cell";
 
 const BULLET_SPEED = 160; // px/s
-const BULLET_RADIUS = 3.2;
+export const BULLET_RADIUS = 3.2;
+/** 异色子弹互相抵消的判定半径（两球心距） */
+export const BULLET_COLLIDE_DIST = BULLET_RADIUS * 2.2;
 
 /**
  * 小细胞子弹：飞向目标；途中碰到其它细胞会被挡住并命中该细胞。
@@ -165,8 +167,17 @@ export class Bullet {
     return true;
   }
 
+  /**
+   * 异色对撞抵消：不触发细胞命中，直接消失。
+   */
+  cancel() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.destroy();
+  }
+
   destroy() {
-    if (this.container.destroyed) return;
+    if (!this.container || this.container.destroyed) return;
     this.container.destroy({ children: true });
   }
 }

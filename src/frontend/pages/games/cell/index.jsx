@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as PIXI from "pixi.js";
 import GameLayout from "../../../components/GameLayout";
 import { Cell } from "./cell";
-import { Bullet } from "./bullet";
+import { Bullet, BULLET_COLLIDE_DIST } from "./bullet";
 import backgroundScene from "./background.png";
 import backgroundDish from "./background-dish.png";
 import backgroundDna from "./background-dna.png";
@@ -138,10 +138,12 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
     const bullets = [];
     /**
      * 每个源细胞各自锁定一个持续发射目标。
-     * 没能量时仍保持连线，有 1 点就打 1 发；仅源细胞变色时断链。
-     * @type {Map<import("./cell").Cell, { target: import("./cell").Cell, cooldown: number, color: number }>}
+     * 没能量时仍保持连线，有 1 点就打 1 发；源变色断链。
+     * 单向均可；异色 A↔B 互连允许；同色互连禁止，seq 更大（后连）的保留。
+     * @type {Map<import("./cell").Cell, { target: import("./cell").Cell, cooldown: number, color: number, seq: number }>}
      */
     const fireLinks = new Map();
+    let fireLinkSeq = 0;
     /**
      * 攻速随体型：小慢大快（与自增同思路）。
      * 射速 ≈ FIRE_RATE_BASE + value * FIRE_RATE_PER_UNIT（发/秒）
@@ -184,49 +186,163 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
 
     const aimLine = new PIXI.Graphics();
     aimLine.eventMode = "none";
+    /** 被瞄准细胞上的旋转圆环 */
+    const aimRing = new PIXI.Container();
+    aimRing.eventMode = "none";
+    aimRing.visible = false;
+    const aimRingGfx = new PIXI.Graphics();
+    aimRing.addChild(aimRingGfx);
+    let aimRingSpin = 0;
+    /** @type {import("./cell").Cell | null} */
+    let aimRingTarget = null;
+
     const linkLines = new PIXI.Graphics();
     linkLines.eventMode = "none";
     const cutTrail = new PIXI.Graphics();
     cutTrail.eventMode = "none";
 
+    /** 最近一次有效瞄准方向（鼠标贴近源中心时复用，避免抖动） */
+    let lastAimUx = 1;
+    let lastAimUy = 0;
+
     /**
-     * @param {number} x
-     * @param {number} y
-     * @returns {import("./cell").Cell | null}
+     * 只取鼠标相对源细胞的方向，与距离无关。
+     * @param {import("./cell").Cell} source
+     * @param {number} px
+     * @param {number} py
      */
-    function cellAt(x, y) {
-      for (let i = cells.length - 1; i >= 0; i -= 1) {
-        const cell = cells[i];
-        const dx = x - cell.container.x;
-        const dy = y - cell.container.y;
-        const hitR = Math.max(20, cell.radius + 6);
-        if (dx * dx + dy * dy <= hitR * hitR) return cell;
-      }
-      return null;
+    function getAimDir(source, px, py) {
+      const dx = px - source.container.x;
+      const dy = py - source.container.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 6) return { ux: lastAimUx, uy: lastAimUy };
+      lastAimUx = dx / len;
+      lastAimUy = dy / len;
+      return { ux: lastAimUx, uy: lastAimUy };
     }
 
     /**
-     * 瞄准线几何：从源边缘到目标边缘（便于切断，不与细胞本体抢手势）。
+     * 从 source 沿方向 (ux,uy) 发出射线，命中的第一个细胞即为瞄准目标。
+     * @param {import("./cell").Cell} source
+     * @param {number} ux
+     * @param {number} uy
+     * @returns {import("./cell").Cell | null}
+     */
+    function cellAlongRay(source, ux, uy) {
+      const x0 = source.container.x;
+      const y0 = source.container.y;
+      const minT = source.radius * 0.4;
+
+      /** @type {import("./cell").Cell | null} */
+      let best = null;
+      let bestEntry = Infinity;
+
+      for (const cell of cells) {
+        if (cell === source) continue;
+        const cx = cell.container.x - x0;
+        const cy = cell.container.y - y0;
+        const t = cx * ux + cy * uy;
+        if (t <= minT) continue;
+        const perp2 = cx * cx + cy * cy - t * t;
+        const hitR = cell.radius * 0.92;
+        if (perp2 > hitR * hitR) continue;
+        const entry = t - Math.sqrt(Math.max(0, hitR * hitR - perp2));
+        if (entry > minT && entry < bestEntry) {
+          bestEntry = entry;
+          best = cell;
+        }
+      }
+      return best;
+    }
+
+    /**
+     * 射线打到画布边界的落点（方向预瞄用）。
+     * @param {number} x0
+     * @param {number} y0
+     * @param {number} ux
+     * @param {number} uy
+     */
+    function rayToBounds(x0, y0, ux, uy) {
+      let tMin = Infinity;
+      if (ux > 1e-6) tMin = Math.min(tMin, (GAME_WIDTH - x0) / ux);
+      if (ux < -1e-6) tMin = Math.min(tMin, (0 - x0) / ux);
+      if (uy > 1e-6) tMin = Math.min(tMin, (GAME_HEIGHT - y0) / uy);
+      if (uy < -1e-6) tMin = Math.min(tMin, (0 - y0) / uy);
+      if (!Number.isFinite(tMin) || tMin <= 0) tMin = 480;
+      return { x: x0 + ux * tMin, y: y0 + uy * tMin };
+    }
+
+    /** 瞄准环相对细胞壁的外扩（与 drawAimRing 一致） */
+    const AIM_RING_PAD = 10;
+    /** 预瞄 / 连发虚线统一：短且密 */
+    const BEAM_DASH = { dash: 3.2, gap: 2.6 };
+    const BEAM_WIDTH = 1.35;
+
+    /**
+     * 连发虚线：源细胞壁 → 目标细胞壁。
      * @param {import("./cell").Cell} source
      * @param {import("./cell").Cell} target
      */
     function linkEndpoints(source, target) {
-      const x1 = source.container.x;
-      const y1 = source.container.y;
-      const x2 = target.container.x;
-      const y2 = target.container.y;
-      const dx = x2 - x1;
-      const dy = y2 - y1;
+      return beamEndpoints(source, target, source.radius, target.radius);
+    }
+
+    /**
+     * 预瞄线：源细胞壁 → 目标瞄准环。
+     * @param {import("./cell").Cell} source
+     * @param {import("./cell").Cell} target
+     */
+    function aimEndpoints(source, target) {
+      return beamEndpoints(
+        source,
+        target,
+        source.radius,
+        target.radius + AIM_RING_PAD,
+      );
+    }
+
+    /**
+     * 沿两细胞连心线，从源外半径到目标外半径。
+     * @param {import("./cell").Cell} source
+     * @param {import("./cell").Cell} target
+     * @param {number} rFrom 源侧距离中心
+     * @param {number} rTo 目标侧距离中心
+     */
+    function beamEndpoints(source, target, rFrom, rTo) {
+      const sx = source.container.x;
+      const sy = source.container.y;
+      const tx = target.container.x;
+      const ty = target.container.y;
+      const dx = tx - sx;
+      const dy = ty - sy;
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len;
       const uy = dy / len;
-      const r1 = source.radius * 0.85;
-      const r2 = target.radius * 0.85;
+
+      if (len <= rFrom + rTo + 0.5) {
+        const mx = (sx + tx) / 2;
+        const my = (sy + ty) / 2;
+        return { x1: mx, y1: my, x2: mx, y2: my };
+      }
+
       return {
-        x1: x1 + ux * r1,
-        y1: y1 + uy * r1,
-        x2: x2 - ux * r2,
-        y2: y2 - uy * r2,
+        x1: sx + ux * rFrom,
+        y1: sy + uy * rFrom,
+        x2: tx - ux * rTo,
+        y2: ty - uy * rTo,
+      };
+    }
+
+    /**
+     * 从细胞中心沿单位方向到细胞壁上的点。
+     * @param {import("./cell").Cell} cell
+     * @param {number} ux
+     * @param {number} uy
+     */
+    function wallPoint(cell, ux, uy) {
+      return {
+        x: cell.container.x + ux * cell.radius,
+        y: cell.container.y + uy * cell.radius,
       };
     }
 
@@ -313,11 +429,21 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
     }
 
     /**
+     * 是否允许建立连发：单向均可（含同色支援）；禁止自己连自己。
+     * @param {import("./cell").Cell} source
+     * @param {import("./cell").Cell} target
+     */
+    function canFireLink(source, target) {
+      if (!source || !target || source === target) return false;
+      return true;
+    }
+
+    /**
      * @param {import("./cell").Cell} source
      * @param {import("./cell").Cell} target
      */
     function startFireLink(source, target) {
-      if (source === target) return;
+      if (!canFireLink(source, target)) return;
       const color = source.color;
       const ok = fireBullet(source, target);
       fireLinks.set(source, {
@@ -325,8 +451,11 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
         color,
         // 打出则按体型进冷却；没能量也连着，冷却归零，有点就射
         cooldown: ok ? fireIntervalMs(source.value) : 0,
+        seq: ++fireLinkSeq,
       });
       source.setSelected(true);
+      // 同色互连时以后连为准切断反向；异色互连保留
+      enforceNoSameColorMutual(source);
     }
 
     /** @param {import("./cell").Cell} source */
@@ -335,35 +464,56 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
       source.setSelected(false);
     }
 
+    /**
+     * 仅禁止同色互相连接：A↔B 且同色时，只保留较新的一条。
+     * 异色互连、任意单向连接均允许。
+     * @param {import("./cell").Cell | null} [justLinked] 刚建立的源（优先保留）
+     */
+    function enforceNoSameColorMutual(justLinked = null) {
+      for (const [source, link] of [...fireLinks]) {
+        const other = link.target;
+        // 异色互连允许
+        if (source.color !== other.color) continue;
+
+        const reverse = fireLinks.get(other);
+        if (!reverse || reverse.target !== source) continue;
+
+        const keepSource =
+          justLinked === source
+            ? source
+            : justLinked === other
+              ? other
+              : link.seq >= reverse.seq
+                ? source
+                : other;
+        const drop = keepSource === source ? other : source;
+        stopFireLink(drop);
+      }
+    }
+
     function syncSelection() {
       cells.forEach((c) => c.setSelected(fireLinks.has(c) || c === dragSource));
     }
 
     /**
+     * 唯一虚线绘制入口：预瞄、连发共用同一套宽/dash/gap。
      * @param {PIXI.Graphics} g
      * @param {number} x1
      * @param {number} y1
      * @param {number} x2
      * @param {number} y2
      * @param {number} color
-     * @param {number} alpha
-     * @param {boolean} dashed
-     * @param {number} [width]
+     * @param {number} [alpha]
      */
-    function drawBeam(g, x1, y1, x2, y2, color, alpha, dashed, width = 2.2) {
-      if (!dashed) {
-        g.moveTo(x1, y1).lineTo(x2, y2)
-          .stroke({ color, width, alpha });
-        return;
-      }
+    function drawDashedBeam(g, x1, y1, x2, y2, color, alpha = 0.9) {
       const dx = x2 - x1;
       const dy = y2 - y1;
       const len = Math.hypot(dx, dy);
       if (len < 1) return;
       const ux = dx / len;
       const uy = dy / len;
-      const dash = 8;
-      const gap = 6;
+      const { dash, gap } = BEAM_DASH;
+      const width = BEAM_WIDTH;
       let t = 0;
       while (t < len) {
         const a = t;
@@ -375,50 +525,88 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
       }
     }
 
+    /**
+     * 在被瞄准细胞上画旋转圆环。
+     * @param {import("./cell").Cell} cell
+     * @param {number} spin 弧度
+     */
+    function drawAimRing(cell, spin) {
+      if (!dragSource) return;
+      const r = cell.radius + AIM_RING_PAD;
+      const color = dragSource.color;
+      aimRingGfx.clear();
+
+      aimRingGfx.circle(0, 0, r)
+        .stroke({ color, width: 1.4, alpha: 0.28 });
+
+      // 每段弧先 moveTo 弧起点，避免 Graphics.arc 从路径原点连出半径线
+      const arcs = 3;
+      const arcSpan = (Math.PI * 2) / arcs * 0.55;
+      const gapSpan = (Math.PI * 2) / arcs - arcSpan;
+      for (let i = 0; i < arcs; i += 1) {
+        const start = spin + i * (arcSpan + gapSpan);
+        const end = start + arcSpan;
+        const rIn = r - 3.2;
+        const a0 = start + 0.08;
+        const a1 = end - 0.08;
+
+        aimRingGfx
+          .moveTo(Math.cos(start) * r, Math.sin(start) * r)
+          .arc(0, 0, r, start, end)
+          .stroke({ color, width: 2.6, alpha: 0.9 });
+
+        aimRingGfx
+          .moveTo(Math.cos(a0) * rIn, Math.sin(a0) * rIn)
+          .arc(0, 0, rIn, a0, a1)
+          .stroke({ color: 0xffffff, width: 1.1, alpha: 0.45 });
+      }
+
+      aimRing.position.set(cell.container.x, cell.container.y);
+      aimRing.visible = true;
+    }
+
+    function clearAimRing() {
+      aimRingTarget = null;
+      aimRing.visible = false;
+      aimRingGfx.clear();
+    }
+
     function redrawAimLine() {
       aimLine.clear();
-      if (!dragSource) return;
-      const x1 = dragSource.container.x;
-      const y1 = dragSource.container.y;
-      const hover = cellAt(pointerX, pointerY);
-      const valid = !!(hover && hover !== dragSource);
-      let x2;
-      let y2;
-      if (valid) {
-        const ep = linkEndpoints(dragSource, hover);
-        x2 = ep.x2;
-        y2 = ep.y2;
-        // 从源边缘出发
-        drawBeam(aimLine, ep.x1, ep.y1, x2, y2, dragSource.color, 0.9, false, 2.4);
-      } else {
-        x2 = pointerX;
-        y2 = pointerY;
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-        const len = Math.hypot(dx, dy) || 1;
-        const sx = x1 + (dx / len) * dragSource.radius * 0.85;
-        const sy = y1 + (dy / len) * dragSource.radius * 0.85;
-        drawBeam(aimLine, sx, sy, x2, y2, 0xffffff, 0.35, true, 1.8);
+      if (!dragSource) {
+        clearAimRing();
+        return;
       }
-      aimLine.circle(x2, y2, valid ? 5 : 3.5)
-        .fill({ color: valid ? dragSource.color : 0xffffff, alpha: valid ? 0.55 : 0.3 });
+
+      const ox = dragSource.container.x;
+      const oy = dragSource.container.y;
+      // 只关心方向：射线命中方向上第一个细胞
+      const { ux, uy } = getAimDir(dragSource, pointerX, pointerY);
+      const target = cellAlongRay(dragSource, ux, uy);
+
+      // 起点：严格在源细胞壁上
+      const start = wallPoint(dragSource, ux, uy);
+
+      // 预瞄：锁定目标时换色（单向，含同色支援）
+      if (target && canFireLink(dragSource, target)) {
+        const ep = aimEndpoints(dragSource, target);
+        drawDashedBeam(aimLine, ep.x1, ep.y1, ep.x2, ep.y2, dragSource.color, 0.9);
+        aimRingTarget = target;
+        drawAimRing(target, aimRingSpin);
+      } else {
+        const end = rayToBounds(ox, oy, ux, uy);
+        drawDashedBeam(aimLine, start.x, start.y, end.x, end.y, 0xffffff, 0.35);
+        aimLine.circle(end.x, end.y, 3)
+          .fill({ color: 0xffffff, alpha: 0.25 });
+        clearAimRing();
+      }
     }
 
     function redrawLinkLines() {
       linkLines.clear();
       for (const [source, link] of fireLinks) {
         const ep = linkEndpoints(source, link.target);
-        drawBeam(
-          linkLines,
-          ep.x1,
-          ep.y1,
-          ep.x2,
-          ep.y2,
-          source.color,
-          0.42,
-          true,
-          2.4,
-        );
+        drawDashedBeam(linkLines, ep.x1, ep.y1, ep.x2, ep.y2, source.color, 0.28);
       }
     }
 
@@ -517,16 +705,18 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
     function endAimDrag(upX, upY) {
       if (!dragSource) return;
       const source = dragSource;
-      const target = cellAt(upX, upY);
+      // 松手时同样按方向射线锁定目标（与鼠标落在细胞上与否无关）
+      const { ux, uy } = getAimDir(source, upX, upY);
+      const target = cellAlongRay(source, ux, uy);
 
-      // 只有拖到另一个细胞才锁定连发；轻点 / 拖空不改变连发状态
-      if (dragMoved && target && target !== source) {
+      if (dragMoved && canFireLink(source, target)) {
         startFireLink(source, target);
       }
 
       dragSource = null;
       dragMoved = false;
       aimLine.clear();
+      clearAimRing();
       syncSelection();
     }
 
@@ -557,8 +747,12 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
       cells.push(cell);
     });
 
-    app.stage.addChild(linkLines);
-    app.stage.addChild(aimLine);
+    // 预瞄线 / 连发虚线画在细胞之下，端点被细胞壁盖住，视觉上贴壁
+    const lineLayer = app.stage.getChildIndex(background) + 1;
+    app.stage.addChildAt(linkLines, lineLayer);
+    app.stage.addChildAt(aimLine, lineLayer + 1);
+    // 瞄准环、切断刀光仍在细胞之上
+    app.stage.addChild(aimRing);
     app.stage.addChild(cutTrail);
 
     app.stage.eventMode = "static";
@@ -633,10 +827,13 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
         cell.update(dt, elapsed, index);
       });
 
+      // 每帧维护：仅禁止同色互连，后连为准
+      enforceNoSameColorMutual();
+
       for (const [source, link] of [...fireLinks]) {
         if (!fireLinks.has(source)) continue;
 
-        // 仅源变色（被占领）才断链；能量打光不断
+        // 源变色（被占领）断链；能量打光不断
         if (source.color !== link.color) {
           stopFireLink(source);
           continue;
@@ -650,7 +847,6 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
 
         link.cooldown -= dt;
         while (fireLinks.has(source) && link.cooldown <= 0 && source.value >= 1) {
-          // 变色检测放进循环，连发中途被占也会停
           if (source.color !== link.color) {
             stopFireLink(source);
             break;
@@ -676,10 +872,43 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
         redrawBladeTrail();
       }
 
+      // 被瞄准圆环持续旋转；方向变化时同步切换目标
+      if (dragSource) {
+        if (aimRingTarget) {
+          aimRingSpin += dt * 0.0016;
+          drawAimRing(aimRingTarget, aimRingSpin);
+        }
+      }
+
       redrawLinkLines();
 
       for (let i = bullets.length - 1; i >= 0; i -= 1) {
         if (!bullets[i].update(dt)) {
+          bullets.splice(i, 1);
+        }
+      }
+
+      // 异色子弹碰撞后互相抵消（同色不挡）
+      // 注意：cancel 会 destroy container，抵消后必须立刻跳出，禁止再读 .x
+      const collideR2 = BULLET_COLLIDE_DIST * BULLET_COLLIDE_DIST;
+      for (let i = 0; i < bullets.length; i += 1) {
+        const a = bullets[i];
+        if (!a.alive || a.container.destroyed) continue;
+        for (let j = i + 1; j < bullets.length; j += 1) {
+          const b = bullets[j];
+          if (!b.alive || b.container.destroyed) continue;
+          if (a.color === b.color) continue;
+          const dx = a.container.x - b.container.x;
+          const dy = a.container.y - b.container.y;
+          if (dx * dx + dy * dy <= collideR2) {
+            a.cancel();
+            b.cancel();
+            break; // a 已销毁，结束内层
+          }
+        }
+      }
+      for (let i = bullets.length - 1; i >= 0; i -= 1) {
+        if (!bullets[i].alive) {
           bullets.splice(i, 1);
         }
       }
@@ -742,7 +971,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           }}
         >
           <div style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
-            拖到目标连发 · 划刀切断 · 子弹可挡 · 越大自增/攻速越快 · 同色 +1 · 异色 -1 · 归零占领
+            射线瞄准连发 · 异色可互连 · 同色互连后连为准 · 划刀切断 · 越大越快 · 同色 +1 · 异色 -1
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
             <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>背景</span>
