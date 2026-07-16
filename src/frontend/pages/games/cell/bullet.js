@@ -8,6 +8,7 @@ export const BULLET_COLLIDE_DIST = BULLET_RADIUS * 2.2;
 
 /**
  * 小细胞子弹：飞向目标；途中碰到其它细胞会被挡住并命中该细胞。
+ * 命中点取飞行路径与「当前细胞壁」（cell.radius）的交点，半径动画中也用实时半径。
  */
 export class Bullet {
   /**
@@ -29,11 +30,11 @@ export class Bullet {
     this.color = color;
     this.colors = derivePalette(color);
 
-    // 从源边缘朝目标方向出发，避免一出生就撞到自己
+    // 从源细胞壁沿目标方向出发（用实时半径；源不参与阻挡，不自撞）
     const tx = target.container.x - x;
     const ty = target.container.y - y;
     const tlen = Math.hypot(tx, ty) || 1;
-    const launchR = Math.max(0, source.radius * 0.9);
+    const launchR = Math.max(0, source.radius);
     const startX = x + (tx / tlen) * launchR;
     const startY = y + (ty / tlen) * launchR;
 
@@ -61,48 +62,80 @@ export class Bullet {
   }
 
   /**
-   * 在路径上找最近的可阻挡细胞（不含发射源）。
+   * 本帧线段与细胞壁（圆）求交：取沿飞行方向最先碰到的壁上一点。
+   * 使用 cell.radius 实时半径，随变大变小动画更新。
    * @param {number} x0
    * @param {number} y0
    * @param {number} x1
    * @param {number} y1
-   * @returns {import("./cell").Cell | null}
+   * @returns {{ cell: import("./cell").Cell, x: number, y: number } | null}
    */
   _findBlockerAlong(x0, y0, x1, y1) {
     const cells = this.getCells?.() ?? [];
     const dx = x1 - x0;
     const dy = y1 - y0;
-    const len = Math.hypot(dx, dy);
-    const ux = len > 1e-6 ? dx / len : 0;
-    const uy = len > 1e-6 ? dy / len : 0;
+    const segLen2 = dx * dx + dy * dy;
 
     /** @type {import("./cell").Cell | null} */
     let best = null;
     let bestT = Infinity;
+    let hitX = x0;
+    let hitY = y0;
 
     for (const cell of cells) {
       if (cell === this.source) continue;
 
       const cx = cell.container.x;
       const cy = cell.container.y;
-      const hitR = cell.radius * 0.62 + BULLET_RADIUS;
+      // 细胞壁 = 当前显示半径（随能量动画变化）
+      const wallR = Math.max(0.5, cell.radius);
+      const ox = x0 - cx;
+      const oy = y0 - cy;
+      const dist0 = Math.hypot(ox, oy);
 
-      // 点到线段最近点
-      let t = len > 1e-6
-        ? ((cx - x0) * ux + (cy - y0) * uy)
-        : 0;
-      t = Math.max(0, Math.min(len, t));
-      const px = x0 + ux * t;
-      const py = y0 + uy * t;
-      const dist = Math.hypot(cx - px, cy - py);
+      // 帧起点已在壁内/壁上：视为立即命中，吸附到壁上（径向投影）
+      // 常见于目标变大把子弹包住
+      if (dist0 <= wallR + 1e-4) {
+        if (0 < bestT) {
+          bestT = 0;
+          best = cell;
+          if (dist0 < 1e-6) {
+            hitX = x0;
+            hitY = y0;
+          } else {
+            hitX = cx + (ox / dist0) * wallR;
+            hitY = cy + (oy / dist0) * wallR;
+          }
+        }
+        continue;
+      }
 
-      if (dist <= hitR && t < bestT) {
+      if (segLen2 < 1e-12) continue;
+
+      // 线段–圆求交：|P0 + t (P1-P0) - C| = wallR，取最小 t ∈ [0,1]
+      const a = segLen2;
+      const b = 2 * (ox * dx + oy * dy);
+      const c = ox * ox + oy * oy - wallR * wallR;
+      const disc = b * b - 4 * a * c;
+      if (disc < 0) continue;
+
+      const sqrtD = Math.sqrt(disc);
+      // 两个根：先试近处（进入壁），若无效再试远处
+      let t = (-b - sqrtD) / (2 * a);
+      if (t < 0 || t > 1) {
+        t = (-b + sqrtD) / (2 * a);
+      }
+      if (t < 0 || t > 1) continue;
+
+      if (t < bestT) {
         bestT = t;
         best = cell;
+        hitX = x0 + t * dx;
+        hitY = y0 + t * dy;
       }
     }
 
-    return best;
+    return best ? { cell: best, x: hitX, y: hitY } : null;
   }
 
   /**
@@ -128,34 +161,24 @@ export class Bullet {
     const dist = Math.hypot(dx, dy);
     const step = BULLET_SPEED * (deltaMS / 1000);
 
-    let x1;
-    let y1;
-    if (dist <= 1e-6) {
-      x1 = x0;
-      y1 = y0;
-    } else if (dist <= step) {
-      x1 = tx;
-      y1 = ty;
-    } else {
-      x1 = x0 + (dx / dist) * step;
-      y1 = y0 + (dy / dist) * step;
+    let x1 = x0;
+    let y1 = y0;
+    if (dist > 1e-6) {
+      // 始终按步长朝圆心飞；是否命中由「路径 ∩ 细胞壁」决定，不飞进内部
+      const move = Math.min(step, dist);
+      x1 = x0 + (dx / dist) * move;
+      y1 = y0 + (dy / dist) * move;
     }
 
-    // 本帧移动线段上是否撞到细胞（含预定目标）
+    // 本帧移动线段与细胞壁求交（含预定目标；半径实时）
     const hit = this._findBlockerAlong(x0, y0, x1, y1);
     if (hit) {
       this.alive = false;
-      // 吸附到被挡细胞边缘，观感更干净
-      const hx = hit.container.x;
-      const hy = hit.container.y;
-      const hdx = hx - x0;
-      const hdy = hy - y0;
-      const hlen = Math.hypot(hdx, hdy) || 1;
-      const stopR = Math.max(0, hit.radius * 0.55);
-      this.container.x = hx - (hdx / hlen) * stopR;
-      this.container.y = hy - (hdy / hlen) * stopR;
+      // 停在细胞壁上的精确交点
+      this.container.x = hit.x;
+      this.container.y = hit.y;
       try {
-        this.onHit?.(hit);
+        this.onHit?.(hit.cell);
       } finally {
         this.destroy();
       }

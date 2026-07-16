@@ -12,6 +12,8 @@ export const GROWTH_BASE = 0.08;
 export const GROWTH_PER_UNIT = 0.04;
 /** 空细胞也要能长回来，不低于该速率 */
 export const GROWTH_MIN = 0.35;
+/** 半径线性动画速度（像素/秒），变大变小匀速过渡 */
+export const RADIUS_ANIM_SPEED = 36;
 
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
@@ -324,10 +326,13 @@ export class Cell {
     );
 
     this.radius = cellRadius;
+    this._targetRadius = cellRadius;
+    this._lastDrawnRadius = cellRadius;
     this._detailScale = 1;
     this._sheenRange = cellRadius * 0.35;
 
-    this._renderGrowth(this.value);
+    this._syncValueVisuals(this.value);
+    this._applyRadiusVisuals(this.radius);
   }
 
   setSelected(selected) {
@@ -344,7 +349,9 @@ export class Cell {
     const next = Math.max(0, Math.min(MAX_ENERGY, nextValue));
     if (next === this.value) return;
     this.value = next;
-    this._renderGrowth(this.value);
+    this._targetRadius = radiusFromValue(this.value);
+    // 数字 / 细节数量立刻跟上；半径在 update 里线性追赶
+    this._syncValueVisuals(this.value);
   }
 
   /** 运行时换 base 色，自动重算色阶并重绘 */
@@ -360,7 +367,7 @@ export class Cell {
     this._draw.drawCenter(this._center);
     this._draw.drawSheen(this._sheenShape, this.radius);
     this._valueText.style.stroke = { color: this.colors.centerDark, width: 0.8 };
-    this._renderGrowth(this.value);
+    this._applyRadiusVisuals(this.radius, { force: true });
   }
 
   /**
@@ -383,6 +390,7 @@ export class Cell {
 
   update(deltaMS, elapsed, cellIndex = 0) {
     this.tickGrowth(deltaMS);
+    this._tickRadius(deltaMS);
 
     if (this._selected) {
       this._selection.alpha = 0.55 + Math.sin(elapsed * 0.08 + cellIndex) * 0.45;
@@ -453,28 +461,40 @@ export class Cell {
     this.container.destroy({ children: true });
   }
 
-  _renderGrowth(currentValue) {
-    const radius = radiusFromValue(currentValue);
+  /** 半径匀速追向目标（线性，非指数缓动） */
+  _tickRadius(deltaMS) {
+    this._targetRadius = radiusFromValue(this.value);
+    const target = this._targetRadius;
+    const diff = target - this.radius;
+    if (Math.abs(diff) < 0.02) {
+      if (this.radius !== target) {
+        this.radius = target;
+        this._applyRadiusVisuals(this.radius);
+      }
+      return;
+    }
+    const step = RADIUS_ANIM_SPEED * (deltaMS / 1000);
+    if (Math.abs(diff) <= step) {
+      this.radius = target;
+    } else {
+      this.radius += Math.sign(diff) * step;
+    }
+    this._applyRadiusVisuals(this.radius);
+  }
+
+  /** 随能量立刻更新：数字、鞭毛/凸起/气孔数量（与半径动画解耦） */
+  _syncValueVisuals(currentValue) {
     const currentDetailRadius = radiusFromValue(Math.min(currentValue, 60));
     const currentBumpCount = Math.round((Math.PI * 2 * currentDetailRadius) / 8);
     const currentPoreCount = Math.max(2, Math.round((currentDetailRadius ** 2 - 9 ** 2) / 55));
-    const radiusAtDetailLimit = radiusFromValue(60);
-
-    this.radius = radius;
-    this._detailScale = currentValue > 60 ? radius / radiusAtDetailLimit : 1;
-    this._sheenRange = radius * 0.35;
 
     this._flagellumSprites.forEach((item) => {
       item.targetVisible = currentValue > LARGE_CELL_THRESHOLD;
     });
 
-    this.container.hitArea = new PIXI.Circle(0, 0, Math.max(20, radius + 5));
     this._valueText.text = String(Math.floor(currentValue));
     // 0 也显示，方便看到空细胞仍在自增
     this._valueText.visible = true;
-
-    this._draw.drawShadow(this._shadow, radius);
-    this._draw.drawBody(this._body, radius);
 
     while (this._bumpOrder.length > currentBumpCount) {
       this._bumpOrder.splice(Math.floor(Math.random() * this._bumpOrder.length), 1);
@@ -505,7 +525,29 @@ export class Cell {
       item.targetAngle = 0.5 + (slot / currentPoreCount) * Math.PI * 2;
       if (item.appearance === 0) item.angle = item.targetAngle;
     });
+  }
 
+  /**
+   * 按当前显示半径重绘轮廓相关图形。
+   * @param {number} radius
+   * @param {{ force?: boolean }} [options]
+   */
+  _applyRadiusVisuals(radius, { force = false } = {}) {
+    const radiusAtDetailLimit = radiusFromValue(60);
+    this._detailScale = this.value > 60 ? radius / radiusAtDetailLimit : 1;
+    this._sheenRange = radius * 0.35;
+
+    if (!force) {
+      if (radius === this._lastDrawnRadius) return;
+      // 动画中途跳过过密重绘；到位时（接近 target）始终画准
+      const settled = Math.abs(radius - this._targetRadius) < 0.02;
+      if (!settled && Math.abs(radius - this._lastDrawnRadius) < 0.15) return;
+    }
+
+    this._lastDrawnRadius = radius;
+    this.container.hitArea = new PIXI.Circle(0, 0, Math.max(20, radius + 5));
+    this._draw.drawShadow(this._shadow, radius);
+    this._draw.drawBody(this._body, radius);
     this._sheenMask.clear().circle(0, 0, radius - 2).fill(0xffffff);
     this._draw.drawHint(this._selection, radius);
   }
