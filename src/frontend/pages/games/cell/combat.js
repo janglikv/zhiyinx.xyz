@@ -1,4 +1,4 @@
-import { ENERGY_EPS, FIRE_COST, fireIntervalMs, BULLET_COLLIDE_DIST } from "./constants";
+import { ENERGY_EPS, FIRE_COST, MIN_FIRE_ENERGY, fireIntervalMs, BULLET_COLLIDE_DIST } from "./constants";
 import { Bullet } from "./bullet";
 
 /**
@@ -54,6 +54,7 @@ export function createCombat({ stage, cells, bullets }) {
    */
   function fireBullet(source, target) {
     if (source === target) return false;
+    if (source.value < MIN_FIRE_ENERGY - ENERGY_EPS) return false;
     if (source.value < FIRE_COST - ENERGY_EPS) return false;
 
     source.changeValue(-FIRE_COST);
@@ -92,7 +93,7 @@ export function createCombat({ stage, cells, bullets }) {
     fireLinks.set(source, {
       target,
       color,
-      cooldown: ok ? fireIntervalMs(source.value) : 0,
+      cooldown: ok ? 1.0 : 0.0,
       seq: ++fireLinkSeq,
     });
     source.setSelected(true);
@@ -145,26 +146,34 @@ export function createCombat({ stage, cells, bullets }) {
         continue;
       }
 
-      if (source.value < FIRE_COST - ENERGY_EPS) {
-        link.cooldown = 0;
+      if (source.value < MIN_FIRE_ENERGY - ENERGY_EPS) {
+        link.cooldown = 0.0;
         continue;
       }
 
-      link.cooldown -= dt;
+      const currentInterval = fireIntervalMs(source.value);
+      if (currentInterval === Infinity) {
+        continue;
+      }
+
+      // 采用归一化的动态时间标尺（Dynamic Time Scaling），防止在能量剧烈波动时冷却进度失衡
+      link.cooldown -= dt / currentInterval;
+
       while (
         fireLinks.has(source)
         && link.cooldown <= 0
-        && source.value >= FIRE_COST - ENERGY_EPS
+        && source.value >= MIN_FIRE_ENERGY - ENERGY_EPS
       ) {
         if (source.color !== link.color) {
           stopFireLink(source);
           break;
         }
         if (!fireBullet(source, link.target)) {
-          link.cooldown = 0;
+          link.cooldown = 0.0;
           break;
         }
-        link.cooldown += fireIntervalMs(Math.max(FIRE_COST, source.value));
+        // 开火成功，进度百分比重新增加 1.0 (100% 冷却)
+        link.cooldown += 1.0;
       }
     }
   }
@@ -180,7 +189,7 @@ export function createCombat({ stage, cells, bullets }) {
       }
     }
 
-    // cancel 会 destroy container，抵消后必须立刻跳出，禁止再读 .x
+    // 对撞抵消：动能（威力值）大者胜出，扣减相应能量后继续飞行，小者湮灭
     const collideR2 = BULLET_COLLIDE_DIST * BULLET_COLLIDE_DIST;
     for (let i = 0; i < bullets.length; i += 1) {
       const a = bullets[i];
@@ -192,9 +201,21 @@ export function createCombat({ stage, cells, bullets }) {
         const dx = a.container.x - b.container.x;
         const dy = a.container.y - b.container.y;
         if (dx * dx + dy * dy <= collideR2) {
-          a.cancel();
-          b.cancel();
-          break;
+          const dmgA = a.getDamage();
+          const dmgB = b.getDamage();
+
+          if (dmgA > dmgB + 1e-4) {
+            a.damagePenalty += dmgB;
+            b.cancel();
+          } else if (dmgB > dmgA + 1e-4) {
+            b.damagePenalty += dmgA;
+            a.cancel();
+            break; // 子弹 a 已经消亡，退出对 j 的循环
+          } else {
+            a.cancel();
+            b.cancel();
+            break; // 同归于尽
+          }
         }
       }
     }

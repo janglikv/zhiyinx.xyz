@@ -36,6 +36,8 @@ export const AI_THINK_MIN_MS = 280;
 export const AI_THINK_MAX_MS = 520;
 /** 低于此能量（相对开火成本）优先蓄能 */
 export const AI_CHARGE_COST_MULT = 1.6;
+/** AI 强制休养阈值：能量低于此值时停止连线开火，专心自增 */
+export const AI_RECOVERY_THRESHOLD = 12;
 /** 高于此能量可进入全力压制 */
 export const AI_PRESS_COST_MULT = 3.2;
 /** 同目标最短保持时间，避免抖动换目标 */
@@ -49,9 +51,11 @@ export const RADIUS_ANIM_SPEED = 36;
  * 绝对值 ≤ FIRE_COST < 1，无满额 1.0 伤害
  */
 export const FIRE_COST = 0.78;
+/** 低于此能量时攻速为 0，停止发射子弹（但保持连线） */
+export const MIN_FIRE_ENERGY = 10;
 export const DAMAGE_MAX_FACTOR = 1;
-export const DAMAGE_FALLOFF_END = 400;
-export const DAMAGE_MIN_FACTOR = 0.72;
+export const DAMAGE_FALLOFF_END = 320;
+export const DAMAGE_MIN_FACTOR = 0.5;
 
 /** 子弹 */
 export const BULLET_SPEED = 160;
@@ -83,10 +87,16 @@ export const BEAM_WIDTH = 1.35;
  * @returns {number} 冷却毫秒
  */
 export function fireIntervalMs(value) {
-  const v = Math.max(0, value);
-  const rate = FIRE_RATE_BASE + v * FIRE_RATE_PER_UNIT;
-  const ms = 1000 / Math.max(0.05, rate);
-  return Math.min(FIRE_INTERVAL_MAX_MS, Math.max(FIRE_INTERVAL_MIN_MS, ms));
+  const v = value - MIN_FIRE_ENERGY;
+  if (v <= ENERGY_EPS) {
+    return Infinity;
+  }
+  const rate = v * FIRE_RATE_PER_UNIT;
+  if (rate <= 1e-6) {
+    return Infinity;
+  }
+  const ms = 1000 / rate;
+  return Math.max(FIRE_INTERVAL_MIN_MS, ms);
 }
 
 /**

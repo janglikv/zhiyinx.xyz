@@ -93,9 +93,9 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
     const near = 1 / (1 + dist / 220);
 
     if (target.isNeutral()) {
-      // 扩张：空/弱中立优先
+      // 扩张：空/弱中立优先，加入极高的固定值偏置，以确保有中立细胞时必定集火抢点占领
       const weak = 1 / (1 + target.value * 0.12);
-      const expand = 2.2 * weak * near;
+      const expand = 12.0 + 3.0 * weak * near;
       return intent === "probe" ? expand * 1.35 : expand;
     }
 
@@ -140,12 +140,7 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
    * @returns {AiIntent}
    */
   function chooseIntent(source) {
-    const chargeNeed = FIRE_COST * AI_CHARGE_COST_MULT;
     const pressNeed = FIRE_COST * AI_PRESS_COST_MULT;
-
-    if (source.value < chargeNeed - ENERGY_EPS) {
-      return "charge";
-    }
 
     let playerPower = 0;
     let playerCount = 0;
@@ -233,12 +228,6 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
       const m = ensureMind(cell);
       m.thinkIn -= dt;
       if (m.thinkIn > 0) {
-        // 非思考帧：若当前目标已变色为己方，尽快松手
-        const link = combat.fireLinks.get(cell);
-        if (link && link.target.color === COLOR_ENEMY) {
-          combat.stopFireLink(cell);
-          m.preferred = null;
-        }
         continue;
       }
 

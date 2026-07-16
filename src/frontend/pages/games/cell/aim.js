@@ -285,8 +285,13 @@ export function createAimSystem({
 
   function redrawLinkLines() {
     linkLines.clear();
-    for (const [source, link] of getFireLinks()) {
-      const ep = linkEndpoints(source, link.target);
+    const fireLinks = getFireLinks();
+    for (const [source, link] of fireLinks) {
+      // 只绘制玩家（绿色方）的射击连接线，隐藏 AI（红色方）的连线
+      if (!source.isPlayer()) continue;
+
+      const target = link.target;
+      const ep = linkEndpoints(source, target);
       drawDashedBeam(linkLines, ep.x1, ep.y1, ep.x2, ep.y2, source.color, 0.28);
     }
   }

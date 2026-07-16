@@ -49,6 +49,8 @@ export class Bullet {
 
     /** 已飞行距离（用于伤害衰减） */
     this.traveled = 0;
+    /** 对撞消耗折损能量 */
+    this.damagePenalty = 0;
 
     this.container = new PIXI.Container();
     this.container.position.set(startX, startY);
@@ -60,6 +62,10 @@ export class Bullet {
 
     this.container.scale.set(0.35);
     this._spawn = 0;
+  }
+
+  getDamage() {
+    return Math.max(0, damageFromDistance(this.traveled) - this.damagePenalty);
   }
 
   _drawBody() {
@@ -182,7 +188,7 @@ export class Bullet {
       this.traveled += Math.hypot(hit.x - x0, hit.y - y0);
       this.container.x = hit.x;
       this.container.y = hit.y;
-      const damage = damageFromDistance(this.traveled);
+      const damage = this.getDamage();
       try {
         this.onHit?.(hit.cell, damage);
       } finally {
@@ -194,6 +200,14 @@ export class Bullet {
     this.traveled += Math.hypot(x1 - x0, y1 - y0);
     this.container.x = x1;
     this.container.y = y1;
+
+    // 根据当前飞行路径的伤害衰减率与对撞损耗来动态降低透明度和大小，直观呈现威力流失
+    const factor = this.getDamage() / FIRE_COST;
+    this.container.alpha = Math.max(0.15, factor);
+    if (this._spawn >= 1) {
+      this.container.scale.set(0.42 + 0.58 * factor);
+    }
+
     return true;
   }
 
