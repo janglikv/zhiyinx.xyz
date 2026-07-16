@@ -234,6 +234,12 @@ export function createCombat({ stage, cells, bullets }) {
         if (dx * dx + dy * dy <= collideR2) {
           const dmgA = a.getDamage();
           const dmgB = b.getDamage();
+          const hitX = (a.container.x + b.container.x) / 2;
+          const hitY = (a.container.y + b.container.y) / 2;
+
+          // 双方颜色分别扩散，强弱对应碰撞瞬间各自剩余威力。
+          createHitEffect(hitX, hitY, a.color, dmgA);
+          createHitEffect(hitX, hitY, b.color, dmgB);
 
           if (dmgA > dmgB + 1e-4) {
             a.damagePenalty += dmgB;
