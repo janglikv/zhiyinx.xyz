@@ -28,7 +28,7 @@ export class Bullet {
    * @param {import("./cell").Cell} options.source - 发射源（不参与阻挡）
    * @param {import("./cell").Cell} options.target - 预定目标
    * @param {() => import("./cell").Cell[]} options.getCells - 场景中全部细胞
-   * @param {(cell: import("./cell").Cell, damage: number) => void} [options.onHit]
+   * @param {(cell: import("./cell").Cell, damage: number, point: { x: number, y: number }) => void} [options.onHit]
    */
   constructor({ x, y, color, source, target, getCells, onHit }) {
     this.source = source;
@@ -190,7 +190,7 @@ export class Bullet {
       this.container.y = hit.y;
       const damage = this.getDamage();
       try {
-        this.onHit?.(hit.cell, damage);
+        this.onHit?.(hit.cell, damage, { x: hit.x, y: hit.y });
       } finally {
         this.destroy();
       }

@@ -1,3 +1,4 @@
+import { Graphics } from "pixi.js";
 import { ENERGY_EPS, FIRE_COST, MIN_FIRE_ENERGY, fireIntervalMs, BULLET_COLLIDE_DIST } from "./constants";
 import { Bullet } from "./bullet";
 
@@ -16,7 +17,36 @@ export function createCombat({ stage, cells, bullets }) {
    * @type {Map<import("./cell").Cell, { target: import("./cell").Cell, cooldown: number, color: number, seq: number }>}
    */
   const fireLinks = new Map();
+  /** @type {{ graphics: Graphics, age: number, duration: number, strength: number }[]} */
+  const hitEffects = [];
   let fireLinkSeq = 0;
+
+  function createHitEffect(x, y, color, damage) {
+    const strength = Math.max(0, Math.min(1, damage / FIRE_COST));
+    const radius = 7 + strength * 10;
+    const graphics = new Graphics()
+      .circle(0, 0, radius * 0.45).fill({ color, alpha: 0.18 + strength * 0.28 })
+      .circle(0, 0, radius).stroke({ color, width: 1 + strength * 2, alpha: 0.45 + strength * 0.4 });
+    graphics.position.set(x, y);
+    graphics.scale.set(0.35);
+    graphics.eventMode = "none";
+    stage.addChild(graphics);
+    hitEffects.push({ graphics, age: 0, duration: 240 + strength * 100, strength });
+  }
+
+  function tickHitEffects(dt) {
+    for (let i = hitEffects.length - 1; i >= 0; i -= 1) {
+      const effect = hitEffects[i];
+      effect.age += dt;
+      const progress = Math.min(1, effect.age / effect.duration);
+      effect.graphics.scale.set(0.35 + progress * (0.75 + effect.strength * 0.35));
+      effect.graphics.alpha = (1 - progress) * (0.55 + effect.strength * 0.45);
+      if (progress >= 1) {
+        effect.graphics.destroy();
+        hitEffects.splice(i, 1);
+      }
+    }
+  }
 
   /**
    * 子弹命中：同色治疗、异色扣血。
@@ -66,7 +96,10 @@ export function createCombat({ stage, cells, bullets }) {
       source,
       target,
       getCells: () => cells,
-      onHit: (hitCell, damage) => applyBulletHit(color, hitCell, damage),
+      onHit: (hitCell, damage, point) => {
+        applyBulletHit(color, hitCell, damage);
+        createHitEffect(point.x, point.y, color, damage);
+      },
     });
     stage.addChild(bullet.container);
     bullets.push(bullet);
@@ -222,6 +255,7 @@ export function createCombat({ stage, cells, bullets }) {
         bullets.splice(i, 1);
       }
     }
+    tickHitEffects(dt);
   }
 
   return {
