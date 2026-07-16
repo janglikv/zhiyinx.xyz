@@ -1,47 +1,19 @@
 import * as PIXI from "pixi.js";
 import { derivePalette } from "./cell";
+import {
+  BULLET_SPEED,
+  BULLET_RADIUS,
+  BULLET_COLLIDE_DIST,
+  FIRE_COST,
+  damageFromDistance,
+} from "./constants";
 
-const BULLET_SPEED = 160; // px/s
-export const BULLET_RADIUS = 3.2;
-/** 异色子弹互相抵消的判定半径（两球心距） */
-export const BULLET_COLLIDE_DIST = BULLET_RADIUS * 2.2;
-
-/**
- * 伤害随飞行距离衰减（无独立速度属性）：
- *   damage = FIRE_COST × 距离系数
- * - 贴脸系数 = 1 → 与开火消耗相等（同体型近战换血 1:1，不是受击多扣）
- * - 随距离线性降到 DAMAGE_MIN_FACTOR
- * - 绝对值 = FIRE_COST×系数 ≤ FIRE_COST < 1，不会出现「满额 1.0 伤害」
- *
- * 约 99 时自增 ~4/s、射速 ~6.3 发/s，FIRE_COST 需 ≳ 0.65 才能压过自增。
- */
-/** 每发能量消耗（同时作为满额参考：贴脸伤害 = FIRE_COST） */
-export const FIRE_COST = 0.78;
-/** 贴脸距离系数（1 = 与开火等额；禁止 >1，否则防方会无故多掉） */
-export const DAMAGE_MAX_FACTOR = 1;
-/** 衰减到最低的距离（px） */
-export const DAMAGE_FALLOFF_END = 400;
-/** 最远距离系数（相对 FIRE_COST） */
-export const DAMAGE_MIN_FACTOR = 0.72;
-
-/**
- * @param {number} traveledPx 子弹已飞行距离（发射点起算）
- * @returns {number} 浮点伤害/治疗量，范围 [FIRE_COST*MIN, FIRE_COST]，且 < 1
- */
-export function damageFromDistance(traveledPx) {
-  const d = Math.max(0, traveledPx);
-  // 系数不超过 1，保证伤害绝不超过本次开火消耗
-  const maxF = Math.min(1, DAMAGE_MAX_FACTOR);
-  const minF = Math.min(Math.max(0, DAMAGE_MIN_FACTOR), maxF);
-  let factor;
-  if (d >= DAMAGE_FALLOFF_END) {
-    factor = minF;
-  } else {
-    const t = d / DAMAGE_FALLOFF_END;
-    factor = maxF + (minF - maxF) * t;
-  }
-  return FIRE_COST * factor;
-}
+export {
+  BULLET_RADIUS,
+  BULLET_COLLIDE_DIST,
+  FIRE_COST,
+  damageFromDistance,
+};
 
 /**
  * 小细胞子弹：飞向目标；途中碰到其它细胞会被挡住并命中该细胞。

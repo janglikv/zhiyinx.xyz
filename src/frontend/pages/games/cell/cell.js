@@ -1,21 +1,24 @@
 import * as PIXI from "pixi.js";
+import {
+  MAX_ENERGY,
+  LARGE_CELL_THRESHOLD,
+  GROWTH_BASE,
+  GROWTH_PER_UNIT,
+  GROWTH_MIN,
+  RADIUS_ANIM_SPEED,
+  ENERGY_EPS,
+} from "./constants";
 
-export const MAX_ENERGY = 99;
-export const LARGE_CELL_THRESHOLD = 50;
-
-/**
- * 自增速率（能量/秒，浮点连续累加）：任何能量（含 0）都会长；越大越快。
- * rate = max(GROWTH_MIN, GROWTH_BASE + value * GROWTH_PER_UNIT)
- * 例：0→0.35/s，1→0.35/s，15→0.68/s，50→2.1/s，80→3.3/s
- */
-export const GROWTH_BASE = 0.08;
-export const GROWTH_PER_UNIT = 0.04;
-/** 空细胞也要能长回来，不低于该速率 */
-export const GROWTH_MIN = 0.35;
-/** 半径线性动画速度（像素/秒），变大变小匀速过渡 */
-export const RADIUS_ANIM_SPEED = 36;
-/** 能量视为归零的阈值（浮点） */
-export const ENERGY_EPS = 1e-6;
+// 对外仍可从 cell 入口引用这些常量
+export {
+  MAX_ENERGY,
+  LARGE_CELL_THRESHOLD,
+  GROWTH_BASE,
+  GROWTH_PER_UNIT,
+  GROWTH_MIN,
+  RADIUS_ANIM_SPEED,
+  ENERGY_EPS,
+};
 
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
