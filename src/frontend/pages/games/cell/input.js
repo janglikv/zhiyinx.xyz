@@ -77,7 +77,8 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
   }
 
   function syncSelection() {
-    cells.forEach((c) => c.setSelected(combat.fireLinks.has(c) || c === dragSource));
+    // 呼吸光只反馈当前拖拽瞄准，不表示已经建立的持续射流。
+    cells.forEach((c) => c.setSelected(c === dragSource));
   }
 
   /**
@@ -165,19 +166,30 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
     return true;
   }
 
+  function cancelAimDrag() {
+    dragSource = null;
+    dragMoved = false;
+    aim.clearAimLine();
+    syncSelection();
+  }
+
   function endAimDrag(upX, upY) {
     if (!dragSource) return;
     const source = dragSource;
+
+    // 瞄准期间可能被敌方占领，不能再以原玩家操作完成发射。
+    if (!source.isPlayer()) {
+      cancelAimDrag();
+      return;
+    }
+
     const target = aim.pickTarget(source, upX, upY);
 
     if (dragMoved && combat.canFireLink(source, target)) {
       combat.startFireLink(source, target);
     }
 
-    dragSource = null;
-    dragMoved = false;
-    aim.clearAimLine();
-    syncSelection();
+    cancelAimDrag();
   }
 
   function endCutGesture() {
@@ -213,6 +225,7 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
    * @param {number} dt
    */
   function tickBlade(dt) {
+    if (dragSource && !dragSource.isPlayer()) cancelAimDrag();
     if (!cutting || !bladePoints.length) return;
     for (let i = bladePoints.length - 1; i >= 0; i -= 1) {
       bladePoints[i].age += dt;

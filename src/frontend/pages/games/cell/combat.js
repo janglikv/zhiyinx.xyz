@@ -96,14 +96,12 @@ export function createCombat({ stage, cells, bullets }) {
       cooldown: ok ? 1.0 : 0.0,
       seq: ++fireLinkSeq,
     });
-    source.setSelected(true);
     enforceNoSameColorMutual(source);
   }
 
   /** @param {import("./cell").Cell} source */
   function stopFireLink(source) {
     fireLinks.delete(source);
-    source.setSelected(false);
   }
 
   /**
