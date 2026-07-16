@@ -7,8 +7,45 @@ export const BULLET_RADIUS = 3.2;
 export const BULLET_COLLIDE_DIST = BULLET_RADIUS * 2.2;
 
 /**
+ * 伤害随飞行距离衰减（无独立速度属性）：
+ *   damage = FIRE_COST × 距离系数
+ * - 贴脸系数 = 1 → 与开火消耗相等（同体型近战换血 1:1，不是受击多扣）
+ * - 随距离线性降到 DAMAGE_MIN_FACTOR
+ * - 绝对值 = FIRE_COST×系数 ≤ FIRE_COST < 1，不会出现「满额 1.0 伤害」
+ *
+ * 约 99 时自增 ~4/s、射速 ~6.3 发/s，FIRE_COST 需 ≳ 0.65 才能压过自增。
+ */
+/** 每发能量消耗（同时作为满额参考：贴脸伤害 = FIRE_COST） */
+export const FIRE_COST = 0.78;
+/** 贴脸距离系数（1 = 与开火等额；禁止 >1，否则防方会无故多掉） */
+export const DAMAGE_MAX_FACTOR = 1;
+/** 衰减到最低的距离（px） */
+export const DAMAGE_FALLOFF_END = 400;
+/** 最远距离系数（相对 FIRE_COST） */
+export const DAMAGE_MIN_FACTOR = 0.72;
+
+/**
+ * @param {number} traveledPx 子弹已飞行距离（发射点起算）
+ * @returns {number} 浮点伤害/治疗量，范围 [FIRE_COST*MIN, FIRE_COST]，且 < 1
+ */
+export function damageFromDistance(traveledPx) {
+  const d = Math.max(0, traveledPx);
+  // 系数不超过 1，保证伤害绝不超过本次开火消耗
+  const maxF = Math.min(1, DAMAGE_MAX_FACTOR);
+  const minF = Math.min(Math.max(0, DAMAGE_MIN_FACTOR), maxF);
+  let factor;
+  if (d >= DAMAGE_FALLOFF_END) {
+    factor = minF;
+  } else {
+    const t = d / DAMAGE_FALLOFF_END;
+    factor = maxF + (minF - maxF) * t;
+  }
+  return FIRE_COST * factor;
+}
+
+/**
  * 小细胞子弹：飞向目标；途中碰到其它细胞会被挡住并命中该细胞。
- * 命中点取飞行路径与「当前细胞壁」（cell.radius）的交点，半径动画中也用实时半径。
+ * 命中点取飞行路径与「当前细胞壁」（cell.radius）的交点；伤害按飞行距离衰减。
  */
 export class Bullet {
   /**
@@ -19,7 +56,7 @@ export class Bullet {
    * @param {import("./cell").Cell} options.source - 发射源（不参与阻挡）
    * @param {import("./cell").Cell} options.target - 预定目标
    * @param {() => import("./cell").Cell[]} options.getCells - 场景中全部细胞
-   * @param {(cell: import("./cell").Cell) => void} [options.onHit]
+   * @param {(cell: import("./cell").Cell, damage: number) => void} [options.onHit]
    */
   constructor({ x, y, color, source, target, getCells, onHit }) {
     this.source = source;
@@ -37,6 +74,9 @@ export class Bullet {
     const launchR = Math.max(0, source.radius);
     const startX = x + (tx / tlen) * launchR;
     const startY = y + (ty / tlen) * launchR;
+
+    /** 已飞行距离（用于伤害衰减） */
+    this.traveled = 0;
 
     this.container = new PIXI.Container();
     this.container.position.set(startX, startY);
@@ -63,7 +103,6 @@ export class Bullet {
 
   /**
    * 本帧线段与细胞壁（圆）求交：取沿飞行方向最先碰到的壁上一点。
-   * 使用 cell.radius 实时半径，随变大变小动画更新。
    * @param {number} x0
    * @param {number} y0
    * @param {number} x1
@@ -87,14 +126,11 @@ export class Bullet {
 
       const cx = cell.container.x;
       const cy = cell.container.y;
-      // 细胞壁 = 当前显示半径（随能量动画变化）
       const wallR = Math.max(0.5, cell.radius);
       const ox = x0 - cx;
       const oy = y0 - cy;
       const dist0 = Math.hypot(ox, oy);
 
-      // 帧起点已在壁内/壁上：视为立即命中，吸附到壁上（径向投影）
-      // 常见于目标变大把子弹包住
       if (dist0 <= wallR + 1e-4) {
         if (0 < bestT) {
           bestT = 0;
@@ -112,7 +148,6 @@ export class Bullet {
 
       if (segLen2 < 1e-12) continue;
 
-      // 线段–圆求交：|P0 + t (P1-P0) - C| = wallR，取最小 t ∈ [0,1]
       const a = segLen2;
       const b = 2 * (ox * dx + oy * dy);
       const c = ox * ox + oy * oy - wallR * wallR;
@@ -120,7 +155,6 @@ export class Bullet {
       if (disc < 0) continue;
 
       const sqrtD = Math.sqrt(disc);
-      // 两个根：先试近处（进入壁），若无效再试远处
       let t = (-b - sqrtD) / (2 * a);
       if (t < 0 || t > 1) {
         t = (-b + sqrtD) / (2 * a);
@@ -164,27 +198,28 @@ export class Bullet {
     let x1 = x0;
     let y1 = y0;
     if (dist > 1e-6) {
-      // 始终按步长朝圆心飞；是否命中由「路径 ∩ 细胞壁」决定，不飞进内部
       const move = Math.min(step, dist);
       x1 = x0 + (dx / dist) * move;
       y1 = y0 + (dy / dist) * move;
     }
 
-    // 本帧移动线段与细胞壁求交（含预定目标；半径实时）
     const hit = this._findBlockerAlong(x0, y0, x1, y1);
     if (hit) {
       this.alive = false;
-      // 停在细胞壁上的精确交点
+      // 计入到命中点的实际飞行距离
+      this.traveled += Math.hypot(hit.x - x0, hit.y - y0);
       this.container.x = hit.x;
       this.container.y = hit.y;
+      const damage = damageFromDistance(this.traveled);
       try {
-        this.onHit?.(hit.cell);
+        this.onHit?.(hit.cell, damage);
       } finally {
         this.destroy();
       }
       return false;
     }
 
+    this.traveled += Math.hypot(x1 - x0, y1 - y0);
     this.container.x = x1;
     this.container.y = y1;
     return true;

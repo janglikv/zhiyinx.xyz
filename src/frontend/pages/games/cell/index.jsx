@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as PIXI from "pixi.js";
 import GameLayout from "../../../components/GameLayout";
-import { Cell } from "./cell";
-import { Bullet, BULLET_COLLIDE_DIST } from "./bullet";
+import { Cell, ENERGY_EPS } from "./cell";
+import { Bullet, BULLET_COLLIDE_DIST, FIRE_COST } from "./bullet";
 import backgroundScene from "./background.png";
 import backgroundDish from "./background-dish.png";
 import backgroundDna from "./background-dna.png";
@@ -383,21 +383,33 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
     }
 
     /**
-     * 子弹命中：同色 +1；异色 -1，归零后被占领。
+     * 子弹命中：同色治疗、异色扣血；amount 为浮点（已按飞行距离衰减）。
+     * 异色路径：target.changeValue(-amount)，不会作用到进攻方。
      * @param {number} sourceColor
      * @param {import("./cell").Cell} target
+     * @param {number} amount
      */
-    function applyBulletHit(sourceColor, target) {
+    function applyBulletHit(sourceColor, target, amount) {
+      if (!target) return;
+      const qty = Number(amount);
+      if (!Number.isFinite(qty) || qty <= ENERGY_EPS) return;
+
+      // 同色：治疗（支援）
       if (target.color === sourceColor) {
-        target.changeValue(1);
+        target.changeValue(qty);
         return;
       }
-      if (target.value <= 0) {
+
+      // 异色：已空则直接染色；否则扣血，扣穿再染色
+      if (target.value <= ENERGY_EPS) {
+        target.setValue(0);
         target.setColor(sourceColor);
         return;
       }
-      target.changeValue(-1);
-      if (target.value <= 0) {
+
+      target.changeValue(-qty);
+      if (target.value <= ENERGY_EPS) {
+        target.setValue(0);
         target.setColor(sourceColor);
       }
     }
@@ -409,9 +421,10 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
      */
     function fireBullet(source, target) {
       if (source === target) return false;
-      if (source.value < 1) return false;
+      // 开火扣 FIRE_COST；命中伤害 = FIRE_COST × 距离系数 ≤ FIRE_COST
+      if (source.value < FIRE_COST - ENERGY_EPS) return false;
 
-      source.changeValue(-1);
+      source.changeValue(-FIRE_COST);
       const color = source.color;
       const bullet = new Bullet({
         x: source.container.x,
@@ -420,8 +433,8 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
         source,
         target,
         getCells: () => cells,
-        // 命中实际碰到的细胞（可能被中间细胞挡住）
-        onHit: (hitCell) => applyBulletHit(color, hitCell),
+        // 只对实际撞到的细胞结算（可能被中间细胞挡住）
+        onHit: (hitCell, damage) => applyBulletHit(color, hitCell, damage),
       });
       app.stage.addChild(bullet.container);
       bullets.push(bullet);
@@ -839,14 +852,18 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
           continue;
         }
 
-        // 没子弹：保持连线，冷却清零，等长出/补到 1 点立刻打
-        if (source.value < 1) {
+        // 没子弹：保持连线，冷却清零，等长到够打一发立刻射
+        if (source.value < FIRE_COST - ENERGY_EPS) {
           link.cooldown = 0;
           continue;
         }
 
         link.cooldown -= dt;
-        while (fireLinks.has(source) && link.cooldown <= 0 && source.value >= 1) {
+        while (
+          fireLinks.has(source)
+          && link.cooldown <= 0
+          && source.value >= FIRE_COST - ENERGY_EPS
+        ) {
           if (source.color !== link.color) {
             stopFireLink(source);
             break;
@@ -856,8 +873,8 @@ function mountCellGame(container, apiRef, getDesiredBgMode) {
             link.cooldown = 0;
             break;
           }
-          // 每发后按当前体型重算间隔
-          link.cooldown += fireIntervalMs(Math.max(1, source.value));
+          // 每发后按当前体型重算间隔（浮点能量）
+          link.cooldown += fireIntervalMs(Math.max(FIRE_COST, source.value));
         }
       }
 

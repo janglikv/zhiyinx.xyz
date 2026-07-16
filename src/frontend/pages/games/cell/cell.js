@@ -4,7 +4,7 @@ export const MAX_ENERGY = 99;
 export const LARGE_CELL_THRESHOLD = 50;
 
 /**
- * 自增速率（能量/秒）：任何能量（含 0）都会长；越大越快。
+ * 自增速率（能量/秒，浮点连续累加）：任何能量（含 0）都会长；越大越快。
  * rate = max(GROWTH_MIN, GROWTH_BASE + value * GROWTH_PER_UNIT)
  * 例：0→0.35/s，1→0.35/s，15→0.68/s，50→2.1/s，80→3.3/s
  */
@@ -14,6 +14,8 @@ export const GROWTH_PER_UNIT = 0.04;
 export const GROWTH_MIN = 0.35;
 /** 半径线性动画速度（像素/秒），变大变小匀速过渡 */
 export const RADIUS_ANIM_SPEED = 36;
+/** 能量视为归零的阈值（浮点） */
+export const ENERGY_EPS = 1e-6;
 
 function clampByte(value) {
   return Math.max(0, Math.min(255, Math.round(value)));
@@ -188,7 +190,13 @@ function createCellDrawers(colors) {
 }
 
 function radiusFromValue(value) {
-  return Math.min(40, Math.max(16, 14 + Math.sqrt(value) * 1.6));
+  const v = Math.max(0, value);
+  return Math.min(40, Math.max(16, 14 + Math.sqrt(v) * 1.6));
+}
+
+/** 界面上显示的整数能量（内部仍是浮点） */
+export function displayEnergy(value) {
+  return Math.floor(Math.max(0, value) + ENERGY_EPS);
 }
 
 /**
@@ -209,10 +217,10 @@ export class Cell {
     this.y = y;
     this.color = color;
     this.colors = derivePalette(color);
-    this.value = Math.min(MAX_ENERGY, Number(value));
+    // 内部浮点能量；UI 仅显示整数
+    this.value = Math.max(0, Math.min(MAX_ENERGY, Number(value) || 0));
     this._selected = false;
-    /** 自增小数累计，满 1 进位 */
-    this._growthAcc = 0;
+    this._displayEnergy = displayEnergy(this.value);
 
     const drawers = createCellDrawers(this.colors);
     this._draw = drawers;
@@ -297,7 +305,7 @@ export class Cell {
     drawers.drawCenter(this._center);
 
     this._valueText = new PIXI.Text({
-      text: String(Math.floor(this.value)),
+      text: String(this._displayEnergy),
       style: {
         fontFamily: "Arial, sans-serif",
         fontSize: 11.5,
@@ -346,12 +354,22 @@ export class Cell {
   }
 
   setValue(nextValue) {
-    const next = Math.max(0, Math.min(MAX_ENERGY, nextValue));
-    if (next === this.value) return;
-    this.value = next;
+    const parsed = Number(nextValue);
+    // 不用 `|| 0`：避免把合法计算误伤；非有限数则忽略本次写入
+    if (!Number.isFinite(parsed)) return;
+    const next = Math.max(0, Math.min(MAX_ENERGY, parsed));
+    if (Math.abs(next - this.value) < ENERGY_EPS) {
+      // 贴 0 / 上限时夹紧，避免残留极小值
+      if (next < ENERGY_EPS) this.value = 0;
+      else if (next > MAX_ENERGY - ENERGY_EPS) this.value = MAX_ENERGY;
+      return;
+    }
+    this.value = next < ENERGY_EPS ? 0 : next;
     this._targetRadius = radiusFromValue(this.value);
-    // 数字 / 细节数量立刻跟上；半径在 update 里线性追赶
-    this._syncValueVisuals(this.value);
+    // 浮点每帧自增只更新半径目标；显示整数变化时再同步数字/细节
+    if (displayEnergy(this.value) !== this._displayEnergy) {
+      this._syncValueVisuals(this.value);
+    }
   }
 
   /** 运行时换 base 色，自动重算色阶并重绘 */
@@ -371,21 +389,17 @@ export class Cell {
   }
 
   /**
-   * 自增能量：能量为 0 也会长；越大越快，封顶 MAX_ENERGY。
+   * 自增能量（浮点连续）：能量为 0 也会长；越大越快，封顶 MAX_ENERGY。
    * @param {number} deltaMS
    */
   tickGrowth(deltaMS) {
-    if (this.value >= MAX_ENERGY) {
-      this._growthAcc = 0;
+    if (this.value >= MAX_ENERGY - ENERGY_EPS) {
+      this.value = MAX_ENERGY;
       return;
     }
     const raw = GROWTH_BASE + Math.max(0, this.value) * GROWTH_PER_UNIT;
     const rate = Math.max(GROWTH_MIN, raw);
-    this._growthAcc += rate * (deltaMS / 1000);
-    if (this._growthAcc < 1) return;
-    const add = Math.floor(this._growthAcc);
-    this._growthAcc -= add;
-    this.changeValue(add);
+    this.changeValue(rate * (deltaMS / 1000));
   }
 
   update(deltaMS, elapsed, cellIndex = 0) {
@@ -492,7 +506,12 @@ export class Cell {
       item.targetVisible = currentValue > LARGE_CELL_THRESHOLD;
     });
 
-    this._valueText.text = String(Math.floor(currentValue));
+    // 仅显示整数；内部 value 仍是浮点
+    const shown = displayEnergy(currentValue);
+    if (shown !== this._displayEnergy) {
+      this._displayEnergy = shown;
+      this._valueText.text = String(shown);
+    }
     // 0 也显示，方便看到空细胞仍在自增
     this._valueText.visible = true;
 
