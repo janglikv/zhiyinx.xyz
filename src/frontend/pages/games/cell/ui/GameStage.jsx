@@ -6,9 +6,10 @@ import { GAME_WIDTH, GAME_HEIGHT } from "../constants";
  * @param {{
  *   children: import("react").ReactNode,
  *   label?: string,
+ *   stageRef?: React.Ref<HTMLDivElement | null>,
  * }} props
  */
-export default function GameStage({ children, label = "游戏区域" }) {
+export default function GameStage({ children, label = "游戏区域", stageRef }) {
   return (
     <div
       className="cell-stage-wrap"
@@ -27,7 +28,7 @@ export default function GameStage({ children, label = "游戏区域" }) {
           {GAME_WIDTH}×{GAME_HEIGHT}
         </span>
       </div>
-      <div className="cell-stage">
+      <div className="cell-stage" ref={stageRef}>
         {children}
       </div>
     </div>

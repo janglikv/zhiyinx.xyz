@@ -247,18 +247,21 @@
   display: block;
 }
 
-/* 画布内通关调试 */
-.cell-debug-win {
+/* 画布右上工具：通关调试 + 全屏 */
+.cell-play-tools {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cell-tool-btn {
   height: 40px;
   padding: 0 12px;
   border-radius: 12px;
-  border: 1px dashed rgba(255, 180, 60, 0.5);
-  background: rgba(20, 14, 6, 0.72);
-  color: rgba(255, 200, 80, 0.95);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -274,20 +277,119 @@
     color 0.15s ease;
 }
 
-.cell-debug-win:hover {
+.cell-tool-btn:active {
+  transform: translateY(0);
+}
+
+.cell-tool-btn--debug {
+  border: 1px dashed rgba(255, 180, 60, 0.5);
+  background: rgba(20, 14, 6, 0.72);
+  color: rgba(255, 200, 80, 0.95);
+}
+
+.cell-tool-btn--debug:hover {
   transform: translateY(-1px);
   background: rgba(255, 180, 60, 0.16);
   border-color: rgba(255, 200, 80, 0.75);
   color: #ffe6a0;
 }
 
-.cell-debug-win:active {
+.cell-tool-btn--debug:focus-visible {
+  outline: 2px solid rgba(255, 200, 80, 0.7);
+  outline-offset: 2px;
+}
+
+.cell-fs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(84, 201, 43, 0.35);
+  background: rgba(6, 14, 10, 0.72);
+  color: #b8ff7a;
+  cursor: pointer;
+  font-family: inherit;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.cell-fs-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(84, 201, 43, 0.18);
+  border-color: rgba(154, 240, 90, 0.55);
+  color: #e8ffe0;
+}
+
+.cell-fs-btn:active {
   transform: translateY(0);
 }
 
-.cell-debug-win:focus-visible {
-  outline: 2px solid rgba(255, 200, 80, 0.7);
+.cell-fs-btn:focus-visible {
+  outline: 2px solid rgba(154, 240, 90, 0.7);
   outline-offset: 2px;
+}
+
+.cell-fs-btn--on {
+  border-color: rgba(154, 240, 90, 0.55);
+  background: rgba(84, 201, 43, 0.16);
+  color: #e8ffe0;
+}
+
+.cell-fs-btn__icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* 全屏：黑底居中，按 960×540 比例放大填满视口 */
+.cell-stage:fullscreen,
+.cell-stage:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell-stage:fullscreen .cell-scene,
+.cell-stage:-webkit-full-screen .cell-scene,
+.cell-stage:fullscreen .cell-fade-veil,
+.cell-stage:-webkit-full-screen .cell-fade-veil {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  width: var(--cell-stage-w, 960px);
+  height: var(--cell-stage-h, 540px);
+  margin: 0;
+  transform: translate(-50%, -50%) scale(min(100vw / 960px, 100vh / 540px));
+  transform-origin: center center;
+}
+
+.cell-stage:fullscreen .cell-scene--play.cell-scene--revealed,
+.cell-stage:-webkit-full-screen .cell-scene--play.cell-scene--revealed {
+  /* 保留淡入 opacity，叠在 scale 上 */
+  opacity: 1;
+}
+
+.cell-stage:fullscreen .cell-stage__canvas-host,
+.cell-stage:-webkit-full-screen .cell-stage__canvas-host {
+  width: var(--cell-stage-w, 960px);
+  height: var(--cell-stage-h, 540px);
 }
 
 /* —— 对局 HUD / 图例（游戏壳，非网站玻璃卡片） —— */

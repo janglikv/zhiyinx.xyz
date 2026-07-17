@@ -26,6 +26,7 @@ const HEX = {
  *   cleared: Set<number>,
  *   recommendedIndex: number,
  *   onEnterLevel: (index: number) => void,
+ *   tools?: import("react").ReactNode,
  * }} props
  */
 export default function LevelSelect({
@@ -33,6 +34,7 @@ export default function LevelSelect({
   cleared,
   recommendedIndex,
   onEnterLevel,
+  tools,
 }) {
   const unlockedCount = maxUnlocked + 1;
   const clearedCount = cleared.size;
@@ -62,18 +64,21 @@ export default function LevelSelect({
               <h2 className="cell-hub__title">选择关卡</h2>
             </div>
           </div>
-          <div className="cell-hub__stats">
-            <div className="cell-hub__stat">
-              <span className="cell-hub__stat-val">
-                {unlockedCount}/{LEVELS.length}
-              </span>
-              <span className="cell-hub__stat-lab">已解锁</span>
+          <div className="cell-hub__top-right">
+            <div className="cell-hub__stats">
+              <div className="cell-hub__stat">
+                <span className="cell-hub__stat-val">
+                  {unlockedCount}/{LEVELS.length}
+                </span>
+                <span className="cell-hub__stat-lab">已解锁</span>
+              </div>
+              <div className="cell-hub__stat-divider" />
+              <div className="cell-hub__stat">
+                <span className="cell-hub__stat-val">{clearedCount}</span>
+                <span className="cell-hub__stat-lab">已通关</span>
+              </div>
             </div>
-            <div className="cell-hub__stat-divider" />
-            <div className="cell-hub__stat">
-              <span className="cell-hub__stat-val">{clearedCount}</span>
-              <span className="cell-hub__stat-lab">已通关</span>
-            </div>
+            {tools ? <div className="cell-hub__tools">{tools}</div> : null}
           </div>
         </header>
 

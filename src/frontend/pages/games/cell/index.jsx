@@ -18,6 +18,7 @@ import GameFooter from "./ui/GameFooter";
 import GameStage from "./ui/GameStage";
 import BackButton from "./ui/BackButton";
 import DebugWinButton from "./ui/DebugWinButton";
+import FullscreenButton from "./ui/FullscreenButton";
 import FadeVeil from "./ui/FadeVeil";
 import "./styles.css";
 
@@ -26,6 +27,7 @@ const HOLD_BLACK_MS = 600;
 
 function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const containerRef = useRef(null);
+  const stageRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const gameApiRef = useRef(null);
   /** @type {React.MutableRefObject<"hub" | "play" | null>} */
   const pendingScreenRef = useRef(null);
@@ -195,7 +197,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           ["--cell-stage-h"]: `${GAME_HEIGHT}px`,
         }}
       >
-        <GameStage label={stageLabel}>
+        <GameStage label={stageLabel} stageRef={stageRef}>
           {screen === "hub" ? (
             <div
               className={[
@@ -210,6 +212,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
                 cleared={cleared}
                 recommendedIndex={recommendedIndex}
                 onEnterLevel={handleEnterLevel}
+                tools={<FullscreenButton targetRef={stageRef} />}
               />
             </div>
           ) : (
@@ -224,7 +227,10 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             >
               <div ref={containerRef} className="cell-stage__canvas-host" />
               <BackButton onClick={handleBackToHub} />
-              <DebugWinButton onClick={handleDebugWin} />
+              <div className="cell-play-tools">
+                <DebugWinButton onClick={handleDebugWin} />
+                <FullscreenButton targetRef={stageRef} />
+              </div>
               <TutorialHud
                 key={`${gameKey}-${level.id}`}
                 phase={tutorialPhase}
