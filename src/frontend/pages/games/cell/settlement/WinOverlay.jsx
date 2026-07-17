@@ -52,6 +52,21 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBac
           zIndex: 6,
         }}
       />
+      {/* 氛围变暗背景：凸显烟花效果，并在 3 秒后随烟花消散顺滑淡出 */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: GAME_WIDTH,
+          height: GAME_HEIGHT,
+          borderRadius: "20px",
+          backgroundColor: "rgba(4, 10, 6, 0.72)",
+          pointerEvents: "none",
+          zIndex: 5,
+          opacity: compact ? 0 : 1,
+          transition: "opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      />
       <div
         style={{
           position: "absolute",
