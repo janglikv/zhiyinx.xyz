@@ -11,6 +11,7 @@ import {
 } from "./constants";
 import { Bullet } from "./bullet";
 import { OverflowSpark } from "./overflow";
+import { playBulletShot } from "./audio";
 
 /**
  * 连发、开火、命中结算、子弹更新与对撞；触顶溢出走独立粒子。
@@ -140,6 +141,7 @@ export function createCombat({ stage, cells, bullets }) {
     });
     stage.addChild(bullet.container);
     bullets.push(bullet);
+    playBulletShot({ x: source.container.x, color });
     return true;
   }
 

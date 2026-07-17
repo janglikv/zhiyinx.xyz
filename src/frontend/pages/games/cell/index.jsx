@@ -21,6 +21,7 @@ import SettingsButton from "./ui/SettingsButton";
 import SettingsModal from "./ui/SettingsModal";
 import FullscreenButton from "./ui/FullscreenButton";
 import FadeVeil from "./ui/FadeVeil";
+import { unlockCellAudio } from "./audio";
 import "./styles.css";
 
 /** 全黑后略停，等 Pixi 挂上再淡入 */
@@ -142,6 +143,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
   function handleEnterLevel(index) {
     if (!isLevelUnlocked(index) || transitioning) return;
+    unlockCellAudio();
     beginTransition("play", index);
   }
 
