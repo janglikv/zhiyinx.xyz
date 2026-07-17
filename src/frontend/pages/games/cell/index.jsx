@@ -195,6 +195,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         style={{
           ["--cell-stage-w"]: `${GAME_WIDTH}px`,
           ["--cell-stage-h"]: `${GAME_HEIGHT}px`,
+          width: "100%",
+          maxWidth: GAME_WIDTH,
         }}
       >
         <GameStage label={stageLabel} stageRef={stageRef}>

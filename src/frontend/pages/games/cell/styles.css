@@ -70,10 +70,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  /* 与 GameStage 同宽，避免壳子把画布挤扁 */
-  width: var(--cell-stage-w, 960px);
-  max-width: 100%;
+  /* 与可用宽度对齐，内部 GameStage 再等比缩放画布 */
+  width: 100%;
+  max-width: var(--cell-stage-w, 960px);
   flex-shrink: 0;
+  min-width: 0;
 }
 
 /* 画面上方标注：这是游戏区域 */
@@ -82,7 +83,17 @@
   flex-direction: column;
   gap: 6px;
   flex-shrink: 0;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+}
+
+/* 缩放槽：占位为「逻辑尺寸 × scale」，避免 transform 不占文档流导致重叠 */
+.cell-stage-frame {
+  position: relative;
+  flex-shrink: 0;
+  max-width: 100%;
+  /* 非全屏时由内联 width/height 写入；全屏时由 stage 脱离文档流 */
 }
 
 .cell-stage-label {
@@ -121,8 +132,8 @@
 }
 
 /*
- * 游戏主画面：选关 / 对局共用同一固定尺寸。
- * 内容区严格 = GAME_WIDTH × GAME_HEIGHT（描边用 box-shadow，不吃 content 尺寸）。
+ * 游戏主画面：选关 / 对局共用同一逻辑尺寸（960×540）。
+ * 窄屏由 GameStage 用 transform: scale 等比缩小；描边用 box-shadow。
  */
 .cell-stage {
   position: relative;
@@ -134,6 +145,10 @@
   overflow: hidden;
   border: none;
   background: #000;
+  /* 触摸：避免浏览器抢滑动手势（拖拽连线 / 切断） */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
   box-shadow:
     0 0 0 2px rgba(84, 201, 43, 0.22),
     inset 0 0 40px rgba(0, 0, 0, 0.92),
@@ -349,25 +364,49 @@
   flex-shrink: 0;
 }
 
-/* 全屏：黑底居中，按 960×540 比例放大填满视口 */
+/* 伪全屏时锁滚动（iOS 等无原生 Fullscreen 环境） */
+body.cell-fs-active {
+  overflow: hidden !important;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+/*
+ * 全屏（原生）与沉浸伪全屏（.cell-stage--immersive）：
+ * 黑底铺满视口，场景层按 --cell-display-scale 居中缩放。
+ */
 .cell-stage:fullscreen,
-.cell-stage:-webkit-full-screen {
+.cell-stage:-webkit-full-screen,
+.cell-stage.cell-stage--immersive {
+  position: fixed !important;
+  inset: 0 !important;
   width: 100vw !important;
+  width: 100dvw !important;
   height: 100vh !important;
-  max-width: none;
-  max-height: none;
-  border-radius: 0;
-  box-shadow: none;
-  background: #000;
-  display: flex;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #000 !important;
+  display: flex !important;
   align-items: center;
   justify-content: center;
+  z-index: 99999;
+  transform: none !important;
+  /* 安全区（刘海屏）仍铺黑底 */
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+    env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+  box-sizing: border-box !important;
 }
 
 .cell-stage:fullscreen .cell-scene,
 .cell-stage:-webkit-full-screen .cell-scene,
+.cell-stage.cell-stage--immersive .cell-scene,
 .cell-stage:fullscreen .cell-fade-veil,
-.cell-stage:-webkit-full-screen .cell-fade-veil {
+.cell-stage:-webkit-full-screen .cell-fade-veil,
+.cell-stage.cell-stage--immersive .cell-fade-veil {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -376,20 +415,43 @@
   width: var(--cell-stage-w, 960px);
   height: var(--cell-stage-h, 540px);
   margin: 0;
-  transform: translate(-50%, -50%) scale(min(100vw / 960px, 100vh / 540px));
+  /* 由 GameStage 写入 --cell-display-scale；无变量时回退 contain */
+  transform: translate(-50%, -50%)
+    scale(var(--cell-display-scale, min(100vw / 960px, 100dvh / 540px)));
   transform-origin: center center;
 }
 
 .cell-stage:fullscreen .cell-scene--play.cell-scene--revealed,
-.cell-stage:-webkit-full-screen .cell-scene--play.cell-scene--revealed {
-  /* 保留淡入 opacity，叠在 scale 上 */
+.cell-stage:-webkit-full-screen .cell-scene--play.cell-scene--revealed,
+.cell-stage.cell-stage--immersive .cell-scene--play.cell-scene--revealed {
   opacity: 1;
 }
 
 .cell-stage:fullscreen .cell-stage__canvas-host,
-.cell-stage:-webkit-full-screen .cell-stage__canvas-host {
+.cell-stage:-webkit-full-screen .cell-stage__canvas-host,
+.cell-stage.cell-stage--immersive .cell-stage__canvas-host {
   width: var(--cell-stage-w, 960px);
   height: var(--cell-stage-h, 540px);
+}
+
+/* 沉浸模式下返回 / 工具按钮略放大，方便手指点 */
+@media (max-width: 720px) {
+  .cell-back,
+  .cell-fs-btn,
+  .cell-tool-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .cell-play-tools {
+    top: max(12px, env(safe-area-inset-top, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+  }
+
+  .cell-back {
+    top: max(12px, env(safe-area-inset-top, 0px));
+    left: max(12px, env(safe-area-inset-left, 0px));
+  }
 }
 
 /* —— 对局 HUD / 图例（游戏壳，非网站玻璃卡片） —— */

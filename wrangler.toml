@@ -2,6 +2,7 @@ name = "zhiyinx-xyz"
 main = "src/index.js"
 compatibility_date = "2026-06-16"
 workers_dev = true
+account_id = "5231e27427d1d2a36acf213a56d09110"
 
 [[d1_databases]]
 binding = "DB"
