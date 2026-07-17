@@ -16,17 +16,24 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBac
   const canvasRef = useRef(null);
   const [compact, setCompact] = useState(false);
   const [toastReady, setToastReady] = useState(false);
+  const [showDim, setShowDim] = useState(false);
 
   useEffect(() => {
     if (!active) {
       setCompact(false);
       setToastReady(false);
+      setShowDim(false);
       return undefined;
     }
     setToastReady(false);
     setCompact(false);
-    const timer = window.setTimeout(() => setCompact(true), 3000);
-    return () => window.clearTimeout(timer);
+    setShowDim(true);
+    const compactTimer = window.setTimeout(() => setCompact(true), 3000);
+    const dimTimer = window.setTimeout(() => setShowDim(false), 5500);
+    return () => {
+      window.clearTimeout(compactTimer);
+      window.clearTimeout(dimTimer);
+    };
   }, [active, fxKey]);
 
   useEffect(() => {
@@ -52,7 +59,7 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBac
           zIndex: 6,
         }}
       />
-      {/* 氛围变暗背景：凸显烟花效果，并在 3 秒后随烟花消散顺滑淡出 */}
+      {/* 氛围变暗背景：凸显烟花效果，并在 5.5 秒后（烟花完全消失）顺滑淡出 */}
       <div
         style={{
           position: "absolute",
@@ -63,8 +70,8 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBac
           backgroundColor: "rgba(4, 10, 6, 0.72)",
           pointerEvents: "none",
           zIndex: 5,
-          opacity: compact ? 0 : 1,
-          transition: "opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1)",
+          opacity: showDim ? 1 : 0,
+          transition: "opacity 1.5s cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       />
       <div

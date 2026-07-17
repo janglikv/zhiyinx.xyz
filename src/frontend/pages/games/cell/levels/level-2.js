@@ -1,17 +1,16 @@
 import { COLOR_PLAYER, COLOR_ENEMY, COLOR_NEUTRAL } from "../constants";
 
-/** 第二关：切断补给 */
+/** 第二关：合击突破 */
 export default {
   id: 2,
-  name: "第二关：切断补给",
-  description: "敌方的副巢源源不断地为母巢输送能量。滑动划刀切断它们的红/绿射流，寻找机会占领它！",
+  name: "第二关：合击突破",
+  description: "敌方母巢极其庞大且自增极快，直接对攻难以取胜。联合你的多个分巢，将子弹合流压制它！",
   cells: [
-    { x: 220, y: 270, value: 30, color: COLOR_PLAYER },
-    { x: 480, y: 150, value: 15, color: COLOR_NEUTRAL },
-    { x: 480, y: 390, value: 15, color: COLOR_NEUTRAL },
-    { x: 740, y: 270, value: 40, color: COLOR_ENEMY },
-    { x: 740, y: 120, value: 15, color: COLOR_ENEMY },
-    { x: 740, y: 420, value: 15, color: COLOR_ENEMY },
+    { x: 200, y: 160, value: 18, color: COLOR_PLAYER },
+    { x: 200, y: 270, value: 18, color: COLOR_PLAYER },
+    { x: 200, y: 380, value: 18, color: COLOR_PLAYER },
+    { x: 480, y: 270, value: 20, color: COLOR_NEUTRAL },
+    { x: 720, y: 270, value: 75, color: COLOR_ENEMY },
   ],
   aiSeed: 102,
 };
