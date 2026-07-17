@@ -7,6 +7,7 @@ import { TUTORIAL_START_PHASE, TutorialHud } from "./tutorial";
 import { WinOverlay, LoseOverlay } from "./settlement";
 import LevelHeader from "./ui/LevelHeader";
 import GameFooter from "./ui/GameFooter";
+import "./styles.css";
 
 function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const containerRef = useRef(null);
