@@ -18,20 +18,33 @@ import GameFooter from "./ui/GameFooter";
 import GameStage from "./ui/GameStage";
 import BackButton from "./ui/BackButton";
 import DebugWinButton from "./ui/DebugWinButton";
+import FadeVeil from "./ui/FadeVeil";
 import "./styles.css";
+
+/** 全黑后略停，等 Pixi 挂上再淡入 */
+const HOLD_BLACK_MS = 600;
 
 function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const containerRef = useRef(null);
   const gameApiRef = useRef(null);
+  /** @type {React.MutableRefObject<"hub" | "play" | null>} */
+  const pendingScreenRef = useRef(null);
+  /** @type {React.MutableRefObject<number | null>} */
+  const pendingLevelRef = useRef(null);
+  const holdTimerRef = useRef(0);
 
   /** @type {["hub" | "play", Function]} */
   const [screen, setScreen] = useState("hub");
+  /** @type {["idle" | "out" | "hold" | "in", Function]} */
+  const [fadePhase, setFadePhase] = useState("idle");
   const [currentLevelIndex, setCurrentLevelIndex] = useState(() => getRecommendedLevelIndex());
   const [gameState, setGameState] = useState("playing");
   const [gameKey, setGameKey] = useState(0);
   /** @type {[import("./tutorial/phases").TutorialPhase | null, Function]} */
   const [tutorialPhase, setTutorialPhase] = useState(null);
   const [winFxKey, setWinFxKey] = useState(0);
+  /** 对局层淡入（与黑场揭开同步） */
+  const [playReveal, setPlayReveal] = useState(false);
 
   const [maxUnlocked, setMaxUnlocked] = useState(() => getMaxUnlockedIndex());
   const [cleared, setCleared] = useState(() => getClearedIndices());
@@ -39,11 +52,18 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
   const level = LEVELS[currentLevelIndex];
   const hasNextLevel = currentLevelIndex < LEVELS.length - 1;
+  const transitioning = fadePhase !== "idle";
 
   const refreshProgress = useCallback(() => {
     setMaxUnlocked(getMaxUnlockedIndex());
     setCleared(getClearedIndices());
     setRecommendedIndex(getRecommendedLevelIndex());
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -73,33 +93,72 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     return cleanup;
   }, [screen, currentLevelIndex, gameKey, level, refreshProgress]);
 
+  function beginTransition(nextScreen, levelIndex = null) {
+    if (transitioning) return;
+    pendingScreenRef.current = nextScreen;
+    pendingLevelRef.current = levelIndex;
+    setFadePhase("out");
+  }
+
+  function applyPendingScreen() {
+    const next = pendingScreenRef.current;
+    const lvl = pendingLevelRef.current;
+    pendingScreenRef.current = null;
+    pendingLevelRef.current = null;
+
+    if (next === "play") {
+      if (typeof lvl === "number") setCurrentLevelIndex(lvl);
+      setGameState("playing");
+      setPlayReveal(false);
+      setScreen("play");
+      setGameKey((prev) => prev + 1);
+    } else if (next === "hub") {
+      setPlayReveal(false);
+      setScreen("hub");
+      setGameState("playing");
+      setTutorialPhase(null);
+      refreshProgress();
+    }
+  }
+
+  function handleVeilCovered() {
+    // 黑场到位：切换内容，短暂 hold 后淡入
+    applyPendingScreen();
+    setFadePhase("hold");
+    if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = window.setTimeout(() => {
+      setPlayReveal(true);
+      setFadePhase("in");
+    }, HOLD_BLACK_MS);
+  }
+
+  function handleVeilRevealed() {
+    setFadePhase("idle");
+  }
+
   function handleEnterLevel(index) {
-    if (!isLevelUnlocked(index)) return;
-    setCurrentLevelIndex(index);
-    setGameState("playing");
-    setScreen("play");
-    setGameKey((prev) => prev + 1);
+    if (!isLevelUnlocked(index) || transitioning) return;
+    beginTransition("play", index);
   }
 
   function handleBackToHub() {
-    setScreen("hub");
-    setGameState("playing");
-    setTutorialPhase(null);
-    refreshProgress();
+    if (transitioning) return;
+    beginTransition("hub");
   }
 
   function handleRestart() {
+    if (transitioning) return;
     setGameKey((prev) => prev + 1);
     setGameState("playing");
   }
 
   function handleNextLevel() {
+    if (transitioning) return;
     if (hasNextLevel) {
       const next = currentLevelIndex + 1;
       if (isLevelUnlocked(next)) {
-        setCurrentLevelIndex(next);
-        setGameState("playing");
-        setGameKey((prev) => prev + 1);
+        // 关卡间也走黑场，避免硬切
+        beginTransition("play", next);
         return;
       }
     }
@@ -118,6 +177,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     setTutorialPhase(null);
   }
 
+  const stageLabel = screen === "hub" ? "游戏区域 · 战役选关" : "游戏区域 · 对局";
+
   return (
     <GameLayout
       title="细胞分裂战"
@@ -127,7 +188,6 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       onOpenLogin={onOpenLogin}
       contentWidth={GAME_WIDTH}
     >
-      {/* 整块为游戏壳：与 GameLayout（网站）分层；尺寸与画布对齐 */}
       <div
         className="cell-shell"
         style={{
@@ -135,16 +195,33 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           ["--cell-stage-h"]: `${GAME_HEIGHT}px`,
         }}
       >
-        <GameStage label={screen === "hub" ? "游戏区域 · 战役选关" : "游戏区域 · 对局"}>
+        <GameStage label={stageLabel}>
           {screen === "hub" ? (
-            <LevelSelect
-              maxUnlocked={maxUnlocked}
-              cleared={cleared}
-              recommendedIndex={recommendedIndex}
-              onEnterLevel={handleEnterLevel}
-            />
+            <div
+              className={[
+                "cell-scene",
+                fadePhase === "out" ? "cell-scene--dimming" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <LevelSelect
+                maxUnlocked={maxUnlocked}
+                cleared={cleared}
+                recommendedIndex={recommendedIndex}
+                onEnterLevel={handleEnterLevel}
+              />
+            </div>
           ) : (
-            <>
+            <div
+              className={[
+                "cell-scene",
+                "cell-scene--play",
+                playReveal ? "cell-scene--revealed" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <div ref={containerRef} className="cell-stage__canvas-host" />
               <BackButton onClick={handleBackToHub} />
               <DebugWinButton onClick={handleDebugWin} />
@@ -163,11 +240,16 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
               {gameState === "lose" && (
                 <LoseOverlay onRestart={handleRestart} onBackToHub={handleBackToHub} />
               )}
-            </>
+            </div>
           )}
+
+          <FadeVeil
+            phase={fadePhase}
+            onCovered={handleVeilCovered}
+            onRevealed={handleVeilRevealed}
+          />
         </GameStage>
 
-        {/* 选关/对局始终占位，避免 GameLayout 垂直居中时画面上跳 */}
         <GameFooter />
       </div>
     </GameLayout>
