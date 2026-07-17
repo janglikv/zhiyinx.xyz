@@ -7,12 +7,6 @@ export const COLOR_PLAYER = 0x54c92b;
 export const COLOR_ENEMY = 0xd94343;
 export const COLOR_NEUTRAL = 0x737d88;
 
-export const INITIAL_CELLS = [
-  { x: 312, y: 270, value: 22, color: COLOR_PLAYER },
-  { x: 480, y: 270, value: 0, color: COLOR_NEUTRAL },
-  { x: 648, y: 270, value: 15, color: COLOR_ENEMY },
-];
-
 /** 能量上限 / 显示阈值 */
 export const MAX_ENERGY = 99;
 export const LARGE_CELL_THRESHOLD = 50;
@@ -63,13 +57,15 @@ export const BULLET_RADIUS = 3.2;
 export const BULLET_COLLIDE_DIST = BULLET_RADIUS * 2.2;
 
 /**
- * 攻速随体型：射速 ≈ FIRE_RATE_BASE + value * FIRE_RATE_PER_UNIT（发/秒）
- * 例：1→~1.0s，15→~0.48s，50→~0.24s
+ * 攻速随体型（仅 value > MIN_FIRE_ENERGY 时开火）：
+ *   rate = (value - MIN_FIRE_ENERGY) * FIRE_RATE_PER_UNIT（发/秒）
+ *   interval = max(FIRE_INTERVAL_MIN_MS, 1000 / rate)
+ * 例：11→~18.2s，20→~1.82s，50→~0.45s，99→~0.20s
+ * 建链/换目标不得绕过该间隔（见 combat.cooldown）。
  */
-export const FIRE_RATE_BASE = 0.85;
 export const FIRE_RATE_PER_UNIT = 0.055;
+/** 最快射速下限（当前 MAX_ENERGY 下通常碰不到） */
 export const FIRE_INTERVAL_MIN_MS = 110;
-export const FIRE_INTERVAL_MAX_MS = 1100;
 
 /** 输入：拖拽阈值 / 切断采样 */
 export const DRAG_THRESHOLD = 6;

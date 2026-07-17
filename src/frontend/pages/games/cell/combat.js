@@ -11,15 +11,36 @@ import { Bullet } from "./bullet";
  */
 export function createCombat({ stage, cells, bullets }) {
   /**
-   * 每个源细胞各自锁定一个持续发射目标。
-   * 没能量时仍保持连线；源变色断链。
-   * 异色 A↔B 互连允许；同色互连禁止，seq 更大（后连）的保留。
-   * @type {Map<import("./cell").Cell, { target: import("./cell").Cell, cooldown: number, color: number, seq: number }>}
+   * 源 → 连发目标。只描述「谁在打谁」，不含冷却。
+   * 源变色断链；同色互连只保留较新的一条。
+   * @type {Map<import("./cell").Cell, { target: import("./cell").Cell, color: number, seq: number }>}
    */
   const fireLinks = new Map();
+  /**
+   * 源 → 归一化冷却（唯一真相）。1.0 = 一整发间隔；≤0 可射。
+   * 与连线解耦：断链/重连/换目标都不能重置射速。
+   * @type {Map<import("./cell").Cell, number>}
+   */
+  const cooldown = new Map();
   /** @type {{ graphics: Graphics, age: number, duration: number, strength: number }[]} */
   const hitEffects = [];
   let fireLinkSeq = 0;
+
+  /** @param {import("./cell").Cell} source */
+  function getCd(source) {
+    return cooldown.get(source) ?? 0;
+  }
+
+  /**
+   * @param {import("./cell").Cell} source
+   * @param {number} value
+   */
+  function setCd(source, value) {
+    // 允许负值：长帧追赶时 cooldown 会先变负，再 +1 连射。
+    // 仅在「已就绪且无连线」时删条目，避免 Map 膨胀。
+    if (value <= 0 && !fireLinks.has(source)) cooldown.delete(source);
+    else cooldown.set(source, value);
+  }
 
   function createHitEffect(x, y, color, damage) {
     const strength = Math.max(0, Math.min(1, damage / FIRE_COST));
@@ -116,19 +137,32 @@ export function createCombat({ stage, cells, bullets }) {
   }
 
   /**
+   * 冷却就绪时尝试开火；成功则进入一整发冷却。
+   * @param {import("./cell").Cell} source
+   * @param {import("./cell").Cell} target
+   * @returns {boolean}
+   */
+  function tryFire(source, target) {
+    if (getCd(source) > 0) return false;
+    if (!fireBullet(source, target)) return false;
+    // 累加而非重置为 1，长帧追赶时保留负冷却（连射多发仍符合总时间预算）
+    setCd(source, getCd(source) + 1.0);
+    return true;
+  }
+
+  /**
+   * 建立或改向连发。只改目标；是否立刻开火完全由冷却决定。
    * @param {import("./cell").Cell} source
    * @param {import("./cell").Cell} target
    */
   function startFireLink(source, target) {
     if (!canFireLink(source, target)) return;
-    const color = source.color;
-    const ok = fireBullet(source, target);
     fireLinks.set(source, {
       target,
-      color,
-      cooldown: ok ? 1.0 : 0.0,
+      color: source.color,
       seq: ++fireLinkSeq,
     });
+    tryFire(source, target);
     enforceNoSameColorMutual(source);
   }
 
@@ -163,48 +197,34 @@ export function createCombat({ stage, cells, bullets }) {
   }
 
   /**
-   * 每帧：维护互连规则 + 冷却开火。
+   * 每帧：冷却推进 → 连发开火。
    * @param {number} dt
    */
   function tickFireLinks(dt) {
     enforceNoSameColorMutual();
 
+    // 1) 所有源的冷却按当前体型推进（能量不足则冻结，不归零）
+    for (const source of [...cooldown.keys()]) {
+      if (source.value < MIN_FIRE_ENERGY - ENERGY_EPS) continue;
+      const interval = fireIntervalMs(source.value);
+      if (interval === Infinity) continue;
+      setCd(source, getCd(source) - dt / interval);
+    }
+
+    // 2) 有连线且冷却就绪 → 开火
     for (const [source, link] of [...fireLinks]) {
       if (!fireLinks.has(source)) continue;
-
       if (source.color !== link.color) {
         stopFireLink(source);
         continue;
       }
 
-      if (source.value < MIN_FIRE_ENERGY - ENERGY_EPS) {
-        link.cooldown = 0.0;
-        continue;
-      }
-
-      const currentInterval = fireIntervalMs(source.value);
-      if (currentInterval === Infinity) {
-        continue;
-      }
-
-      // 采用归一化的动态时间标尺（Dynamic Time Scaling），防止在能量剧烈波动时冷却进度失衡
-      link.cooldown -= dt / currentInterval;
-
-      while (
-        fireLinks.has(source)
-        && link.cooldown <= 0
-        && source.value >= MIN_FIRE_ENERGY - ENERGY_EPS
-      ) {
+      while (fireLinks.has(source) && getCd(source) <= 0) {
         if (source.color !== link.color) {
           stopFireLink(source);
           break;
         }
-        if (!fireBullet(source, link.target)) {
-          link.cooldown = 0.0;
-          break;
-        }
-        // 开火成功，进度百分比重新增加 1.0 (100% 冷却)
-        link.cooldown += 1.0;
+        if (!tryFire(source, link.target)) break;
       }
     }
   }

@@ -197,6 +197,12 @@ export function createAimSystem({
   let aimRingSpin = 0;
   /** @type {import("./cell").Cell | null} */
   let aimRingTarget = null;
+  /** 新手引导：连线目标（橙色瞄准环） */
+  /** @type {import("./cell").Cell | null} */
+  let tutorialGuideTarget = null;
+
+  /** 引导连线目标色（橙色） */
+  const TUTORIAL_AIM_COLOR = 0xff8c2a;
 
   const linkLines = new PIXI.Graphics();
   linkLines.eventMode = "none";
@@ -212,12 +218,10 @@ export function createAimSystem({
   /**
    * @param {import("./cell").Cell} cell
    * @param {number} spin
+   * @param {number} color
    */
-  function drawAimRing(cell, spin) {
-    const dragSource = getDragSource();
-    if (!dragSource) return;
+  function drawAimRing(cell, spin, color) {
     const r = cell.radius + AIM_RING_PAD;
-    const color = dragSource.color;
     aimRingGfx.clear();
 
     aimRingGfx.circle(0, 0, r)
@@ -254,11 +258,35 @@ export function createAimSystem({
     aimRingGfx.clear();
   }
 
+  /**
+   * 新手引导：在连线目标上显示橙色瞄准环（与拖拽准星同款样式）。
+   * @param {import("./cell").Cell | null} cell
+   */
+  function setTutorialGuideTarget(cell) {
+    tutorialGuideTarget = cell || null;
+  }
+
+  /** 按优先级绘制准星：拖拽瞄准 > 引导目标 */
+  function refreshAimRing() {
+    const dragSource = getDragSource();
+    if (dragSource && aimRingTarget) {
+      drawAimRing(aimRingTarget, aimRingSpin, dragSource.color);
+      return;
+    }
+    if (tutorialGuideTarget) {
+      drawAimRing(tutorialGuideTarget, aimRingSpin, TUTORIAL_AIM_COLOR);
+      return;
+    }
+    aimRing.visible = false;
+    aimRingGfx.clear();
+  }
+
   function redrawAimLine() {
     aimLine.clear();
     const dragSource = getDragSource();
     if (!dragSource) {
-      clearAimRing();
+      aimRingTarget = null;
+      refreshAimRing();
       return;
     }
 
@@ -273,13 +301,14 @@ export function createAimSystem({
       const ep = aimEndpoints(dragSource, target);
       drawDashedBeam(aimLine, ep.x1, ep.y1, ep.x2, ep.y2, dragSource.color, 0.9);
       aimRingTarget = target;
-      drawAimRing(target, aimRingSpin);
+      refreshAimRing();
     } else {
       const end = rayToBounds(ox, oy, ux, uy);
       drawDashedBeam(aimLine, start.x, start.y, end.x, end.y, 0xffffff, 0.35);
       aimLine.circle(end.x, end.y, 3)
         .fill({ color: 0xffffff, alpha: 0.25 });
-      clearAimRing();
+      aimRingTarget = null;
+      refreshAimRing();
     }
   }
 
@@ -298,17 +327,25 @@ export function createAimSystem({
 
   function clearAimLine() {
     aimLine.clear();
-    clearAimRing();
+    aimRingTarget = null;
+    refreshAimRing();
   }
 
   /**
-   * 拖拽瞄准时旋转准星环。
+   * 旋转准星环（拖拽瞄准或引导目标）。
    * @param {number} dt
    */
   function tickAimRing(dt) {
-    if (!getDragSource() || !aimRingTarget) return;
+    const active = (getDragSource() && aimRingTarget) || tutorialGuideTarget;
+    if (!active) {
+      if (aimRing.visible) {
+        aimRing.visible = false;
+        aimRingGfx.clear();
+      }
+      return;
+    }
     aimRingSpin += dt * 0.0016;
-    drawAimRing(aimRingTarget, aimRingSpin);
+    refreshAimRing();
   }
 
   /**
@@ -330,6 +367,7 @@ export function createAimSystem({
     redrawLinkLines,
     clearAimLine,
     tickAimRing,
+    setTutorialGuideTarget,
     pickTarget,
     linkEndpoints,
   };

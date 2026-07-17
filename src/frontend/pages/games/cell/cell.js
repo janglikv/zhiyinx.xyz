@@ -203,9 +203,15 @@ function radiusFromValue(value) {
   return Math.min(40, Math.max(16, 14 + Math.sqrt(v) * 1.6));
 }
 
-/** 界面上显示的整数能量（内部仍是浮点） */
+/**
+ * 界面上显示的整数能量（内部仍是浮点）。
+ * 向上取整：只要还有残余能量就至少显示 1，避免 UI 已是 0 却还能再扛几下。
+ */
 export function displayEnergy(value) {
-  return Math.floor(Math.max(0, value) + ENERGY_EPS);
+  const v = Math.max(0, value);
+  if (v <= ENERGY_EPS) return 0;
+  // 减去极小量，避免 3.0000002 这类浮点误差被抬到 4
+  return Math.ceil(v - ENERGY_EPS);
 }
 
 /**
@@ -229,6 +235,8 @@ export class Cell {
     // 内部浮点能量；UI 仅显示整数
     this.value = Math.max(0, Math.min(MAX_ENERGY, Number(value) || 0));
     this._selected = false;
+    /** @type {false | 'source' | 'target'} 引导高亮：操作源 / 指向目标 */
+    this._tutorialHighlight = false;
     this._displayEnergy = displayEnergy(this.value);
 
     const drawers = createCellDrawers(this.colors);
@@ -354,9 +362,33 @@ export class Cell {
   }
 
   setSelected(selected) {
-    this._selected = selected;
-    this._selection.visible = selected;
-    if (!selected) this._selection.alpha = 1;
+    this._selected = !!selected;
+    this._refreshHintRing();
+  }
+
+  /**
+   * 新手引导高亮闪烁。
+   * @param {false | 'source' | 'target'} mode
+   */
+  setTutorialHighlight(mode) {
+    const next = mode === "source" || mode === "target" ? mode : false;
+    if (this._tutorialHighlight === next) {
+      this._selection.visible = this._selected || !!this._tutorialHighlight;
+      return;
+    }
+    this._tutorialHighlight = next;
+    this._refreshHintRing();
+  }
+
+  _refreshHintRing() {
+    const show = this._selected || !!this._tutorialHighlight;
+    this._selection.visible = show;
+    if (!show) {
+      this._selection.alpha = 1;
+      return;
+    }
+    const asTarget = this._tutorialHighlight === "target";
+    this._draw.drawHint(this._selection, this.radius, asTarget);
   }
 
   changeValue(delta) {
@@ -440,7 +472,10 @@ export class Cell {
     this.tickGrowth(deltaMS);
     this._tickRadius(deltaMS);
 
-    if (this._selected) {
+    if (this._tutorialHighlight) {
+      // 引导：更快更明显的呼吸闪烁
+      this._selection.alpha = 0.3 + (Math.sin(elapsed * 0.16 + cellIndex) * 0.5 + 0.5) * 0.7;
+    } else if (this._selected) {
       this._selection.alpha = 0.55 + Math.sin(elapsed * 0.08 + cellIndex) * 0.45;
     }
 
@@ -602,6 +637,7 @@ export class Cell {
     this._draw.drawShadow(this._shadow, radius);
     this._draw.drawBody(this._body, radius);
     this._sheenMask.clear().circle(0, 0, radius - 2).fill(0xffffff);
-    this._draw.drawHint(this._selection, radius);
+    const asTarget = this._tutorialHighlight === "target";
+    this._draw.drawHint(this._selection, radius, asTarget);
   }
 }
