@@ -55,10 +55,10 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBac
       <div
         style={{
           position: "absolute",
-          zIndex: 7,
+          zIndex: 9,
           pointerEvents: "none",
-          top: compact ? "16px" : "18px",
-          left: compact ? "calc(100% - 16px)" : "50%",
+          top: compact ? "12px" : "18px",
+          left: compact ? "calc(100% - 108px)" : "50%",
           transform: compact ? "translateX(-100%)" : "translateX(-50%)",
           width: compact ? "auto" : "min(360px, calc(100% - 32px))",
           maxWidth: compact ? "120px" : "min(360px, calc(100% - 32px))",

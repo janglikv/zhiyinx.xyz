@@ -17,7 +17,8 @@ import { WinOverlay, LoseOverlay } from "./settlement";
 import GameFooter from "./ui/GameFooter";
 import GameStage from "./ui/GameStage";
 import BackButton from "./ui/BackButton";
-import DebugWinButton from "./ui/DebugWinButton";
+import SettingsButton from "./ui/SettingsButton";
+import SettingsModal from "./ui/SettingsModal";
 import FullscreenButton from "./ui/FullscreenButton";
 import FadeVeil from "./ui/FadeVeil";
 import "./styles.css";
@@ -47,6 +48,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const [winFxKey, setWinFxKey] = useState(0);
   /** 对局层淡入（与黑场揭开同步） */
   const [playReveal, setPlayReveal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const [maxUnlocked, setMaxUnlocked] = useState(() => getMaxUnlockedIndex());
   const [cleared, setCleared] = useState(() => getClearedIndices());
@@ -174,6 +176,25 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     setWinFxKey((k) => k + 1);
   }
 
+  function handleResetProgress() {
+    localStorage.removeItem("cell_game_max_unlocked");
+    localStorage.removeItem("cell_game_cleared");
+    localStorage.removeItem("cell_game_level");
+    refreshProgress();
+    if (screen === "play") {
+      beginTransition("hub");
+    } else {
+      setCurrentLevelIndex(0);
+    }
+  }
+
+  function handleUnlockAll() {
+    localStorage.setItem("cell_game_max_unlocked", String(LEVELS.length - 1));
+    const allCleared = LEVELS.map((_, idx) => idx).join(",");
+    localStorage.setItem("cell_game_cleared", allCleared);
+    refreshProgress();
+  }
+
   function handleSkipTutorial() {
     gameApiRef.current?.skipTutorial?.();
     setTutorialPhase(null);
@@ -214,7 +235,12 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
                 cleared={cleared}
                 recommendedIndex={recommendedIndex}
                 onEnterLevel={handleEnterLevel}
-                tools={<FullscreenButton targetRef={stageRef} />}
+                tools={
+                  <>
+                    <SettingsButton onClick={() => setShowSettings(true)} />
+                    <FullscreenButton targetRef={stageRef} />
+                  </>
+                }
               />
             </div>
           ) : (
@@ -230,7 +256,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
               <div ref={containerRef} className="cell-stage__canvas-host" />
               <BackButton onClick={handleBackToHub} />
               <div className="cell-play-tools">
-                <DebugWinButton onClick={handleDebugWin} />
+                <SettingsButton onClick={() => setShowSettings(true)} />
                 <FullscreenButton targetRef={stageRef} />
               </div>
               <TutorialHud
@@ -255,6 +281,15 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             phase={fadePhase}
             onCovered={handleVeilCovered}
             onRevealed={handleVeilRevealed}
+          />
+
+          <SettingsModal
+            active={showSettings}
+            onClose={() => setShowSettings(false)}
+            inGame={screen === "play"}
+            onDebugWin={handleDebugWin}
+            onResetProgress={handleResetProgress}
+            onUnlockAll={handleUnlockAll}
           />
         </GameStage>
 

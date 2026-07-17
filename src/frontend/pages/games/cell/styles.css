@@ -273,6 +273,7 @@
   gap: 8px;
 }
 
+
 .cell-tool-btn {
   height: 40px;
   padding: 0 12px;
@@ -587,4 +588,229 @@ body.cell-fs-active {
 .cell-legend__tip {
   color: rgba(148, 163, 184, 0.7);
 }
+
+/* 设置按钮扩展 */
+.cell-settings-btn {
+  border: 1px solid rgba(84, 201, 43, 0.35);
+  background: rgba(6, 14, 10, 0.72);
+  color: #b8ff7a;
+}
+
+.cell-settings-btn:hover {
+  border-color: rgba(154, 240, 90, 0.55);
+  background: rgba(84, 201, 43, 0.18);
+  color: #e8ffe0;
+}
+
+.cell-settings-btn:hover .cell-settings-btn__icon {
+  transform: rotate(45deg);
+}
+
+.cell-settings-btn__icon {
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+/* 设置模态框 Overlay */
+.cell-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 8, 5, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: cellModalFadeIn 0.25s ease-out forwards;
+  border-radius: 20px; /* 和游戏画布保持一致 */
+}
+
+@keyframes cellModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 模态框 Content */
+.cell-modal-content {
+  width: 88%;
+  max-width: 360px;
+  background: linear-gradient(135deg, rgba(16, 28, 20, 0.95) 0%, rgba(10, 16, 12, 0.98) 100%);
+  border: 1px solid rgba(84, 201, 43, 0.25);
+  border-radius: 16px;
+  box-shadow: 
+    0 12px 32px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(84, 201, 43, 0.1);
+  padding: 20px;
+  animation: cellModalScaleIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes cellModalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 模态框 Header */
+.cell-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(84, 201, 43, 0.15);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.cell-modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #b8ff7a;
+  text-shadow: 0 0 10px rgba(84, 201, 43, 0.3);
+  letter-spacing: 0.05em;
+}
+
+.cell-modal-close-btn {
+  background: none;
+  border: none;
+  color: rgba(184, 255, 122, 0.6);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.cell-modal-close-btn:hover {
+  color: #e8ffe0;
+  transform: scale(1.1);
+}
+
+/* 模态框 Body & Sections */
+.cell-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cell-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cell-modal-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8ffe0;
+  letter-spacing: 0.02em;
+}
+
+.cell-modal-desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.cell-modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.cell-modal-actions .cell-btn {
+  flex: 1;
+  width: auto;
+}
+
+/* 按钮通用样式 */
+.cell-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.cell-btn--primary {
+  background: #54c92b;
+  border: 1px solid #7be853;
+  color: #050d03;
+  box-shadow: 0 0 12px rgba(84, 201, 43, 0.35);
+}
+
+.cell-btn--primary:hover {
+  background: #6fe044;
+  transform: translateY(-1px);
+  box-shadow: 0 0 16px rgba(84, 201, 43, 0.5);
+}
+
+.cell-btn--primary:active {
+  transform: translateY(0);
+}
+
+.cell-btn--outline {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(84, 201, 43, 0.3);
+  color: #b8ff7a;
+}
+
+.cell-btn--outline:hover {
+  background: rgba(84, 201, 43, 0.1);
+  border-color: rgba(154, 240, 90, 0.6);
+  color: #e8ffe0;
+  transform: translateY(-1px);
+}
+
+.cell-btn--outline:active {
+  transform: translateY(0);
+}
+
+.cell-btn--danger {
+  background: rgba(217, 67, 67, 0.1);
+  border: 1px solid rgba(217, 67, 67, 0.3);
+  color: #ffa5a5;
+}
+
+.cell-btn--danger:hover {
+  background: rgba(217, 67, 67, 0.2);
+  border-color: rgba(217, 67, 67, 0.6);
+  color: #ffc8c8;
+  transform: translateY(-1px);
+}
+
+.cell-btn--danger:active {
+  transform: translateY(0);
+}
+
+.cell-btn--danger-active {
+  background: #d94343;
+  border: 1px solid #ff6b6b;
+  color: #ffffff;
+  animation: cellPulseDanger 0.8s infinite alternate;
+}
+
+@keyframes cellPulseDanger {
+  from {
+    box-shadow: 0 0 8px rgba(217, 67, 67, 0.4);
+  }
+  to {
+    box-shadow: 0 0 16px rgba(217, 67, 67, 0.8);
+  }
+}
+
 
