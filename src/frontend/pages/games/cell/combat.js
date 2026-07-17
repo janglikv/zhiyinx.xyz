@@ -24,8 +24,8 @@ export function createCombat({ stage, cells, bullets }) {
   const overflowSparks = [];
   /**
    * 源 → 连发目标。只描述「谁在打谁」，不含冷却。
-   * 源变色断链；同色互连只保留较新的一条。
-   * @type {Map<import("./cell").Cell, { target: import("./cell").Cell, color: number, seq: number }>}
+   * 自动断链：① 发射源颜色相对建链时变化 ② 同色互射只留一条（优先用户连线）。
+   * @type {Map<import("./cell").Cell, { target: import("./cell").Cell, color: number, user: boolean, seq: number }>}
    */
   const fireLinks = new Map();
   /**
@@ -253,46 +253,76 @@ export function createCombat({ stage, cells, bullets }) {
    * 建立或改向连发。只改目标；是否立刻开火完全由冷却决定。
    * @param {import("./cell").Cell} source
    * @param {import("./cell").Cell} target
+   * @param {{ user?: boolean }} [opts] user=true 表示玩家拖拽建立
    */
-  function startFireLink(source, target) {
+  function startFireLink(source, target, opts = {}) {
     if (!canFireLink(source, target)) return;
+    const prev = fireLinks.get(source);
+    // 同一源改向：若原先是用户连线且本次未显式 user:false，保留 user 标记
+    const user = opts.user === true || (prev?.user === true && opts.user !== false);
     fireLinks.set(source, {
       target,
       color: source.color,
+      user: !!user,
       seq: ++fireLinkSeq,
     });
     tryFire(source, target);
     enforceNoSameColorMutual(source);
   }
 
-  /** @param {import("./cell").Cell} source */
-  function stopFireLink(source) {
+  /**
+   * @param {import("./cell").Cell} source
+   * @param {{ force?: boolean }} [opts] force=true 允许切断用户连线（手势切断 / 互射冲突）
+   */
+  function stopFireLink(source, opts = {}) {
+    const link = fireLinks.get(source);
+    if (!link) return;
+    // 用户连线：源色未变时，普通 stop 不生效（须 force 或走变色删除）
+    if (link.user && !opts.force && source.color === link.color) {
+      return;
+    }
     fireLinks.delete(source);
   }
 
   /**
-   * 仅禁止同色互相连接：A↔B 且同色时，只保留较新的一条。
+   * 禁止同色互射：A↔B 且同色时只保留一条。
+   * 优先保留用户连线；双方同级时保留 justLinked / 较新 seq。
    * @param {import("./cell").Cell | null} [justLinked]
    */
   function enforceNoSameColorMutual(justLinked = null) {
     for (const [source, link] of [...fireLinks]) {
       const other = link.target;
-      if (source.color !== other.color) continue;
+      if (!other || source.color !== other.color) continue;
 
       const reverse = fireLinks.get(other);
       if (!reverse || reverse.target !== source) continue;
 
-      const keepSource =
-        justLinked === source
-          ? source
-          : justLinked === other
-            ? other
-            : link.seq >= reverse.seq
-              ? source
-              : other;
+      /** @type {import("./cell").Cell} */
+      let keepSource;
+      if (link.user !== reverse.user) {
+        // 用户连线优先于 AI/系统连线
+        keepSource = link.user ? source : other;
+      } else if (justLinked === source) {
+        keepSource = source;
+      } else if (justLinked === other) {
+        keepSource = other;
+      } else {
+        keepSource = link.seq >= reverse.seq ? source : other;
+      }
+
       const drop = keepSource === source ? other : source;
-      stopFireLink(drop);
+      // 互射冲突必须真正断掉被淘汰的一侧（含用户连线）
+      stopFireLink(drop, { force: true });
     }
+  }
+
+  /**
+   * 源变色 → 断链。
+   * @param {import("./cell").Cell} source
+   * @param {{ target: import("./cell").Cell, color: number, user: boolean, seq: number }} link
+   */
+  function shouldBreakForColor(source, link) {
+    return source.color !== link.color;
   }
 
   /**
@@ -300,6 +330,7 @@ export function createCombat({ stage, cells, bullets }) {
    * @param {number} dt
    */
   function tickFireLinks(dt) {
+    // 0) 染色后可能变成同色互射，每帧收一次
     enforceNoSameColorMutual();
 
     // 1) 所有源的冷却按当前体型推进（能量不足则冻结，不归零）
@@ -310,17 +341,17 @@ export function createCombat({ stage, cells, bullets }) {
       setCd(source, getCd(source) - dt / interval);
     }
 
-    // 2) 有连线且冷却就绪 → 常规开火
+    // 2) 有连线且冷却就绪 → 常规开火；仅源变色断链
     for (const [source, link] of [...fireLinks]) {
       if (!fireLinks.has(source)) continue;
-      if (source.color !== link.color) {
-        stopFireLink(source);
+      if (shouldBreakForColor(source, link)) {
+        fireLinks.delete(source);
         continue;
       }
 
       while (fireLinks.has(source) && getCd(source) <= 0) {
-        if (source.color !== link.color) {
-          stopFireLink(source);
+        if (shouldBreakForColor(source, link)) {
+          fireLinks.delete(source);
           break;
         }
         if (!tryFire(source, link.target)) break;
@@ -334,7 +365,7 @@ export function createCombat({ stage, cells, bullets }) {
         continue;
       }
       const link = fireLinks.get(cell);
-      if (link && cell.color === link.color) {
+      if (link && !shouldBreakForColor(cell, link)) {
         dumpOverflow(cell, link.target);
       } else {
         dumpOverflow(cell, null);
@@ -410,7 +441,6 @@ export function createCombat({ stage, cells, bullets }) {
     canFireLink,
     startFireLink,
     stopFireLink,
-    enforceNoSameColorMutual,
     tickFireLinks,
     tickBullets,
   };

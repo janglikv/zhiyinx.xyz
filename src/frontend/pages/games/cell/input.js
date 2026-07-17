@@ -147,7 +147,8 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
     for (const [source, link] of [...combat.fireLinks]) {
       const ep = linkEndpoints(source, link.target);
       if (segmentsIntersect(x0, y0, x1, y1, ep.x1, ep.y1, ep.x2, ep.y2)) {
-        combat.stopFireLink(source);
+        // 玩家划线切断：允许强制断开用户连线
+        combat.stopFireLink(source, { force: true });
       }
     }
   }
@@ -186,7 +187,7 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
     const target = aim.pickTarget(source, upX, upY);
 
     if (dragMoved && combat.canFireLink(source, target)) {
-      combat.startFireLink(source, target);
+      combat.startFireLink(source, target, { user: true });
     }
 
     cancelAimDrag();
