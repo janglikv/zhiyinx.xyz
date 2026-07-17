@@ -57,6 +57,20 @@ export const BULLET_RADIUS = 3.2;
 export const BULLET_COLLIDE_DIST = BULLET_RADIUS * 2.2;
 
 /**
+ * 触顶溢出粒子（独立于 Bullet，不参与弹-弹对撞）
+ * 视觉：光晕 + 彗星拖尾，比常规弹更抢眼
+ */
+export const OVERFLOW_SPEED = 210;
+export const OVERFLOW_PARTICLE_R = 3.6;
+/** 无瞄准：短距泄压 */
+export const OVERFLOW_FREE_MAX_DIST = 160;
+/** 有瞄准：可飞较远直至命中/耗尽 */
+export const OVERFLOW_AIMED_MAX_DIST = 720;
+/** 每帧生成上限 */
+export const OVERFLOW_SPAWN_FREE = 3;
+export const OVERFLOW_SPAWN_AIMED = 6;
+
+/**
  * 攻速随体型（仅 value > MIN_FIRE_ENERGY 时开火）：
  *   rate = (value - MIN_FIRE_ENERGY) * FIRE_RATE_PER_UNIT（发/秒）
  *   interval = max(FIRE_INTERVAL_MIN_MS, 1000 / rate)

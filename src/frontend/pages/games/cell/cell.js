@@ -234,6 +234,11 @@ export class Cell {
     this.colors = derivePalette(color);
     // 内部浮点能量；UI 仅显示整数
     this.value = Math.max(0, Math.min(MAX_ENERGY, Number(value) || 0));
+    /**
+     * 触顶后无法再存入的溢出能量（自增 / 同色治疗）。
+     * 有连线时由 combat 全部转成输出子弹；无连线则每帧丢弃。
+     */
+    this.overflowEnergy = 0;
     this._selected = false;
     /** @type {false | 'source' | 'target'} 引导高亮：操作源 / 指向目标 */
     this._tutorialHighlight = false;
@@ -455,17 +460,29 @@ export class Cell {
 
   /**
    * 自增能量（浮点连续）：中立跳过；其余能量为 0 也会长；越大越快，封顶 MAX_ENERGY。
+   * 已达上限时仍按速率累计 overflowEnergy，供连线时全部输出。
    * @param {number} deltaMS
    */
   tickGrowth(deltaMS) {
     if (!this.canGrow()) return;
-    if (this.value >= MAX_ENERGY - ENERGY_EPS) {
-      this.value = MAX_ENERGY;
-      return;
-    }
     const raw = GROWTH_BASE + Math.max(0, this.value) * GROWTH_PER_UNIT;
     const rate = Math.max(GROWTH_MIN, raw);
-    this.changeValue(rate * (deltaMS / 1000));
+    const delta = rate * (deltaMS / 1000);
+    if (delta <= ENERGY_EPS) return;
+
+    if (this.value >= MAX_ENERGY - ENERGY_EPS) {
+      this.value = MAX_ENERGY;
+      this.overflowEnergy += delta;
+      return;
+    }
+
+    const room = MAX_ENERGY - this.value;
+    if (delta > room + ENERGY_EPS) {
+      this.changeValue(room);
+      this.overflowEnergy += delta - room;
+    } else {
+      this.changeValue(delta);
+    }
   }
 
   update(deltaMS, elapsed, cellIndex = 0) {

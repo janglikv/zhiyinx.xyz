@@ -5,6 +5,8 @@ import {
   BULLET_RADIUS,
   BULLET_COLLIDE_DIST,
   FIRE_COST,
+  GAME_WIDTH,
+  GAME_HEIGHT,
   damageFromDistance,
 } from "./constants";
 
@@ -15,9 +17,12 @@ export {
   damageFromDistance,
 };
 
+/** 飞出画布边距后消散 */
+const OFFSCREEN_PAD = 40;
+
 /**
- * 小细胞子弹：飞向目标；途中碰到其它细胞会被挡住并命中该细胞。
- * 命中点取飞行路径与「当前细胞壁」（cell.radius）的交点；伤害按飞行距离衰减。
+ * 常规战斗子弹：飞向目标；途中碰到其它细胞会命中。
+ * 参与弹-弹对撞。溢出泄压见 overflow.js，不走此类。
  */
 export class Bullet {
   /**
@@ -39,13 +44,17 @@ export class Bullet {
     this.color = color;
     this.colors = derivePalette(color);
 
-    // 从源细胞壁沿目标方向出发（用实时半径；源不参与阻挡，不自撞）
     const tx = target.container.x - x;
     const ty = target.container.y - y;
     const tlen = Math.hypot(tx, ty) || 1;
+    const nx = tx / tlen;
+    const ny = ty / tlen;
+    this._dirX = nx;
+    this._dirY = ny;
+
     const launchR = Math.max(0, source.radius);
-    const startX = x + (tx / tlen) * launchR;
-    const startY = y + (ty / tlen) * launchR;
+    const startX = x + nx * launchR;
+    const startY = y + ny * launchR;
 
     /** 已飞行距离（用于伤害衰减） */
     this.traveled = 0;
@@ -166,25 +175,33 @@ export class Bullet {
 
     const x0 = this.container.x;
     const y0 = this.container.y;
-    const tx = this.target.container.x;
-    const ty = this.target.container.y;
-    const dx = tx - x0;
-    const dy = ty - y0;
-    const dist = Math.hypot(dx, dy);
     const step = BULLET_SPEED * (deltaMS / 1000);
 
     let x1 = x0;
     let y1 = y0;
-    if (dist > 1e-6) {
-      const move = Math.min(step, dist);
-      x1 = x0 + (dx / dist) * move;
-      y1 = y0 + (dy / dist) * move;
+    if (this.target && !this.target.container.destroyed) {
+      const tx = this.target.container.x;
+      const ty = this.target.container.y;
+      const dx = tx - x0;
+      const dy = ty - y0;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 1e-6) {
+        const move = Math.min(step, dist);
+        const inv = 1 / dist;
+        x1 = x0 + dx * inv * move;
+        y1 = y0 + dy * inv * move;
+        this._dirX = dx * inv;
+        this._dirY = dy * inv;
+      }
+    } else {
+      this.target = null;
+      x1 = x0 + this._dirX * step;
+      y1 = y0 + this._dirY * step;
     }
 
     const hit = this._findBlockerAlong(x0, y0, x1, y1);
     if (hit) {
       this.alive = false;
-      // 计入到命中点的实际飞行距离
       this.traveled += Math.hypot(hit.x - x0, hit.y - y0);
       this.container.x = hit.x;
       this.container.y = hit.y;
@@ -201,7 +218,17 @@ export class Bullet {
     this.container.x = x1;
     this.container.y = y1;
 
-    // 根据当前飞行路径的伤害衰减率与对撞损耗来动态降低透明度和大小，直观呈现威力流失
+    if (
+      x1 < -OFFSCREEN_PAD
+      || y1 < -OFFSCREEN_PAD
+      || x1 > GAME_WIDTH + OFFSCREEN_PAD
+      || y1 > GAME_HEIGHT + OFFSCREEN_PAD
+    ) {
+      this.alive = false;
+      this.destroy();
+      return false;
+    }
+
     const factor = this.getDamage() / FIRE_COST;
     this.container.alpha = Math.max(0.15, factor);
     if (this._spawn >= 1) {

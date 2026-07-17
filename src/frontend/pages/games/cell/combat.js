@@ -1,15 +1,27 @@
 import { Graphics } from "pixi.js";
-import { ENERGY_EPS, FIRE_COST, MIN_FIRE_ENERGY, fireIntervalMs, BULLET_COLLIDE_DIST } from "./constants";
+import {
+  ENERGY_EPS,
+  FIRE_COST,
+  MIN_FIRE_ENERGY,
+  MAX_ENERGY,
+  fireIntervalMs,
+  BULLET_COLLIDE_DIST,
+  OVERFLOW_SPAWN_FREE,
+  OVERFLOW_SPAWN_AIMED,
+} from "./constants";
 import { Bullet } from "./bullet";
+import { OverflowSpark } from "./overflow";
 
 /**
- * 连发、开火、命中结算、子弹更新与对撞。
+ * 连发、开火、命中结算、子弹更新与对撞；触顶溢出走独立粒子。
  * @param {object} options
  * @param {import("pixi.js").Container} options.stage
  * @param {import("./cell").Cell[]} options.cells
  * @param {import("./bullet").Bullet[]} options.bullets
  */
 export function createCombat({ stage, cells, bullets }) {
+  /** @type {import("./overflow").OverflowSpark[]} */
+  const overflowSparks = [];
   /**
    * 源 → 连发目标。只描述「谁在打谁」，不含冷却。
    * 源变色断链；同色互连只保留较新的一条。
@@ -81,7 +93,14 @@ export function createCombat({ stage, cells, bullets }) {
     if (!Number.isFinite(qty) || qty <= ENERGY_EPS) return;
 
     if (target.color === sourceColor) {
-      target.changeValue(qty);
+      // 同色治疗：触顶部分记入溢出，连线时再全部输出
+      const sum = target.value + qty;
+      if (sum > MAX_ENERGY + ENERGY_EPS) {
+        target.setValue(MAX_ENERGY);
+        target.overflowEnergy += sum - MAX_ENERGY;
+      } else {
+        target.changeValue(qty);
+      }
       return;
     }
 
@@ -99,16 +118,13 @@ export function createCombat({ stage, cells, bullets }) {
   }
 
   /**
+   * 生成一发常规战斗子弹（参与对撞）。
    * @param {import("./cell").Cell} source
    * @param {import("./cell").Cell} target
    * @returns {boolean}
    */
-  function fireBullet(source, target) {
-    if (source === target) return false;
-    if (source.value < MIN_FIRE_ENERGY - ENERGY_EPS) return false;
-    if (source.value < FIRE_COST - ENERGY_EPS) return false;
-
-    source.changeValue(-FIRE_COST);
+  function spawnBullet(source, target) {
+    if (!target || source === target) return false;
     const color = source.color;
     const bullet = new Bullet({
       x: source.container.x,
@@ -125,6 +141,89 @@ export function createCombat({ stage, cells, bullets }) {
     stage.addChild(bullet.container);
     bullets.push(bullet);
     return true;
+  }
+
+  /**
+   * 生成溢出粒子（不参与弹-弹对撞，轻量独立体系）。
+   * @param {import("./cell").Cell} source
+   * @param {import("./cell").Cell | null} target
+   * @param {{ dirX?: number, dirY?: number }} [opts]
+   * @returns {boolean}
+   */
+  function spawnOverflow(source, target = null, opts = {}) {
+    if (target && source === target) return false;
+    const color = source.color;
+    const aimed = !!target;
+    const spark = new OverflowSpark({
+      x: source.container.x,
+      y: source.container.y,
+      color,
+      source,
+      target,
+      dirX: opts.dirX,
+      dirY: opts.dirY,
+      aimed,
+      getCells: () => cells,
+      onHit: (hitCell, damage, point) => {
+        applyBulletHit(color, hitCell, damage);
+        // 溢出命中：更醒目的溅射环（略强于常规弹反馈）
+        createHitEffect(point.x, point.y, color, damage * (aimed ? 1.35 : 0.9));
+      },
+    });
+    stage.addChild(spark.graphics);
+    overflowSparks.push(spark);
+    return true;
+  }
+
+  /**
+   * @param {import("./cell").Cell} source
+   * @param {import("./cell").Cell} target
+   * @returns {boolean}
+   */
+  function fireBullet(source, target) {
+    if (source === target) return false;
+    if (source.value < MIN_FIRE_ENERGY - ENERGY_EPS) return false;
+    if (source.value < FIRE_COST - ENERGY_EPS) return false;
+
+    source.changeValue(-FIRE_COST);
+    return spawnBullet(source, target);
+  }
+
+  /**
+   * 触顶溢出 → 独立粒子体系（非 Bullet）。
+   * 有连线：飞向目标并结算能量；无连线：随机方向短距泄压。
+   * @param {import("./cell").Cell} source
+   * @param {import("./cell").Cell | null} [target]
+   */
+  function dumpOverflow(source, target = null) {
+    if (!source) return;
+    if (target && source === target) {
+      source.overflowEnergy = 0;
+      return;
+    }
+    const maxSpawn = target ? OVERFLOW_SPAWN_AIMED : OVERFLOW_SPAWN_FREE;
+    let spawned = 0;
+    while (
+      source.overflowEnergy >= FIRE_COST - ENERGY_EPS
+      && spawned < maxSpawn
+    ) {
+      source.overflowEnergy -= FIRE_COST;
+      let ok;
+      if (target) {
+        ok = spawnOverflow(source, target);
+      } else {
+        const angle = Math.random() * Math.PI * 2;
+        ok = spawnOverflow(source, null, {
+          dirX: Math.cos(angle),
+          dirY: Math.sin(angle),
+        });
+      }
+      if (!ok) {
+        source.overflowEnergy += FIRE_COST;
+        break;
+      }
+      spawned += 1;
+    }
   }
 
   /**
@@ -197,7 +296,7 @@ export function createCombat({ stage, cells, bullets }) {
   }
 
   /**
-   * 每帧：冷却推进 → 连发开火。
+   * 每帧：冷却推进 → 连发开火 → 溢出能量全力输出。
    * @param {number} dt
    */
   function tickFireLinks(dt) {
@@ -211,7 +310,7 @@ export function createCombat({ stage, cells, bullets }) {
       setCd(source, getCd(source) - dt / interval);
     }
 
-    // 2) 有连线且冷却就绪 → 开火
+    // 2) 有连线且冷却就绪 → 常规开火
     for (const [source, link] of [...fireLinks]) {
       if (!fireLinks.has(source)) continue;
       if (source.color !== link.color) {
@@ -227,10 +326,25 @@ export function createCombat({ stage, cells, bullets }) {
         if (!tryFire(source, link.target)) break;
       }
     }
+
+    // 3) 触顶溢出全部打出：有连线→目标；无连线→随机方向
+    for (const cell of cells) {
+      if ((cell.overflowEnergy ?? 0) <= ENERGY_EPS) {
+        cell.overflowEnergy = 0;
+        continue;
+      }
+      const link = fireLinks.get(cell);
+      if (link && cell.color === link.color) {
+        dumpOverflow(cell, link.target);
+      } else {
+        dumpOverflow(cell, null);
+      }
+      // 不足一整发的余量留到下帧
+    }
   }
 
   /**
-   * 每帧：子弹飞行 + 异色对撞抵消。
+   * 每帧：常规子弹飞行 + 弹-弹对撞 + 溢出粒子（无对撞）。
    * @param {number} dt
    */
   function tickBullets(dt) {
@@ -240,7 +354,7 @@ export function createCombat({ stage, cells, bullets }) {
       }
     }
 
-    // 对撞抵消：动能（威力值）大者胜出，扣减相应能量后继续飞行，小者湮灭
+    // 对撞抵消：仅常规 Bullet，溢出粒子不参与
     const collideR2 = BULLET_COLLIDE_DIST * BULLET_COLLIDE_DIST;
     for (let i = 0; i < bullets.length; i += 1) {
       const a = bullets[i];
@@ -257,7 +371,6 @@ export function createCombat({ stage, cells, bullets }) {
           const hitX = (a.container.x + b.container.x) / 2;
           const hitY = (a.container.y + b.container.y) / 2;
 
-          // 双方颜色分别扩散，强弱对应碰撞瞬间各自剩余威力。
           createHitEffect(hitX, hitY, a.color, dmgA);
           createHitEffect(hitX, hitY, b.color, dmgB);
 
@@ -267,11 +380,11 @@ export function createCombat({ stage, cells, bullets }) {
           } else if (dmgB > dmgA + 1e-4) {
             b.damagePenalty += dmgA;
             a.cancel();
-            break; // 子弹 a 已经消亡，退出对 j 的循环
+            break;
           } else {
             a.cancel();
             b.cancel();
-            break; // 同归于尽
+            break;
           }
         }
       }
@@ -281,6 +394,14 @@ export function createCombat({ stage, cells, bullets }) {
         bullets.splice(i, 1);
       }
     }
+
+    // 溢出粒子：只更新，不与子弹/彼此对撞
+    for (let i = overflowSparks.length - 1; i >= 0; i -= 1) {
+      if (!overflowSparks[i].update(dt)) {
+        overflowSparks.splice(i, 1);
+      }
+    }
+
     tickHitEffects(dt);
   }
 
