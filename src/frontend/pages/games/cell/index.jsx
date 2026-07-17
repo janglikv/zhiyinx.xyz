@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import GameLayout from "../../../components/GameLayout";
 import { GAME_WIDTH, GAME_HEIGHT } from "./constants";
-import {
-  loadBackgroundMode,
-  saveBackgroundMode,
-} from "./background";
 import { LEVELS } from "./levels";
 import { mountCellGame } from "./mount";
 import { TUTORIAL_START_PHASE, TutorialHud } from "./tutorial";
@@ -15,10 +11,6 @@ import GameFooter from "./ui/GameFooter";
 function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const containerRef = useRef(null);
   const gameApiRef = useRef(null);
-  const [bgMode, setBgMode] = useState(loadBackgroundMode);
-  const bgModeRef = useRef(bgMode);
-  bgModeRef.current = bgMode;
-
   const [currentLevelIndex, setCurrentLevelIndex] = useState(() => {
     const saved = localStorage.getItem("cell_game_level");
     const parsed = parseInt(saved, 10);
@@ -47,7 +39,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     const cleanup = mountCellGame(
       containerRef.current,
       gameApiRef,
-      () => bgModeRef.current,
+      // 背景与关卡绑定，保证五关拥有连续的视觉节奏。
+      () => `level-${level.id}`,
       level,
       (isWin) => {
         setGameState(isWin ? "win" : "lose");
@@ -57,13 +50,6 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     );
     return cleanup;
   }, [currentLevelIndex, gameKey, level]);
-
-  function switchBackground(mode) {
-    bgModeRef.current = mode;
-    setBgMode(mode);
-    saveBackgroundMode(mode);
-    gameApiRef.current?.setBackgroundMode(mode);
-  }
 
   function handleRestart() {
     setGameKey((prev) => prev + 1);
@@ -134,7 +120,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           {gameState === "lose" && <LoseOverlay onRestart={handleRestart} />}
         </div>
 
-        <GameFooter bgMode={bgMode} onSwitchBackground={switchBackground} />
+        <GameFooter />
       </div>
     </GameLayout>
   );

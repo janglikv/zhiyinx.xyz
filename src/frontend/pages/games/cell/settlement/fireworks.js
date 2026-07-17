@@ -66,10 +66,10 @@ export function startWinFireworks(canvas, { width, height }) {
     });
   }
 
-  /** 集中在画面中上区域，不要散太开 */
+  /** 集中在画面正中，不要散太开 */
   function burstOrigin() {
     const cx = width * 0.5 + (Math.random() - 0.5) * 160;
-    const cy = height * 0.32 + (Math.random() - 0.5) * 70;
+    const cy = height * 0.5 + (Math.random() - 0.5) * 70;
     return { cx, cy };
   }
 

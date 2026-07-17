@@ -1,49 +1,20 @@
 import * as PIXI from "pixi.js";
 import { GAME_WIDTH, GAME_HEIGHT } from "./constants";
-import backgroundScene from "./backgrounds/scene.png";
-import backgroundDish from "./backgrounds/dish.png";
-import backgroundDna from "./backgrounds/dna.png";
-import backgroundMicrobes from "./backgrounds/microbes.jpg";
+import backgroundLevel1 from "./backgrounds/level-1.webp";
+import backgroundLevel2 from "./backgrounds/level-2.webp";
+import backgroundLevel3 from "./backgrounds/level-3.webp";
+import backgroundLevel4 from "./backgrounds/level-4.webp";
+import backgroundLevel5 from "./backgrounds/level-5.webp";
 
 export const BACKGROUNDS = [
-  { id: "scene", label: "场景", src: backgroundScene },
-  { id: "dish", label: "培养皿", src: backgroundDish },
-  { id: "dna", label: "DNA", src: backgroundDna },
-  { id: "microbes", label: "微生物", src: backgroundMicrobes },
-  { id: "black", label: "纯黑", src: null },
+  { id: "level-1", src: backgroundLevel1 },
+  { id: "level-2", src: backgroundLevel2 },
+  { id: "level-3", src: backgroundLevel3 },
+  { id: "level-4", src: backgroundLevel4 },
+  { id: "level-5", src: backgroundLevel5 },
 ];
 
 /** @typedef {typeof BACKGROUNDS[number]['id']} BackgroundMode */
-
-const BG_STORAGE_KEY = "cell-game-background";
-
-/**
- * @param {unknown} value
- * @returns {value is BackgroundMode}
- */
-export function isBackgroundMode(value) {
-  return BACKGROUNDS.some((item) => item.id === value);
-}
-
-/** @returns {BackgroundMode} */
-export function loadBackgroundMode() {
-  try {
-    const saved = localStorage.getItem(BG_STORAGE_KEY);
-    if (isBackgroundMode(saved)) return /** @type {BackgroundMode} */ (saved);
-  } catch (e) {
-    // private mode / 禁用存储时忽略
-  }
-  return "scene";
-}
-
-/** @param {BackgroundMode} mode */
-export function saveBackgroundMode(mode) {
-  try {
-    localStorage.setItem(BG_STORAGE_KEY, mode);
-  } catch (e) {
-    // private mode / 禁用存储时忽略
-  }
-}
 
 /**
  * @param {PIXI.Sprite} sprite
@@ -84,23 +55,18 @@ export async function loadBackgroundTextures() {
  * @param {() => BackgroundMode} [getDesiredBgMode]
  */
 export function createBackgroundController(app, textureById, getDesiredBgMode) {
-  const defaultTexture = textureById.scene;
+  const initialMode = getDesiredBgMode?.() ?? "level-1";
+  const defaultTexture = textureById[initialMode];
   const background = new PIXI.Sprite(defaultTexture);
   fitBackgroundSprite(background, defaultTexture);
   app.stage.addChild(background);
 
   /** @type {BackgroundMode} */
-  let backgroundMode = "scene";
+  let backgroundMode = initialMode;
 
   /** @param {BackgroundMode} mode */
   function setBackgroundMode(mode) {
     backgroundMode = mode;
-    if (mode === "black") {
-      background.visible = false;
-      app.renderer.background.color = 0x000000;
-      return;
-    }
-
     const texture = textureById[mode];
     if (!texture) return;
     fitBackgroundSprite(background, texture);
@@ -108,7 +74,7 @@ export function createBackgroundController(app, textureById, getDesiredBgMode) {
     app.renderer.background.color = 0x000000;
   }
 
-  setBackgroundMode(getDesiredBgMode?.() ?? "scene");
+  setBackgroundMode(initialMode);
 
   return {
     background,
