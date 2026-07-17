@@ -9,9 +9,10 @@ import { startWinFireworks } from "./fireworks";
  *   fxKey?: number,
  *   nextLabel: string,
  *   onNext: () => void,
+ *   onBackToHub?: () => void,
  * }} props
  */
-export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext }) {
+export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBackToHub }) {
   const canvasRef = useRef(null);
   const [compact, setCompact] = useState(false);
   const [toastReady, setToastReady] = useState(false);
@@ -179,29 +180,57 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext }) {
                 对抗细胞已肃清
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onNext}
+            <div
               style={{
                 pointerEvents: "auto",
                 flexShrink: 0,
-                padding: "10px 14px",
-                borderRadius: "11px",
-                border: "none",
-                fontSize: "12px",
-                fontWeight: "700",
-                letterSpacing: "0.02em",
-                whiteSpace: "nowrap",
-                color: "#0a140c",
-                cursor: "pointer",
-                background: "linear-gradient(135deg, #9af05a 0%, #54c92b 48%, #3ca01a 100%)",
-                boxShadow:
-                  "0 2px 0 rgba(30, 90, 20, 0.45), 0 6px 16px rgba(84, 201, 43, 0.35)",
-                transition: "transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+                display: "flex",
+                gap: compact ? "6px" : "8px",
+                alignItems: "center",
               }}
             >
-              {nextLabel}
-            </button>
+              {onBackToHub && !compact && (
+                <button
+                  type="button"
+                  onClick={onBackToHub}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "11px",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    letterSpacing: "0.02em",
+                    whiteSpace: "nowrap",
+                    color: "rgba(230, 240, 225, 0.9)",
+                    cursor: "pointer",
+                    background: "rgba(255,255,255,0.06)",
+                  }}
+                >
+                  选关
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onNext}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "11px",
+                  border: "none",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  letterSpacing: "0.02em",
+                  whiteSpace: "nowrap",
+                  color: "#0a140c",
+                  cursor: "pointer",
+                  background: "linear-gradient(135deg, #9af05a 0%, #54c92b 48%, #3ca01a 100%)",
+                  boxShadow:
+                    "0 2px 0 rgba(30, 90, 20, 0.45), 0 6px 16px rgba(84, 201, 43, 0.35)",
+                  transition: "transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+                }}
+              >
+                {nextLabel}
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -1,32 +1,18 @@
-/** 底部图例 */
+/** 对局底部图例（游戏壳内） */
 export default function GameFooter() {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border-light)",
-        borderRadius: "16px",
-        padding: "12px 20px",
-        backdropFilter: "blur(12px)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "16px",
-          fontSize: "12px",
-          color: "var(--text-secondary)",
-        }}
-      >
-        <div>🟢 己方</div>
-        <div>🔴 敌方</div>
-        <div>⚫ 中立</div>
-        <div style={{ width: "1px", height: "12px", background: "var(--border-light)" }} />
-        <div>拖拽连线发射 · 滑动切断射流</div>
-      </div>
+    <div className="cell-legend">
+      <span className="cell-legend__item">
+        <i className="cell-legend__dot cell-legend__dot--p" /> 己方
+      </span>
+      <span className="cell-legend__item">
+        <i className="cell-legend__dot cell-legend__dot--e" /> 敌方
+      </span>
+      <span className="cell-legend__item">
+        <i className="cell-legend__dot cell-legend__dot--n" /> 中立
+      </span>
+      <span className="cell-legend__sep" />
+      <span className="cell-legend__tip">拖拽连线发射 · 滑动切断射流</span>
     </div>
   );
 }

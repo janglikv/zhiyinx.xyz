@@ -1,8 +1,8 @@
 /**
  * 失败遮罩
- * @param {{ onRestart: () => void }} props
+ * @param {{ onRestart: () => void, onBackToHub?: () => void }} props
  */
-export default function LoseOverlay({ onRestart }) {
+export default function LoseOverlay({ onRestart, onBackToHub }) {
   return (
     <div
       style={{
@@ -59,6 +59,20 @@ export default function LoseOverlay({ onRestart }) {
         >
           重新开始
         </button>
+        {onBackToHub && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onBackToHub}
+            style={{
+              padding: "12px 22px",
+              borderRadius: "14px",
+              fontSize: "14px",
+            }}
+          >
+            返回选关
+          </button>
+        )}
       </div>
     </div>
   );
