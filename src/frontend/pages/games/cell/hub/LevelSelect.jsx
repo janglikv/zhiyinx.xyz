@@ -1,5 +1,6 @@
 import { LEVELS } from "../levels";
 import { COLOR_PLAYER, COLOR_ENEMY, COLOR_NEUTRAL } from "../constants";
+import { playUi } from "../audio";
 import hubBg from "../backgrounds/level-1.webp";
 import "./styles.css";
 
@@ -112,7 +113,11 @@ export default function LevelSelect({
                   type="button"
                   className={nodeClass}
                   disabled={!unlocked}
-                  onClick={() => unlocked && onEnterLevel(index)}
+                  onClick={() => {
+                    if (!unlocked) return;
+                    playUi("confirm");
+                    onEnterLevel(index);
+                  }}
                   title={unlocked ? lvl.description : "通关前一关后解锁"}
                 >
                   <span className="cell-hub__node-ring" aria-hidden />
@@ -173,7 +178,11 @@ export default function LevelSelect({
                   type="button"
                   className="cell-hub__play"
                   disabled={!unlocked}
-                  onClick={() => unlocked && onEnterLevel(recommendedIndex)}
+                  onClick={() => {
+                    if (!unlocked) return;
+                    playUi("confirm");
+                    onEnterLevel(recommendedIndex);
+                  }}
                 >
                   {cleared.has(recommendedIndex) ? "再次出击" : "开始出击"}
                 </button>

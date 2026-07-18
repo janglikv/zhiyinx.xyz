@@ -1,3 +1,5 @@
+import { playUi } from "../audio";
+
 /**
  * 关卡画布内叠加的返回选关按钮
  * @param {{ onClick: () => void, title?: string }} props
@@ -7,7 +9,10 @@ export default function BackButton({ onClick, title = "返回选关" }) {
     <button
       type="button"
       className="cell-back"
-      onClick={onClick}
+      onClick={() => {
+        playUi("back");
+        onClick?.();
+      }}
       title={title}
       aria-label={title}
     >

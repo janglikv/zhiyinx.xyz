@@ -21,7 +21,7 @@ import SettingsButton from "./ui/SettingsButton";
 import SettingsModal from "./ui/SettingsModal";
 import FullscreenButton from "./ui/FullscreenButton";
 import FadeVeil from "./ui/FadeVeil";
-import { fadeOutBgm, restartBgm, stopBgm, unlockCellAudio } from "./audio";
+import { setBgmScene, stopBgm, unlockCellAudio, playUi } from "./audio";
 import "./styles.css";
 
 /** 全黑后略停，等 Pixi 挂上再淡入 */
@@ -73,6 +73,13 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     };
   }, []);
 
+  // BGM 只跟 screen 走（与对战曲同一逻辑）：
+  // screen==="play" 时保持对战曲，重开/下一关不重切；切到 hub 才换选关曲。
+  useEffect(() => {
+    if (!gameStarted) return;
+    setBgmScene(screen);
+  }, [gameStarted, screen]);
+
   useEffect(() => {
     if (screen !== "play") return undefined;
 
@@ -104,7 +111,6 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     if (transitioning) return;
     pendingScreenRef.current = nextScreen;
     pendingLevelRef.current = levelIndex;
-    fadeOutBgm(1000);
     setFadePhase("out");
   }
 
@@ -131,13 +137,12 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   }
 
   function handleVeilCovered() {
-    // 黑场到位：切换内容，短暂 hold 后淡入
-    const nextScreen = applyPendingScreen();
+    // 黑场到位：只切画面；BGM 由 screen 的 useEffect 同步
+    applyPendingScreen();
     setFadePhase("hold");
     if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
     holdTimerRef.current = window.setTimeout(() => {
       setPlayReveal(true);
-      restartBgm(nextScreen, 1000);
       setFadePhase("in");
     }, HOLD_BLACK_MS);
   }
@@ -251,7 +256,10 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             >
               <button
                 type="button"
-                onClick={handleStartGame}
+                onClick={() => {
+                  playUi("confirm");
+                  handleStartGame();
+                }}
                 aria-label="开始游戏"
                 style={{
                   width: 132,

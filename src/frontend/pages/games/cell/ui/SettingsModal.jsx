@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { playUi } from "../audio";
 
 /**
  * 游戏设置模态框
@@ -39,21 +40,25 @@ export default function SettingsModal({
 
   function handleResetClick() {
     if (confirmReset) {
+      playUi("confirm");
       onResetProgress();
       setConfirmReset(false);
       onClose();
     } else {
+      playUi("tap");
       setConfirmReset(true);
     }
   }
 
   function handleUnlockAllClick() {
+    playUi("confirm");
     onUnlockAll();
     onClose();
   }
 
   function handleDebugWinClick() {
     if (onDebugWin) {
+      playUi("confirm");
       onDebugWin();
       onClose();
     }
@@ -79,7 +84,10 @@ export default function SettingsModal({
           <button
             type="button"
             className="cell-modal-close-btn"
-            onClick={onClose}
+            onClick={() => {
+              playUi("back");
+              onClose();
+            }}
             aria-label="关闭设置"
           >
             &times;

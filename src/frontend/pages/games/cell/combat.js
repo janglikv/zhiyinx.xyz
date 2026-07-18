@@ -8,10 +8,12 @@ import {
   BULLET_COLLIDE_DIST,
   OVERFLOW_SPAWN_FREE,
   OVERFLOW_SPAWN_AIMED,
+  COLOR_PLAYER,
+  GAME_WIDTH,
 } from "./constants";
 import { Bullet } from "./bullet";
 import { OverflowSpark } from "./overflow";
-import { playBulletShot } from "./audio";
+import { playBulletShot, playHit, playHurt, playDie } from "./audio";
 
 /**
  * 连发、开火、命中结算、子弹更新与对撞；触顶溢出走独立粒子。
@@ -87,8 +89,9 @@ export function createCombat({ stage, cells, bullets }) {
    * @param {number} sourceColor
    * @param {import("./cell").Cell} target
    * @param {number} amount
+   * @param {{ x?: number, y?: number }} [point]
    */
-  function applyBulletHit(sourceColor, target, amount) {
+  function applyBulletHit(sourceColor, target, amount, point = {}) {
     if (!target) return;
     const qty = Number(amount);
     if (!Number.isFinite(qty) || qty <= ENERGY_EPS) return;
@@ -105,9 +108,14 @@ export function createCombat({ stage, cells, bullets }) {
       return;
     }
 
+    const hitX = point.x ?? target.container?.x ?? GAME_WIDTH * 0.5;
+    const strength = Math.max(0.4, Math.min(1.2, qty / FIRE_COST));
+    const targetIsPlayer = target.color === COLOR_PLAYER;
+
     if (target.value <= ENERGY_EPS) {
       target.setValue(0);
       target.setColor(sourceColor);
+      playDie({ x: hitX, width: GAME_WIDTH });
       return;
     }
 
@@ -115,6 +123,14 @@ export function createCombat({ stage, cells, bullets }) {
     if (target.value <= ENERGY_EPS) {
       target.setValue(0);
       target.setColor(sourceColor);
+      playDie({ x: hitX, width: GAME_WIDTH });
+      return;
+    }
+
+    if (targetIsPlayer) {
+      playHurt({ x: hitX, width: GAME_WIDTH, strength });
+    } else {
+      playHit({ x: hitX, width: GAME_WIDTH, strength });
     }
   }
 
@@ -135,7 +151,7 @@ export function createCombat({ stage, cells, bullets }) {
       target,
       getCells: () => cells,
       onHit: (hitCell, damage, point) => {
-        applyBulletHit(color, hitCell, damage);
+        applyBulletHit(color, hitCell, damage, point);
         createHitEffect(point.x, point.y, color, damage);
       },
     });
@@ -167,7 +183,7 @@ export function createCombat({ stage, cells, bullets }) {
       aimed,
       getCells: () => cells,
       onHit: (hitCell, damage, point) => {
-        applyBulletHit(color, hitCell, damage);
+        applyBulletHit(color, hitCell, damage, point);
         // 溢出命中：更醒目的溅射环（略强于常规弹反馈）
         createHitEffect(point.x, point.y, color, damage * (aimed ? 1.35 : 0.9));
       },
@@ -406,6 +422,11 @@ export function createCombat({ stage, cells, bullets }) {
 
           createHitEffect(hitX, hitY, a.color, dmgA);
           createHitEffect(hitX, hitY, b.color, dmgB);
+          playHit({
+            x: hitX,
+            width: GAME_WIDTH,
+            strength: Math.max(0.35, Math.min(1, (dmgA + dmgB) / (2 * FIRE_COST))),
+          });
 
           if (dmgA > dmgB + 1e-4) {
             a.damagePenalty += dmgB;

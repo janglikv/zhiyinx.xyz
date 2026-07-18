@@ -1,3 +1,5 @@
+import { playUi } from "../audio";
+
 /**
  * 失败遮罩
  * @param {{ onRestart: () => void, onBackToHub?: () => void }} props
@@ -48,7 +50,10 @@ export default function LoseOverlay({ onRestart, onBackToHub }) {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={onRestart}
+          onClick={() => {
+            playUi("confirm");
+            onRestart?.();
+          }}
           style={{
             padding: "12px 28px",
             borderRadius: "14px",
@@ -63,7 +68,10 @@ export default function LoseOverlay({ onRestart, onBackToHub }) {
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={onBackToHub}
+            onClick={() => {
+              playUi("back");
+              onBackToHub();
+            }}
             style={{
               padding: "12px 22px",
               borderRadius: "14px",

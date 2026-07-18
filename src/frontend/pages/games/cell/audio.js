@@ -21,127 +21,108 @@ CELL_SOUND_ALIASES.forEach((alias) => {
 });
 sound.add("bullet", { url: bulletSoundUrl, preload: true });
 sound.add("firework", { url: fireworkSoundUrl, preload: true });
-function addBgmTrack(alias, url) {
-  let resolveReady;
-  const ready = new Promise((resolve) => {
-    resolveReady = resolve;
-  });
-  const track = sound.add(alias, {
-    url,
-    preload: true,
-    singleInstance: true,
-    loaded: () => resolveReady(),
-  });
-  return { track, ready };
+
+// ---------------------------------------------------------------------------
+// 场景 BGM：不用 @pixi/sound（其 WebAudio 实例在 stop 后仍可能孤儿播放）。
+// 改用原生 HTMLAudioElement：pause/currentTime 行为可预期，与「一场景一轨」一致。
+// Chrome 实测：进关后 hub 的 AudioBufferSourceNode 未 stop，导致与 battle 叠播。
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} url
+ * @returns {HTMLAudioElement}
+ */
+function createBgmAudio(url) {
+  const el = new Audio(url);
+  el.preload = "auto";
+  el.loop = true;
+  el.volume = BGM_VOLUME;
+  // 不挂到 DOM；play() 需在用户手势解锁后调用
+  return el;
 }
 
-const bgmTracks = {
-  hub: addBgmTrack("bgm-hub", bgmUrl),
-  play: addBgmTrack("bgm-play", gameBgmUrl),
+const bgmAudio = {
+  hub: createBgmAudio(bgmUrl),
+  play: createBgmAudio(gameBgmUrl),
 };
 
-// 游戏失焦时仍保持音乐和音效播放。
+// 射击等 SFX 仍走 pixi；失焦不自动停
 sound.disableAutoPause = true;
 
-let fadeIntervalId = null;
-let bgmCommandId = 0;
-let currentBgm = bgmTracks.hub;
+/** @type {"hub" | "play" | null} */
+let activeBgmScene = null;
 
-/**
- * 辅助函数：在指定时间内平滑渐变实例的音量
- * @param {number} targetVolume 目标音量
- * @param {number} duration 渐变时长（毫秒）
- */
-function fadeBgmTo(targetVolume, duration) {
-  if (fadeIntervalId) {
-    clearInterval(fadeIntervalId);
-    fadeIntervalId = null;
+function pauseBgmEl(el) {
+  try {
+    el.pause();
+    el.currentTime = 0;
+  } catch {
+    /* ignore */
   }
+}
 
-  const startTime = Date.now();
-  const track = currentBgm.track;
-  const startVolume = track.volume;
-
-  const timer = setInterval(() => {
-    const elapsed = Date.now() - startTime;
-    if (elapsed >= duration) {
-      clearInterval(timer);
-      if (fadeIntervalId === timer) fadeIntervalId = null;
-      track.volume = targetVolume;
-    } else {
-      const progress = elapsed / duration;
-      track.volume = startVolume + (targetVolume - startVolume) * progress;
-    }
-  }, 16);
-
-  fadeIntervalId = timer;
+function stopAllBgm() {
+  pauseBgmEl(bgmAudio.hub);
+  pauseBgmEl(bgmAudio.play);
 }
 
 /**
- * 播放当前场景背景音乐。
- */
-export async function playBgm(fadeDuration = 600) {
-  if (currentBgm.track.isPlaying) return;
-  const commandId = ++bgmCommandId;
-  await currentBgm.ready;
-  if (commandId !== bgmCommandId) return;
-
-  currentBgm.track.volume = 0;
-  currentBgm.track.play({ loop: true });
-  fadeBgmTo(BGM_VOLUME, fadeDuration);
-}
-
-/**
- * 跟随场景变暗阶段淡出音乐。
- */
-export function fadeOutBgm(duration = 1000) {
-  bgmCommandId += 1;
-  if (!currentBgm.track.isPlaying) return;
-  fadeBgmTo(0, duration);
-}
-
-/**
- * 跟随新场景揭开阶段，从头播放并淡入音乐。
+ * 设置当前场景 BGM。
+ * 对战内重开 / 下一关 screen 仍是 "play" → 不重切，保持对战曲连续。
  * @param {"hub" | "play"} scene
- * @param {number} duration
  */
-export async function restartBgm(scene, duration = 1000) {
-  const commandId = ++bgmCommandId;
-  if (fadeIntervalId) {
-    clearInterval(fadeIntervalId);
-    fadeIntervalId = null;
-  }
-  const nextBgm = bgmTracks[scene];
-  await nextBgm.ready;
-  if (commandId !== bgmCommandId) return;
+export function setBgmScene(scene) {
+  if (scene !== "hub" && scene !== "play") return;
 
-  // 黑幕期间清空所有播放实例，确保旧场景音乐和残留音效不会跨场景。
-  sound.stopAll();
-  currentBgm = nextBgm;
-  currentBgm.track.volume = 0;
-  currentBgm.track.play({ loop: true });
-  fadeBgmTo(BGM_VOLUME, duration);
+  const next = bgmAudio[scene];
+  // 同场景且未暂停：不打断（对战曲逻辑）
+  if (activeBgmScene === scene && next && !next.paused && !next.ended) {
+    return;
+  }
+
+  // 先停干净两条轨，再只播目标
+  stopAllBgm();
+  activeBgmScene = scene;
+  next.volume = BGM_VOLUME;
+  const playPromise = next.play();
+  if (playPromise && typeof playPromise.catch === "function") {
+    playPromise.catch(() => {
+      // 自动播放策略拦截时保持 scene 标记，下次手势/unlock 可再试
+    });
+  }
 }
 
-/**
- * 停止播放全局背景音乐
- */
+/** @deprecated 兼容旧名 */
+export function playBgm(scene = "hub") {
+  setBgmScene(scene);
+}
+
+/** @deprecated 转场不再淡出 BGM */
+export function fadeOutBgm() {
+  /* no-op */
+}
+
+/** @deprecated 等同 setBgmScene */
+export function restartBgm(scene) {
+  setBgmScene(scene);
+}
+
+/** 离开页面时停 BGM */
 export function stopBgm() {
-  bgmCommandId += 1;
-  if (fadeIntervalId) {
-    clearInterval(fadeIntervalId);
-    fadeIntervalId = null;
-  }
-  sound.stopAll();
+  stopAllBgm();
+  activeBgmScene = null;
 }
 
 /**
  * 浏览器要求音频必须在玩家手势中解锁。
- * @pixi/sound 会自动处理用户交互解锁，但显式调用 resume 更加保险。
  */
 export function unlockCellAudio() {
   sound.resumeAll();
-  playBgm();
+  getAudioCtx();
+  // 若已选定场景但被 autoplay 挡住，在手势里补一次 play
+  if (activeBgmScene && bgmAudio[activeBgmScene]?.paused) {
+    bgmAudio[activeBgmScene].play().catch(() => {});
+  }
 }
 
 /**
@@ -184,11 +165,299 @@ export function playFirework({ x, width }) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// 程序合成交互音效（Web Audio）：P0 hit / hurt / die / UI
+// ---------------------------------------------------------------------------
+
+/** @type {AudioContext | null} */
+let audioCtx = null;
+const SFX_MASTER = 0.55;
+const lastSynthAt = {
+  hit: -Infinity,
+  hurt: -Infinity,
+  die: -Infinity,
+  ui: -Infinity,
+};
+const HIT_GAP_MS = 42;
+const HURT_GAP_MS = 70;
+const DIE_GAP_MS = 90;
+const UI_GAP_MS = 40;
+
+function getAudioCtx() {
+  if (typeof window === "undefined") return null;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!audioCtx) audioCtx = new AC();
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume().catch(() => {});
+  }
+  return audioCtx;
+}
+
+/**
+ * @param {number} x
+ * @param {number} [width]
+ */
+function panFromX(x, width = GAME_WIDTH) {
+  const w = width > 0 ? width : GAME_WIDTH;
+  return Math.max(-0.75, Math.min(0.75, (x / w) * 1.5 - 0.75));
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {number} pan
+ * @param {number} when
+ * @returns {AudioNode}
+ */
+function makePanner(ctx, pan, when) {
+  if (typeof ctx.createStereoPanner === "function") {
+    const p = ctx.createStereoPanner();
+    p.pan.setValueAtTime(pan, when);
+    return p;
+  }
+  // 旧环境退回等功率 pan
+  const g = ctx.createGain();
+  return g;
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {AudioNode} node
+ * @param {number} pan
+ * @param {number} when
+ */
+function connectOut(ctx, node, pan, when) {
+  const panner = makePanner(ctx, pan, when);
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(SFX_MASTER, when);
+  node.connect(panner);
+  panner.connect(master);
+  master.connect(ctx.destination);
+  return master;
+}
+
+/**
+ * 噪声缓冲（复用，避免每次分配）
+ * @type {AudioBuffer | null}
+ */
+let noiseBuffer = null;
+
+/** @param {AudioContext} ctx */
+function getNoiseBuffer(ctx) {
+  if (noiseBuffer && noiseBuffer.sampleRate === ctx.sampleRate) return noiseBuffer;
+  const len = Math.floor(ctx.sampleRate * 0.2);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i += 1) data[i] = Math.random() * 2 - 1;
+  noiseBuffer = buf;
+  return buf;
+}
+
+/**
+ * 命中：短促高通噪声 + 轻脆 click
+ * @param {{ x?: number, width?: number, strength?: number }} [opts]
+ */
+export function playHit(opts = {}) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const nowMs = performance.now();
+  if (nowMs - lastSynthAt.hit < HIT_GAP_MS) return;
+  lastSynthAt.hit = nowMs;
+
+  const t0 = ctx.currentTime;
+  const strength = Math.max(0.35, Math.min(1.2, opts.strength ?? 0.7));
+  const pan = panFromX(opts.x ?? GAME_WIDTH * 0.5, opts.width);
+  const pitch = 1 + (Math.random() - 0.5) * 0.18;
+
+  // 噪声爆
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.setValueAtTime(1800 * pitch, t0);
+  const ng = ctx.createGain();
+  const peak = 0.22 * strength;
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(peak, t0 + 0.004);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.055 + strength * 0.02);
+  noise.connect(hp);
+  hp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.09);
+
+  // 金属感 click
+  const osc = ctx.createOscillator();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(920 * pitch, t0);
+  osc.frequency.exponentialRampToValueAtTime(280 * pitch, t0 + 0.05);
+  const og = ctx.createGain();
+  og.gain.setValueAtTime(0.0001, t0);
+  og.gain.exponentialRampToValueAtTime(0.12 * strength, t0 + 0.003);
+  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+  osc.connect(og);
+  connectOut(ctx, og, pan, t0);
+  osc.start(t0);
+  osc.stop(t0 + 0.07);
+}
+
+/**
+ * 己方受伤：偏低闷击
+ * @param {{ x?: number, width?: number, strength?: number }} [opts]
+ */
+export function playHurt(opts = {}) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const nowMs = performance.now();
+  if (nowMs - lastSynthAt.hurt < HURT_GAP_MS) return;
+  lastSynthAt.hurt = nowMs;
+
+  const t0 = ctx.currentTime;
+  const strength = Math.max(0.4, Math.min(1.3, opts.strength ?? 0.8));
+  const pan = panFromX(opts.x ?? GAME_WIDTH * 0.5, opts.width);
+  const pitch = 1 + (Math.random() - 0.5) * 0.12;
+
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(220 * pitch, t0);
+  osc.frequency.exponentialRampToValueAtTime(90 * pitch, t0 + 0.12);
+  const og = ctx.createGain();
+  og.gain.setValueAtTime(0.0001, t0);
+  og.gain.exponentialRampToValueAtTime(0.28 * strength, t0 + 0.008);
+  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+  osc.connect(og);
+  connectOut(ctx, og, pan, t0);
+  osc.start(t0);
+  osc.stop(t0 + 0.18);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(700, t0);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.16 * strength, t0 + 0.005);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+  noise.connect(lp);
+  lp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.12);
+}
+
+/**
+ * 细胞被吞噬/变色：短促「噗」碎裂感
+ * @param {{ x?: number, width?: number }} [opts]
+ */
+export function playDie(opts = {}) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const nowMs = performance.now();
+  if (nowMs - lastSynthAt.die < DIE_GAP_MS) return;
+  lastSynthAt.die = nowMs;
+
+  const t0 = ctx.currentTime;
+  const pan = panFromX(opts.x ?? GAME_WIDTH * 0.5, opts.width);
+  const pitch = 1 + (Math.random() - 0.5) * 0.2;
+
+  // 下降音
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(340 * pitch, t0);
+  osc.frequency.exponentialRampToValueAtTime(55 * pitch, t0 + 0.14);
+  const filt = ctx.createBiquadFilter();
+  filt.type = "lowpass";
+  filt.frequency.setValueAtTime(1400, t0);
+  filt.frequency.exponentialRampToValueAtTime(220, t0 + 0.14);
+  const og = ctx.createGain();
+  og.gain.setValueAtTime(0.0001, t0);
+  og.gain.exponentialRampToValueAtTime(0.2, t0 + 0.01);
+  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+  osc.connect(filt);
+  filt.connect(og);
+  connectOut(ctx, og, pan, t0);
+  osc.start(t0);
+  osc.stop(t0 + 0.18);
+
+  // 碎裂噪声
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.setValueAtTime(1100 * pitch, t0);
+  bp.Q.setValueAtTime(0.7, t0);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.18, t0 + 0.006);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.11);
+  noise.connect(bp);
+  bp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.13);
+}
+
+/**
+ * UI 反馈
+ * @param {"tap" | "confirm" | "back"} [kind]
+ */
+export function playUi(kind = "tap") {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const nowMs = performance.now();
+  if (nowMs - lastSynthAt.ui < UI_GAP_MS) return;
+  lastSynthAt.ui = nowMs;
+
+  const t0 = ctx.currentTime;
+  /** @type {Record<string, { f0: number, f1: number, dur: number, vol: number, type: OscillatorType }>} */
+  const presets = {
+    tap: { f0: 720, f1: 540, dur: 0.045, vol: 0.11, type: "sine" },
+    confirm: { f0: 520, f1: 780, dur: 0.07, vol: 0.13, type: "triangle" },
+    back: { f0: 480, f1: 320, dur: 0.06, vol: 0.1, type: "sine" },
+  };
+  const p = presets[kind] || presets.tap;
+  const pitch = 1 + (Math.random() - 0.5) * 0.04;
+
+  const osc = ctx.createOscillator();
+  osc.type = p.type;
+  osc.frequency.setValueAtTime(p.f0 * pitch, t0);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(40, p.f1 * pitch), t0 + p.dur);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(p.vol, t0 + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + p.dur);
+  osc.connect(g);
+  connectOut(ctx, g, 0, t0);
+  osc.start(t0);
+  osc.stop(t0 + p.dur + 0.02);
+
+  // confirm 多一颗高音点缀
+  if (kind === "confirm") {
+    const o2 = ctx.createOscillator();
+    o2.type = "sine";
+    o2.frequency.setValueAtTime(1040 * pitch, t0 + 0.02);
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, t0 + 0.02);
+    g2.gain.exponentialRampToValueAtTime(0.08, t0 + 0.028);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+    o2.connect(g2);
+    connectOut(ctx, g2, 0, t0);
+    o2.start(t0 + 0.02);
+    o2.stop(t0 + 0.1);
+  }
+}
+
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     stopBgm();
     CELL_SOUND_ALIASES.forEach((alias) => {
       if (sound.exists(alias)) sound.remove(alias);
     });
+    if (audioCtx) {
+      audioCtx.close().catch(() => {});
+      audioCtx = null;
+      noiseBuffer = null;
+    }
   });
 }

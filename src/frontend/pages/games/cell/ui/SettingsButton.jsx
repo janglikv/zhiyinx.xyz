@@ -1,3 +1,5 @@
+import { playUi } from "../audio";
+
 /**
  * 设置按钮，显示齿轮图标，用于打开设置模态框
  * @param {{ onClick: () => void }} props
@@ -7,7 +9,10 @@ export default function SettingsButton({ onClick }) {
     <button
       type="button"
       className="cell-fs-btn cell-settings-btn"
-      onClick={onClick}
+      onClick={() => {
+        playUi("tap");
+        onClick?.();
+      }}
       title="游戏设置"
       aria-label="游戏设置"
     >
