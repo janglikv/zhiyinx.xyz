@@ -2,7 +2,7 @@ import { sound, filters } from "@pixi/sound";
 import { COLOR_PLAYER, GAME_WIDTH } from "./constants";
 import bulletSoundUrl from "./assets/shoot.mp3";
 import fireworkSoundUrl from "./assets/firework.mp3";
-import bgmUrl from "./assets/bgm.mp3";
+import bgmUrl from "./assets/hub-bgm.mp3";
 import gameBgmUrl from "./assets/battle-bgm.mp3";
 
 const PLAYER_SHOT_GAP_MS = 55;
@@ -115,8 +115,8 @@ export async function restartBgm(scene, duration = 1000) {
   await nextBgm.ready;
   if (commandId !== bgmCommandId) return;
 
-  // 场景音乐必须互斥，不能只依赖 currentBgm 指针判断旧音轨。
-  Object.values(bgmTracks).forEach(({ track }) => track.stop());
+  // 黑幕期间清空所有播放实例，确保旧场景音乐和残留音效不会跨场景。
+  sound.stopAll();
   currentBgm = nextBgm;
   currentBgm.track.volume = 0;
   currentBgm.track.play({ loop: true });
@@ -132,8 +132,7 @@ export function stopBgm() {
     clearInterval(fadeIntervalId);
     fadeIntervalId = null;
   }
-  bgmTracks.hub.track.stop();
-  bgmTracks.play.track.stop();
+  sound.stopAll();
 }
 
 /**
