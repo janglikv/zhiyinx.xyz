@@ -1,3 +1,5 @@
+import { playFirework } from "../audio";
+
 /**
  * 通关烟花：拖尾粒子 canvas 动画（不拦截指针）
  * @param {HTMLCanvasElement} canvas
@@ -78,17 +80,21 @@ export function startWinFireworks(canvas, { width, height }) {
     const x = cx + (Math.random() - 0.5) * 24;
     const y = height + 8;
     const color = pickColor();
-    const rise = Math.max(3.6, (y - cy) / 48 + Math.random() * 0.4);
+    // 匀加速运动公式推导：为了在 1.23 秒（约 76.875 帧，重力 0.012 像素/帧^2）时刚好飞到目标高度 cy
+    // S = v0 * t + 0.5 * a * t^2 => rise = (y - cy) / N + 0.5 * g * N
+    // 其中 N = 1230 / 16 = 76.875, 0.5 * 0.012 * 76.875 = 0.461
+    const rise = Math.max(2.0, (y - cy) / 76.875 + 0.461);
     addParticle(
       x,
       y,
       (cx - x) * 0.02,
       -rise,
       color,
-      900 + Math.random() * 300,
+      1230, // 精确设置火箭上升 1.23 秒后爆炸
       2,
       "rocket",
     );
+    playFirework({ x, width });
   }
 
   /**
@@ -181,8 +187,8 @@ export function startWinFireworks(canvas, { width, height }) {
     ctx.globalAlpha = 1;
     ctx.clearRect(0, 0, width, height);
 
-    // 总共只放 5 发，间隔稍开，集中绽放
-    if (rocketCount < 5 && now - lastRocket > 520) {
+    // 缩短发射间隔至 280ms，发射 5 轮，让烟花连续绽放显得更加密集
+    if (rocketCount < 5 && now - lastRocket > 280) {
       lastRocket = now;
       rocketCount += 1;
       spawnRocket();
@@ -213,7 +219,7 @@ export function startWinFireworks(canvas, { width, height }) {
             "spark",
           );
         }
-        if (p.vy >= -0.35 || p.life >= p.max * 0.92) {
+        if (p.life >= p.max) {
           spawnBurst(p.x, p.y, p.color, 0.95 + Math.random() * 0.4);
           particles.splice(i, 1);
           continue;
@@ -259,7 +265,7 @@ export function startWinFireworks(canvas, { width, height }) {
   }
 
   ctx.clearRect(0, 0, width, height);
-  lastRocket = performance.now() - 520;
+  lastRocket = performance.now() - 280;
   raf = requestAnimationFrame(frame);
 
   return () => {

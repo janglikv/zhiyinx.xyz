@@ -21,7 +21,7 @@ import SettingsButton from "./ui/SettingsButton";
 import SettingsModal from "./ui/SettingsModal";
 import FullscreenButton from "./ui/FullscreenButton";
 import FadeVeil from "./ui/FadeVeil";
-import { unlockCellAudio } from "./audio";
+import { unlockCellAudio, playBgm } from "./audio";
 import "./styles.css";
 
 /** 全黑后略停，等 Pixi 挂上再淡入 */
@@ -66,8 +66,15 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   }, []);
 
   useEffect(() => {
+    const handleFirstClick = () => {
+      unlockCellAudio();
+      window.removeEventListener("click", handleFirstClick);
+    };
+    window.addEventListener("click", handleFirstClick);
+
     return () => {
       if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+      window.removeEventListener("click", handleFirstClick);
     };
   }, []);
 
@@ -117,6 +124,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       setPlayReveal(false);
       setScreen("play");
       setGameKey((prev) => prev + 1);
+      playBgm(true); // 进入游戏关卡，重新开始播放 BGM
     } else if (next === "hub") {
       setPlayReveal(false);
       setScreen("hub");
