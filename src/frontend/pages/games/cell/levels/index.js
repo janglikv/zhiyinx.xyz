@@ -1,22 +1,37 @@
 import { COLOR_PLAYER, COLOR_ENEMY, COLOR_NEUTRAL } from "../constants";
 
 /** 每章关卡数 / 总章数 */
-export const LEVELS_PER_CHAPTER = 12;
+export const LEVELS_PER_CHAPTER = 18;
 export const TOTAL_CHAPTERS = 5;
 
-/** 章内 Boss 关（1-based stage）：第 6 关、第 12 关 */
+/**
+ * 章内主线关数（1-based）。通关第 N 关后解锁下一章节。
+ * 其后 HARD_STAGE_START–LEVELS_PER_CHAPTER 为紫色高难可选关。
+ */
+export const CHAPTER_UNLOCK_STAGE = 12;
+export const HARD_STAGE_START = 13;
+
+/** 章内 Boss 关（1-based stage）：第 6 关中 Boss、第 12 关章节闸门 */
 export const BOSS_STAGES = Object.freeze([6, 12]);
 
 /**
- * @param {number} stage 章内第几关 1–12
+ * @param {number} stage 章内第几关 1–18
  */
 export function isBossStage(stage) {
   return BOSS_STAGES.includes(stage);
 }
 
 /**
- * 章节：每章 12 关共用一张背景（level-1 … level-5）。
- * 关卡具体叙事内容后续再填，当前只保证数量与 Boss 位。
+ * 章内高难关（紫色）：后 6 关
+ * @param {number} stage 章内第几关 1–18
+ */
+export function isHardStage(stage) {
+  return stage >= HARD_STAGE_START && stage <= LEVELS_PER_CHAPTER;
+}
+
+/**
+ * 章节：每章 18 关共用一张背景（level-1 … level-5）。
+ * 主线 1–12 通关第 12 关开下一章；13–18 为紫色高难。
  * @typedef {{
  *   id: number,
  *   name: string,
@@ -32,35 +47,35 @@ export const CHAPTERS = [
     id: 1,
     name: "基础增殖",
     title: "第一章节",
-    description: "占领中立、积蓄力量，熟悉拖拽连线与基础对攻。",
+    description: "连线、占领、集火、前哨输送、蓄势——打牢细胞战争底盘。",
     background: "level-1",
   },
   {
     id: 2,
-    name: "合击突破",
+    name: "待定",
     title: "第二章节",
-    description: "多巢合流压制巨型敌巢，学会集火与协同。",
+    description: "内容待定",
     background: "level-2",
   },
   {
     id: 3,
-    name: "群星夺秒",
+    name: "待定",
     title: "第三章节",
-    description: "抢占中立星群，速度决定胜负。",
+    description: "内容待定",
     background: "level-3",
   },
   {
     id: 4,
-    name: "远程跃迁",
+    name: "待定",
     title: "第四章节",
-    description: "利用中立跳板跨越衰减距离，完成远程战役。",
+    description: "内容待定",
     background: "level-4",
   },
   {
     id: 5,
-    name: "切断补给",
+    name: "待定",
     title: "第五章节",
-    description: "切断敌方补给线，瓦解母巢与副巢的联动。",
+    description: "内容待定",
     background: "level-5",
   },
 ];
@@ -76,6 +91,7 @@ export const CHAPTERS = [
  *   chapterId: number,
  *   background: string,
  *   isBoss?: boolean,
+ *   isHard?: boolean,
  *   stage?: number,
  * }} LevelDef
  */
@@ -109,7 +125,7 @@ export function getChapterForLevelIndex(levelIndex) {
 }
 
 /**
- * 章内第几关（1–12）
+ * 章内第几关（1–18）
  * @param {number} levelIndex 0-based
  */
 export function stageInChapter(levelIndex) {
@@ -127,8 +143,8 @@ function lerp(a, b, t) {
 }
 
 /**
- * 按章内进度缩放数值（stage 1→0 … stage 12→1）
- * @param {number} stage 1–12
+ * 按章内进度缩放数值（stage 1→0 … stage 18→1）
+ * @param {number} stage 1–18
  * @param {number} easy
  * @param {number} hard
  */
@@ -140,7 +156,7 @@ function scaleByStage(stage, easy, hard) {
 /**
  * 章内关名
  * @param {ChapterDef} chapter
- * @param {number} globalId 1–60
+ * @param {number} globalId 1–90
  * @param {string} short
  */
 function levelName(chapter, globalId, short) {
@@ -148,7 +164,7 @@ function levelName(chapter, globalId, short) {
 }
 
 /**
- * 普通关：直线对峙（占位布局，后续按章再细化）
+ * 普通关：直线对峙（章内 7–11 等占位布局）
  * @param {number} stage
  * @param {boolean} tutorial
  */
@@ -164,12 +180,127 @@ function buildNormalCells(stage, tutorial) {
 }
 
 /**
- * Boss 关：多巢 vs 巨型母巢
- * stage 6 = 中 Boss，stage 12 = 章末大 Boss
+ * 第一章前 5 关：教学布局（一关一个主决策）
+ * 1 初识连线 · 2 占点扩势 · 3 双线群殴 · 4 前哨供给 · 5 先养再打
+ * @param {number} stage 1–5
+ * @returns {Array<{ x: number, y: number, value: number, color: number }>}
+ */
+function buildChapter1TutorialCells(stage) {
+  switch (stage) {
+    // 关 1 · 初识：高血量绿 + 中立 + 弱红，跟着引导几乎必胜
+    case 1:
+      return [
+        { x: 260, y: 270, value: 99, color: COLOR_PLAYER },
+        { x: 480, y: 270, value: 12, color: COLOR_NEUTRAL },
+        { x: 700, y: 270, value: 14, color: COLOR_ENEMY },
+      ];
+
+    // 关 2 · 占点：1 绿 + 2 中立（近/远）+ 1 中等红；先占灰再打更稳
+    case 2:
+      return [
+        { x: 220, y: 270, value: 32, color: COLOR_PLAYER },
+        { x: 400, y: 170, value: 10, color: COLOR_NEUTRAL },
+        { x: 420, y: 370, value: 14, color: COLOR_NEUTRAL },
+        { x: 720, y: 270, value: 28, color: COLOR_ENEMY },
+      ];
+
+    // 关 3 · 群殴：双绿 vs 单大红；单路磨不动，双路锁同目标才稳
+    case 3:
+      return [
+        { x: 220, y: 160, value: 22, color: COLOR_PLAYER },
+        { x: 220, y: 380, value: 22, color: COLOR_PLAYER },
+        { x: 720, y: 270, value: 48, color: COLOR_ENEMY },
+      ];
+
+    // 关 4 · 前哨：后排双绿喂前排，前排贴脸输出；忌全员远射
+    case 4:
+      return [
+        { x: 170, y: 150, value: 28, color: COLOR_PLAYER },
+        { x: 170, y: 390, value: 28, color: COLOR_PLAYER },
+        { x: 430, y: 270, value: 16, color: COLOR_PLAYER },
+        { x: 740, y: 270, value: 52, color: COLOR_ENEMY },
+      ];
+
+    // 关 5 · 蓄势：仅绿 vs 红，无中立。同一排；先养厚再出手
+    case 5:
+      return [
+        { x: 260, y: 270, value: 20, color: COLOR_PLAYER },
+        { x: 700, y: 270, value: 40, color: COLOR_ENEMY },
+      ];
+
+    default:
+      return buildNormalCells(stage, false);
+  }
+}
+
+/**
+ * 第一章 1–5 关文案
+ * @param {number} stage 1–5
+ * @returns {{ short: string, description: string }}
+ */
+function chapter1StageCopy(stage) {
+  switch (stage) {
+    case 1:
+      return {
+        short: "初识",
+        description:
+          "拖拽己方绿色细胞指向目标后松手即可连线输出。先占领灰色中立，再消灭红色敌巢。",
+      };
+    case 2:
+      return {
+        short: "占点",
+        description:
+          "场上有多处中立细胞。先占领它们扩大己方巢穴，再合力清除敌方，比硬刚更稳。",
+      };
+    case 3:
+      return {
+        short: "合击",
+        description:
+          "敌巢强于任一己方单巢。将两个绿色细胞同时连向同一红色目标，双路群殴才能压过。",
+      };
+    case 4:
+      return {
+        short: "前哨",
+        description:
+          "后排细胞连向前排=输送能量，前排连向敌人=输出。把火力叠在贴脸前哨上，比全员远射更狠。",
+      };
+    case 5:
+      return {
+        short: "蓄势",
+        description:
+          "开局能量很低，射速几乎没有。先空窗自增，养厚后再连线出手；低能硬冲红巢会被压垮。",
+      };
+    default:
+      return { short: `关卡 ${stage}`, description: "内容待定" };
+  }
+}
+
+/**
+ * 第一章中 Boss（关 6）：多红环伺「被围殴」，但玩家核高能，爽快清场。
+ * @returns {Array<{ x: number, y: number, value: number, color: number }>}
+ */
+function buildChapter1MidBossCells() {
+  return [
+    // 中心双核：体量大、射速高，多路锁敌可瞬间撕开包围
+    { x: 430, y: 270, value: 88, color: COLOR_PLAYER },
+    { x: 530, y: 270, value: 88, color: COLOR_PLAYER },
+    // 六向围殴：单体中等，叠在一起气势压人，却经不起集火
+    { x: 480, y: 88, value: 28, color: COLOR_ENEMY },
+    { x: 200, y: 150, value: 26, color: COLOR_ENEMY },
+    { x: 760, y: 150, value: 26, color: COLOR_ENEMY },
+    { x: 160, y: 340, value: 24, color: COLOR_ENEMY },
+    { x: 800, y: 340, value: 24, color: COLOR_ENEMY },
+    { x: 480, y: 460, value: 30, color: COLOR_ENEMY },
+  ];
+}
+
+/**
+ * Boss 关占位：多巢 vs 巨型母巢
+ * stage 6 = 中 Boss，stage 12 = 章节闸门 Boss
  * @param {number} stage
  */
 function buildBossCells(stage) {
-  const isMajor = stage >= 12;
+  const isMajor = stage >= CHAPTER_UNLOCK_STAGE;
   const p = scaleByStage(stage, 16, 12);
   const n = scaleByStage(stage, 14, 22);
   const boss = isMajor
@@ -202,7 +333,8 @@ function buildBossCells(stage) {
 }
 
 /**
- * 生成某一章的 12 关（占位内容；第 6 / 第 12 关为 Boss）
+ * 生成某一章的 18 关。
+ * 目前仅第一章节有完整内容；其余章节关卡内容已清空（壳位保留，后续再填）。
  * @param {ChapterDef} chapter
  * @param {number} chapterIndex 0-based
  * @returns {LevelDef[]}
@@ -211,39 +343,81 @@ function buildChapterLevels(chapter, chapterIndex) {
   const baseId = chapterIndex * LEVELS_PER_CHAPTER;
   /** @type {LevelDef[]} */
   const list = [];
+  const contentReady = chapterIndex === 0;
 
   for (let stage = 1; stage <= LEVELS_PER_CHAPTER; stage++) {
     const id = baseId + stage;
     const aiSeed = 100 + id;
     const boss = isBossStage(stage);
-    const tutorial = chapterIndex === 0 && stage === 1;
+    const hard = isHardStage(stage);
+    const tutorial = contentReady && stage === 1;
+
+    if (!contentReady) {
+      // 第 2–5 章：只保留槽位、Boss / 高难标记，关卡内容清空
+      let short;
+      if (boss) short = stage === 6 ? "中 Boss" : "章节闸门";
+      else if (hard) short = `高难 ${stage}`;
+      else short = `关卡 ${stage}`;
+
+      list.push({
+        id,
+        name: levelName(chapter, id, short),
+        description: hard
+          ? "高难挑战（可选）· 内容待定"
+          : "内容待定",
+        cells: [],
+        aiSeed,
+        chapterId: chapter.id,
+        background: chapter.background,
+        isBoss: boss,
+        isHard: hard,
+        stage,
+      });
+      continue;
+    }
 
     let short;
     let description;
+    /** @type {Array<{ x: number, y: number, value: number, color: number }>} */
+    let cells;
+
     if (boss) {
-      short = stage === 6 ? "中 Boss" : "章节末 Boss";
-      description =
-        stage === 6
-          ? "Boss 关：巨型敌巢持续膨胀，联合分巢集火突破。"
-          : "章节末 Boss：更强母巢与侧翼，多路射流合击歼灭。";
-    } else if (tutorial) {
-      short = "初识";
-      description =
-        "占领中立细胞，积蓄力量，消灭敌方。拖拽己方细胞指向目标即可发射子弹。";
+      if (stage === 6) {
+        short = "绝境清场";
+        description =
+          "敌群四面合围——别慌，你的核巢能量爆表。多路连线逐个撕开，享受被围仍能碾压的快感。";
+        cells = buildChapter1MidBossCells();
+      } else {
+        short = "章节闸门";
+        description =
+          "章节闸门 Boss：更强母巢与侧翼。通关后开启下一章节，亦可继续挑战本章紫色高难关。";
+        cells = buildBossCells(stage);
+      }
+    } else if (hard) {
+      short = `高难 ${stage}`;
+      description = `${chapter.name} · 高难挑战（可选）· 章节内第 ${stage} 关（占位，后续细化）。`;
+      cells = buildNormalCells(stage, false);
+    } else if (stage <= 5) {
+      const copy = chapter1StageCopy(stage);
+      short = copy.short;
+      description = copy.description;
+      cells = buildChapter1TutorialCells(stage);
     } else {
       short = `关卡 ${stage}`;
       description = `${chapter.name} · 章节内第 ${stage} 关（占位布局，后续细化）。`;
+      cells = buildNormalCells(stage, false);
     }
 
     list.push({
       id,
       name: levelName(chapter, id, short),
       description,
-      cells: boss ? buildBossCells(stage) : buildNormalCells(stage, tutorial),
+      cells,
       aiSeed,
       chapterId: chapter.id,
       background: chapter.background,
       isBoss: boss,
+      isHard: hard,
       stage,
       ...(tutorial ? { tutorial: "basic-capture" } : {}),
     });
@@ -252,7 +426,7 @@ function buildChapterLevels(chapter, chapterIndex) {
   return list;
 }
 
-/** @type {LevelDef[]} 5 章 × 12 关 = 60 关 */
+/** @type {LevelDef[]} 5 章 × 18 关 = 90 关（仅第 1 章有完整内容） */
 export const LEVELS = CHAPTERS.flatMap((ch, i) => buildChapterLevels(ch, i));
 
 /**

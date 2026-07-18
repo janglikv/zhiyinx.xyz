@@ -404,7 +404,7 @@ export function createCombat({ stage, cells, bullets }) {
       }
     }
 
-    // 对撞抵消：仅常规 Bullet，溢出粒子不参与
+    // 异色弹-弹对撞：双方直接爆炸消失（不比能量、不残弹续飞）；溢出粒子不参与
     const collideR2 = BULLET_COLLIDE_DIST * BULLET_COLLIDE_DIST;
     for (let i = 0; i < bullets.length; i += 1) {
       const a = bullets[i];
@@ -429,18 +429,9 @@ export function createCombat({ stage, cells, bullets }) {
             strength: Math.max(0.35, Math.min(1, (dmgA + dmgB) / (2 * FIRE_COST))),
           });
 
-          if (dmgA > dmgB + 1e-4) {
-            a.damagePenalty += dmgB;
-            b.cancel();
-          } else if (dmgB > dmgA + 1e-4) {
-            b.damagePenalty += dmgA;
-            a.cancel();
-            break;
-          } else {
-            a.cancel();
-            b.cancel();
-            break;
-          }
+          a.cancel();
+          b.cancel();
+          break;
         }
       }
     }

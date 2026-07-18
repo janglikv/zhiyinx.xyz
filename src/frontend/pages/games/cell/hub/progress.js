@@ -1,4 +1,10 @@
-import { LEVELS } from "../levels";
+import {
+  LEVELS,
+  LEVELS_PER_CHAPTER,
+  CHAPTER_UNLOCK_STAGE,
+  stageInChapter,
+  isHardStage,
+} from "../levels";
 
 const KEY_MAX_UNLOCKED = "cell_game_max_unlocked";
 const KEY_CLEARED = "cell_game_cleared";
@@ -47,6 +53,8 @@ export function isLevelCleared(index) {
 
 /**
  * 通关后标记进度：记录已通关，并解锁下一关。
+ * 通关章内第 CHAPTER_UNLOCK_STAGE 关时，额外解锁下一章第 1 关
+ * （中间高难关 13–18 一并可通过高水位解锁，便于可选挑战）。
  * @param {number} clearedIndex
  * @returns {{ maxUnlocked: number, cleared: Set<number> }}
  */
@@ -63,6 +71,23 @@ export function markLevelCleared(clearedIndex) {
   } else if (clearedIndex === LEVELS.length - 1) {
     maxUnlocked = Math.max(maxUnlocked, LEVELS.length - 1);
   }
+
+  // 通关章内第 12 关 → 解锁下一章第 1 关（并放行本章 13–18 高难）
+  if (clearedIndex >= 0 && clearedIndex < LEVELS.length) {
+    const stage = stageInChapter(clearedIndex);
+    if (stage === CHAPTER_UNLOCK_STAGE) {
+      const ch = Math.floor(clearedIndex / LEVELS_PER_CHAPTER);
+      const nextChapterStart = (ch + 1) * LEVELS_PER_CHAPTER;
+      if (nextChapterStart < LEVELS.length) {
+        maxUnlocked = Math.max(maxUnlocked, nextChapterStart);
+      } else {
+        // 最后一章：仍放行本章剩余高难
+        const hardEnd = ch * LEVELS_PER_CHAPTER + LEVELS_PER_CHAPTER - 1;
+        maxUnlocked = Math.max(maxUnlocked, Math.min(hardEnd, LEVELS.length - 1));
+      }
+    }
+  }
+
   localStorage.setItem(KEY_MAX_UNLOCKED, String(maxUnlocked));
 
   return { maxUnlocked, cleared };
@@ -86,15 +111,23 @@ export function setLastLevelIndex(index) {
 }
 
 /**
- * 推荐进入的关卡：优先未通关的最低已解锁，否则上次游玩。
+ * 推荐进入的关卡：优先主线（章内 1–12）未通关最低已解锁，其次高难，否则上次游玩。
  * @returns {number}
  */
 export function getRecommendedLevelIndex() {
   const maxUnlocked = getMaxUnlockedIndex();
   const cleared = getClearedIndices();
+
+  // 1) 主线未通关
+  for (let i = 0; i <= maxUnlocked; i += 1) {
+    if (cleared.has(i)) continue;
+    if (!isHardStage(stageInChapter(i))) return i;
+  }
+  // 2) 高难未通关
   for (let i = 0; i <= maxUnlocked; i += 1) {
     if (!cleared.has(i)) return i;
   }
+
   const last = getLastLevelIndex();
   return isLevelUnlocked(last) ? last : 0;
 }

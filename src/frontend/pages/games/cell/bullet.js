@@ -58,8 +58,6 @@ export class Bullet {
 
     /** 已飞行距离（用于伤害衰减） */
     this.traveled = 0;
-    /** 对撞消耗折损能量 */
-    this.damagePenalty = 0;
 
     this.container = new PIXI.Container();
     this.container.position.set(startX, startY);
@@ -74,7 +72,7 @@ export class Bullet {
   }
 
   getDamage() {
-    return Math.max(0, damageFromDistance(this.traveled) - this.damagePenalty);
+    return Math.max(0, damageFromDistance(this.traveled));
   }
 
   _drawBody() {
@@ -239,7 +237,7 @@ export class Bullet {
   }
 
   /**
-   * 异色对撞抵消：不触发细胞命中，直接消失。
+   * 异色对撞双方同灭，或外部强制清除：不触发细胞命中。
    */
   cancel() {
     if (!this.alive) return;
