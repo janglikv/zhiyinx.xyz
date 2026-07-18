@@ -50,6 +50,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   /** 对局层淡入（与黑场揭开同步） */
   const [playReveal, setPlayReveal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
 
   const [maxUnlocked, setMaxUnlocked] = useState(() => getMaxUnlockedIndex());
   const [cleared, setCleared] = useState(() => getClearedIndices());
@@ -66,15 +67,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   }, []);
 
   useEffect(() => {
-    const handleFirstClick = () => {
-      unlockCellAudio();
-      window.removeEventListener("click", handleFirstClick);
-    };
-    window.addEventListener("click", handleFirstClick);
-
     return () => {
       if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
-      window.removeEventListener("click", handleFirstClick);
       stopBgm();
     };
   }, []);
@@ -158,6 +152,11 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     beginTransition("play", index);
   }
 
+  function handleStartGame() {
+    unlockCellAudio();
+    setGameStarted(true);
+  }
+
   function handleBackToHub() {
     if (transitioning) return;
     beginTransition("hub");
@@ -213,7 +212,11 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     setTutorialPhase(null);
   }
 
-  const stageLabel = screen === "hub" ? "游戏区域 · 战役选关" : "游戏区域 · 对局";
+  const stageLabel = !gameStarted
+    ? "游戏区域 · 点击开始"
+    : screen === "hub"
+      ? "游戏区域 · 战役选关"
+      : "游戏区域 · 对局";
 
   return (
     <GameLayout
@@ -234,7 +237,49 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
         }}
       >
         <GameStage label={stageLabel} stageRef={stageRef}>
-          {screen === "hub" ? (
+          {!gameStarted ? (
+            <div
+              className="cell-scene"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 20,
+                background: "#07110d",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleStartGame}
+                aria-label="开始游戏"
+                style={{
+                  width: 132,
+                  height: 132,
+                  borderRadius: "50%",
+                  border: "3px solid rgba(184, 255, 106, 0.85)",
+                  background: "rgba(84, 201, 43, 0.22)",
+                  color: "#d9ffb8",
+                  fontSize: 54,
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  padding: "0 0 0 8px",
+                  boxShadow: "0 0 40px rgba(84, 201, 43, 0.35)",
+                }}
+              >
+                ▶
+              </button>
+              <div
+                style={{
+                  color: "rgba(217, 255, 184, 0.88)",
+                  fontSize: 20,
+                  letterSpacing: 3,
+                }}
+              >
+                点击进入游戏
+              </div>
+            </div>
+          ) : screen === "hub" ? (
             <div
               className={[
                 "cell-scene",
@@ -290,20 +335,24 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             </div>
           )}
 
-          <FadeVeil
-            phase={fadePhase}
-            onCovered={handleVeilCovered}
-            onRevealed={handleVeilRevealed}
-          />
+          {gameStarted && (
+            <FadeVeil
+              phase={fadePhase}
+              onCovered={handleVeilCovered}
+              onRevealed={handleVeilRevealed}
+            />
+          )}
 
-          <SettingsModal
-            active={showSettings}
-            onClose={() => setShowSettings(false)}
-            inGame={screen === "play"}
-            onDebugWin={handleDebugWin}
-            onResetProgress={handleResetProgress}
-            onUnlockAll={handleUnlockAll}
-          />
+          {gameStarted && (
+            <SettingsModal
+              active={showSettings}
+              onClose={() => setShowSettings(false)}
+              inGame={screen === "play"}
+              onDebugWin={handleDebugWin}
+              onResetProgress={handleResetProgress}
+              onUnlockAll={handleUnlockAll}
+            />
+          )}
         </GameStage>
 
         <GameFooter />
