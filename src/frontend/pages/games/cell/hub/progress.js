@@ -98,3 +98,19 @@ export function getRecommendedLevelIndex() {
   const last = getLastLevelIndex();
   return isLevelUnlocked(last) ? last : 0;
 }
+
+/** 清空本地进度（解锁 / 通关 / 上次关卡） */
+export function resetAllProgress() {
+  localStorage.removeItem(KEY_MAX_UNLOCKED);
+  localStorage.removeItem(KEY_CLEARED);
+  localStorage.removeItem(KEY_LAST_LEVEL);
+}
+
+/** 解锁并标记全部关卡已通关 */
+export function unlockAllLevels() {
+  localStorage.setItem(KEY_MAX_UNLOCKED, String(LEVELS.length - 1));
+  localStorage.setItem(
+    KEY_CLEARED,
+    LEVELS.map((_, idx) => idx).join(","),
+  );
+}

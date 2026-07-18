@@ -8,5 +8,7 @@ export {
   isLevelCleared,
   isLevelUnlocked,
   markLevelCleared,
+  resetAllProgress,
   setLastLevelIndex,
+  unlockAllLevels,
 } from "./progress";

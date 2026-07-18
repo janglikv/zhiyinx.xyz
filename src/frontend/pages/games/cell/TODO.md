@@ -29,13 +29,20 @@
 
 ## P1 — 结构拆分
 
+- [x] `index.jsx` 高收益拆分（稳）：
+  - `hooks/useCellProgress` — 进度读写 / 重置 / 全解锁
+  - `hooks/useScreenTransition` — 黑场转场
+  - `hooks/useCellBgm` — 场景 BGM 副作用
+  - `ui/StartGate` · `HubScene` · `PlayScene` · `StageTools`
+  - `progress.js` 补 `resetAllProgress` / `unlockAllLevels`
+  - 对局 `mountCellGame` 仍留 index（与 Pixi 生命周期紧绑）
 - [ ] 拆分 `audio.js`（约 480 行），建议：
   - `audio/bgm.js` — HTMLAudio 场景 BGM
   - `audio/media-sfx.js` — pixi bullet / firework
   - `audio/synth-sfx.js` — hit / hurt / die / UI
   - `audio/index.js` — 再导出 + `unlockCellAudio`
 - [ ] 调用方保持 `from "./audio"`，对 `combat.js` / UI 透明
-- [ ] （可选）`index.jsx` 抽 screen / fade hook，减轻编排职责
+- [ ] （可选）`useCellPlaySession` — 再抽 mount / win-lose / tutorial
 
 ---
 

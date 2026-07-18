@@ -4,82 +4,82 @@ import { GAME_WIDTH, GAME_HEIGHT } from "./constants";
 import { LEVELS } from "./levels";
 import { mountCellGame } from "./mount";
 import {
-  LevelSelect,
-  getClearedIndices,
-  getMaxUnlockedIndex,
   getRecommendedLevelIndex,
   isLevelUnlocked,
-  markLevelCleared,
   setLastLevelIndex,
 } from "./hub";
-import { TUTORIAL_START_PHASE, TutorialHud } from "./tutorial";
-import { WinOverlay, LoseOverlay } from "./settlement";
+import { TUTORIAL_START_PHASE } from "./tutorial";
 import GameFooter from "./ui/GameFooter";
 import GameStage from "./ui/GameStage";
-import BackButton from "./ui/BackButton";
-import SettingsButton from "./ui/SettingsButton";
-import SettingsModal from "./ui/SettingsModal";
-import FullscreenButton from "./ui/FullscreenButton";
 import FadeVeil from "./ui/FadeVeil";
-import { setBgmScene, stopBgm, unlockCellAudio, uiSfx } from "./audio";
+import SettingsModal from "./ui/SettingsModal";
+import StartGate from "./ui/StartGate";
+import HubScene from "./ui/HubScene";
+import PlayScene from "./ui/PlayScene";
+import { unlockCellAudio } from "./audio";
+import { useCellProgress } from "./hooks/useCellProgress";
+import { useScreenTransition } from "./hooks/useScreenTransition";
+import { useCellBgm } from "./hooks/useCellBgm";
 import "./styles.css";
-
-/** 全黑后略停，等 Pixi 挂上再淡入 */
-const HOLD_BLACK_MS = 600;
 
 function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const containerRef = useRef(null);
   const stageRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const gameApiRef = useRef(null);
-  /** @type {React.MutableRefObject<"hub" | "play" | null>} */
-  const pendingScreenRef = useRef(null);
-  /** @type {React.MutableRefObject<number | null>} */
-  const pendingLevelRef = useRef(null);
-  const holdTimerRef = useRef(0);
 
   /** @type {["hub" | "play", Function]} */
   const [screen, setScreen] = useState("hub");
-  /** @type {["idle" | "out" | "hold" | "in", Function]} */
-  const [fadePhase, setFadePhase] = useState("idle");
-  const [currentLevelIndex, setCurrentLevelIndex] = useState(() => getRecommendedLevelIndex());
+  const [currentLevelIndex, setCurrentLevelIndex] = useState(() =>
+    getRecommendedLevelIndex(),
+  );
   const [gameState, setGameState] = useState("playing");
   const [gameKey, setGameKey] = useState(0);
   /** @type {[import("./tutorial/phases").TutorialPhase | null, Function]} */
   const [tutorialPhase, setTutorialPhase] = useState(null);
   const [winFxKey, setWinFxKey] = useState(0);
-  /** 对局层淡入（与黑场揭开同步） */
   const [playReveal, setPlayReveal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
 
-  const [maxUnlocked, setMaxUnlocked] = useState(() => getMaxUnlockedIndex());
-  const [cleared, setCleared] = useState(() => getClearedIndices());
-  const [recommendedIndex, setRecommendedIndex] = useState(() => getRecommendedLevelIndex());
+  const {
+    maxUnlocked,
+    cleared,
+    recommendedIndex,
+    refresh,
+    clearLevel,
+    resetAll,
+    unlockAll,
+  } = useCellProgress();
+
+  const onApplyPlay = useCallback((levelIndex) => {
+    if (typeof levelIndex === "number") setCurrentLevelIndex(levelIndex);
+    setGameState("playing");
+    setPlayReveal(false);
+    setScreen("play");
+    setGameKey((prev) => prev + 1);
+  }, []);
+
+  const onApplyHub = useCallback(() => {
+    setPlayReveal(false);
+    setScreen("hub");
+    setGameState("playing");
+    setTutorialPhase(null);
+    refresh();
+  }, [refresh]);
+
+  const { fadePhase, transitioning, beginTransition, handleVeilCovered, handleVeilRevealed } =
+    useScreenTransition({
+      onApplyPlay,
+      onApplyHub,
+      onHoldEnd: () => setPlayReveal(true),
+    });
+
+  useCellBgm(gameStarted, screen);
 
   const level = LEVELS[currentLevelIndex];
   const hasNextLevel = currentLevelIndex < LEVELS.length - 1;
-  const transitioning = fadePhase !== "idle";
 
-  const refreshProgress = useCallback(() => {
-    setMaxUnlocked(getMaxUnlockedIndex());
-    setCleared(getClearedIndices());
-    setRecommendedIndex(getRecommendedLevelIndex());
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
-      stopBgm();
-    };
-  }, []);
-
-  // BGM 只跟 screen 走（与对战曲同一逻辑）：
-  // screen==="play" 时保持对战曲，重开/下一关不重切；切到 hub 才换选关曲。
-  useEffect(() => {
-    if (!gameStarted) return;
-    setBgmScene(screen);
-  }, [gameStarted, screen]);
-
+  // 对局挂载：与 Pixi 生命周期绑得紧，留在页面层更稳
   useEffect(() => {
     if (screen !== "play") return undefined;
 
@@ -94,8 +94,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       level,
       (isWin) => {
         if (isWin) {
-          markLevelCleared(currentLevelIndex);
-          refreshProgress();
+          clearLevel(currentLevelIndex);
           setGameState("win");
         } else {
           setGameState("lose");
@@ -105,51 +104,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       () => setTutorialPhase(null),
     );
     return cleanup;
-  }, [screen, currentLevelIndex, gameKey, level, refreshProgress]);
-
-  function beginTransition(nextScreen, levelIndex = null) {
-    if (transitioning) return;
-    pendingScreenRef.current = nextScreen;
-    pendingLevelRef.current = levelIndex;
-    setFadePhase("out");
-  }
-
-  function applyPendingScreen() {
-    const next = pendingScreenRef.current;
-    const lvl = pendingLevelRef.current;
-    pendingScreenRef.current = null;
-    pendingLevelRef.current = null;
-
-    if (next === "play") {
-      if (typeof lvl === "number") setCurrentLevelIndex(lvl);
-      setGameState("playing");
-      setPlayReveal(false);
-      setScreen("play");
-      setGameKey((prev) => prev + 1);
-    } else if (next === "hub") {
-      setPlayReveal(false);
-      setScreen("hub");
-      setGameState("playing");
-      setTutorialPhase(null);
-      refreshProgress();
-    }
-    return next;
-  }
-
-  function handleVeilCovered() {
-    // 黑场到位：只切画面；BGM 由 screen 的 useEffect 同步
-    applyPendingScreen();
-    setFadePhase("hold");
-    if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
-    holdTimerRef.current = window.setTimeout(() => {
-      setPlayReveal(true);
-      setFadePhase("in");
-    }, HOLD_BLACK_MS);
-  }
-
-  function handleVeilRevealed() {
-    setFadePhase("idle");
-  }
+  }, [screen, currentLevelIndex, gameKey, level, clearLevel]);
 
   function handleEnterLevel(index) {
     if (!isLevelUnlocked(index) || transitioning) return;
@@ -178,7 +133,6 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     if (hasNextLevel) {
       const next = currentLevelIndex + 1;
       if (isLevelUnlocked(next)) {
-        // 关卡间也走黑场，避免硬切
         beginTransition("play", next);
         return;
       }
@@ -187,29 +141,18 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   }
 
   function handleDebugWin() {
-    markLevelCleared(currentLevelIndex);
-    refreshProgress();
+    clearLevel(currentLevelIndex);
     setGameState("win");
     setWinFxKey((k) => k + 1);
   }
 
   function handleResetProgress() {
-    localStorage.removeItem("cell_game_max_unlocked");
-    localStorage.removeItem("cell_game_cleared");
-    localStorage.removeItem("cell_game_level");
-    refreshProgress();
+    resetAll();
     if (screen === "play") {
       beginTransition("hub");
     } else {
       setCurrentLevelIndex(0);
     }
-  }
-
-  function handleUnlockAll() {
-    localStorage.setItem("cell_game_max_unlocked", String(LEVELS.length - 1));
-    const allCleared = LEVELS.map((_, idx) => idx).join(",");
-    localStorage.setItem("cell_game_cleared", allCleared);
-    refreshProgress();
   }
 
   function handleSkipTutorial() {
@@ -243,101 +186,34 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       >
         <GameStage label={stageLabel} stageRef={stageRef}>
           {!gameStarted ? (
-            <div
-              className="cell-scene"
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 20,
-                background: "#07110d",
-              }}
-            >
-              <button
-                type="button"
-                {...uiSfx("confirm", handleStartGame)}
-                aria-label="开始游戏"
-                style={{
-                  width: 132,
-                  height: 132,
-                  borderRadius: "50%",
-                  border: "3px solid rgba(184, 255, 106, 0.85)",
-                  background: "rgba(84, 201, 43, 0.22)",
-                  color: "#d9ffb8",
-                  fontSize: 54,
-                  lineHeight: 1,
-                  cursor: "pointer",
-                  padding: "0 0 0 8px",
-                  boxShadow: "0 0 40px rgba(84, 201, 43, 0.35)",
-                }}
-              >
-                ▶
-              </button>
-              <div
-                style={{
-                  color: "rgba(217, 255, 184, 0.88)",
-                  fontSize: 20,
-                  letterSpacing: 3,
-                }}
-              >
-                点击进入游戏
-              </div>
-            </div>
+            <StartGate onStart={handleStartGame} />
           ) : screen === "hub" ? (
-            <div
-              className={[
-                "cell-scene",
-                fadePhase === "out" ? "cell-scene--dimming" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              <LevelSelect
-                maxUnlocked={maxUnlocked}
-                cleared={cleared}
-                recommendedIndex={recommendedIndex}
-                onEnterLevel={handleEnterLevel}
-                tools={
-                  <>
-                    <SettingsButton onClick={() => setShowSettings(true)} />
-                    <FullscreenButton targetRef={stageRef} />
-                  </>
-                }
-              />
-            </div>
+            <HubScene
+              maxUnlocked={maxUnlocked}
+              cleared={cleared}
+              recommendedIndex={recommendedIndex}
+              onEnterLevel={handleEnterLevel}
+              dimming={fadePhase === "out"}
+              stageRef={stageRef}
+              onOpenSettings={() => setShowSettings(true)}
+            />
           ) : (
-            <div
-              className={[
-                "cell-scene",
-                "cell-scene--play",
-                playReveal ? "cell-scene--revealed" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              <div ref={containerRef} className="cell-stage__canvas-host" />
-              <BackButton onClick={handleBackToHub} />
-              <div className="cell-play-tools">
-                <SettingsButton onClick={() => setShowSettings(true)} />
-                <FullscreenButton targetRef={stageRef} />
-              </div>
-              <TutorialHud
-                key={`${gameKey}-${level.id}`}
-                phase={tutorialPhase}
-                onSkip={handleSkipTutorial}
-              />
-              <WinOverlay
-                active={gameState === "win"}
-                fxKey={winFxKey}
-                nextLabel={hasNextLevel ? "下一关" : "返回选关"}
-                onNext={handleNextLevel}
-                onBackToHub={handleBackToHub}
-              />
-              {gameState === "lose" && (
-                <LoseOverlay onRestart={handleRestart} onBackToHub={handleBackToHub} />
-              )}
-            </div>
+            <PlayScene
+              containerRef={containerRef}
+              stageRef={stageRef}
+              revealed={playReveal}
+              gameKey={gameKey}
+              levelId={level.id}
+              tutorialPhase={tutorialPhase}
+              gameState={gameState}
+              winFxKey={winFxKey}
+              nextLabel={hasNextLevel ? "下一关" : "返回选关"}
+              onBackToHub={handleBackToHub}
+              onOpenSettings={() => setShowSettings(true)}
+              onSkipTutorial={handleSkipTutorial}
+              onNext={handleNextLevel}
+              onRestart={handleRestart}
+            />
           )}
 
           {gameStarted && (
@@ -355,7 +231,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
               inGame={screen === "play"}
               onDebugWin={handleDebugWin}
               onResetProgress={handleResetProgress}
-              onUnlockAll={handleUnlockAll}
+              onUnlockAll={unlockAll}
             />
           )}
         </GameStage>
