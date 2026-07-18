@@ -13,7 +13,7 @@ import {
 } from "./constants";
 import { Bullet } from "./bullet";
 import { OverflowSpark } from "./overflow";
-import { playBulletShot, playHit, playHurt, playDie } from "./audio";
+import { playBulletShot, playHit, playHurt } from "./audio";
 
 /**
  * 连发、开火、命中结算、子弹更新与对撞；触顶溢出走独立粒子。
@@ -115,7 +115,8 @@ export function createCombat({ stage, cells, bullets }) {
     if (target.value <= ENERGY_EPS) {
       target.setValue(0);
       target.setColor(sourceColor);
-      playDie({ x: hitX, width: GAME_WIDTH });
+      // 吞并/变色：统一用受伤音（已移除独立吞噬音）
+      playHurt({ x: hitX, width: GAME_WIDTH, strength });
       return;
     }
 
@@ -123,7 +124,7 @@ export function createCombat({ stage, cells, bullets }) {
     if (target.value <= ENERGY_EPS) {
       target.setValue(0);
       target.setColor(sourceColor);
-      playDie({ x: hitX, width: GAME_WIDTH });
+      playHurt({ x: hitX, width: GAME_WIDTH, strength });
       return;
     }
 

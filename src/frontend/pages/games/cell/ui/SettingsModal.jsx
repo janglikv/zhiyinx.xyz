@@ -10,51 +10,25 @@ import {
   unlockCellAudio,
 } from "../audio";
 
-const IS_DEV = import.meta.env.DEV;
-
 /**
- * 游戏设置模态框
+ * 游戏设置模态框（玩家向：声音等）
  * @param {{
  *   active: boolean,
  *   onClose: () => void,
- *   inGame: boolean,
- *   onDebugWin?: () => void,
- *   onResetProgress: () => void,
- *   onUnlockAll: () => void,
  * }} props
  */
-export default function SettingsModal({
-  active,
-  onClose,
-  inGame,
-  onDebugWin,
-  onResetProgress,
-  onUnlockAll,
-}) {
-  const [confirmReset, setConfirmReset] = useState(false);
+export default function SettingsModal({ active, onClose }) {
   const [muted, setMuted] = useState(() => getAudioSettings().muted);
   const [bgm, setBgm] = useState(() => getAudioSettings().bgm);
   const [sfx, setSfx] = useState(() => getAudioSettings().sfx);
 
   useEffect(() => {
-    if (!active) {
-      setConfirmReset(false);
-      return;
-    }
-    // 打开时与持久化设置同步
+    if (!active) return;
     const s = getAudioSettings();
     setMuted(s.muted);
     setBgm(s.bgm);
     setSfx(s.sfx);
   }, [active]);
-
-  useEffect(() => {
-    if (!confirmReset) return undefined;
-    const timer = window.setTimeout(() => {
-      setConfirmReset(false);
-    }, 3000);
-    return () => window.clearTimeout(timer);
-  }, [confirmReset]);
 
   if (!active) return null;
 
@@ -81,18 +55,6 @@ export default function SettingsModal({
   function handleSfxCommit() {
     unlockCellAudio();
     if (!muted && sfx > 0) playUi("tap");
-  }
-
-  function handleResetClick() {
-    if (confirmReset) {
-      playUi("confirm");
-      onResetProgress();
-      setConfirmReset(false);
-      onClose();
-    } else {
-      playUi("tap");
-      setConfirmReset(true);
-    }
   }
 
   const slidersDisabled = muted;
@@ -197,64 +159,6 @@ export default function SettingsModal({
               />
             </div>
           </section>
-
-          {IS_DEV && (
-            <section className="cell-modal-section cell-modal-section--debug">
-              <h4 className="cell-modal-section-title">
-                开发调试
-                <span className="cell-modal-badge">DEV</span>
-              </h4>
-              <p className="cell-modal-desc">
-                仅本地开发模式可见。生产构建不会打包显示本组。
-              </p>
-
-              {inGame && onDebugWin && (
-                <div className="cell-modal-debug-block">
-                  <p className="cell-modal-desc">
-                    立即以胜利结束当前关卡（会记录通关并解锁下一关）。
-                  </p>
-                  <button
-                    type="button"
-                    className="cell-btn cell-btn--primary"
-                    {...uiSfx("confirm", () => {
-                      onDebugWin();
-                      onClose();
-                    })}
-                  >
-                    直接通关
-                  </button>
-                </div>
-              )}
-
-              <div className="cell-modal-debug-block">
-                <p className="cell-modal-desc">
-                  一键解锁全部关卡，或重置进度重新挑战。
-                </p>
-                <div className="cell-modal-actions">
-                  <button
-                    type="button"
-                    className="cell-btn cell-btn--outline"
-                    {...uiSfx("confirm", () => {
-                      onUnlockAll();
-                      onClose();
-                    })}
-                  >
-                    解锁全部关卡
-                  </button>
-                  <button
-                    type="button"
-                    className={`cell-btn ${
-                      confirmReset ? "cell-btn--danger-active" : "cell-btn--danger"
-                    }`}
-                    onMouseEnter={onUiHover}
-                    onClick={handleResetClick}
-                  >
-                    {confirmReset ? "确定重置进度？" : "重置所有进度"}
-                  </button>
-                </div>
-              </div>
-            </section>
-          )}
         </div>
       </div>
     </div>

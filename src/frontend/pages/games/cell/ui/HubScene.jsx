@@ -11,6 +11,7 @@ import StageTools from "./StageTools";
  *   dimming?: boolean,
  *   stageRef: React.RefObject<HTMLElement | null>,
  *   onOpenSettings: () => void,
+ *   onOpenDebug?: () => void,
  * }} props
  */
 export default function HubScene({
@@ -21,6 +22,7 @@ export default function HubScene({
   dimming = false,
   stageRef,
   onOpenSettings,
+  onOpenDebug,
 }) {
   return (
     <div
@@ -34,7 +36,11 @@ export default function HubScene({
         recommendedIndex={recommendedIndex}
         onEnterLevel={onEnterLevel}
         tools={
-          <StageTools stageRef={stageRef} onOpenSettings={onOpenSettings} />
+          <StageTools
+            stageRef={stageRef}
+            onOpenSettings={onOpenSettings}
+            onOpenDebug={onOpenDebug}
+          />
         }
       />
     </div>

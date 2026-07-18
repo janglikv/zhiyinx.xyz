@@ -611,7 +611,43 @@ body.cell-fs-active {
   transition: transform 0.3s ease;
 }
 
-/* 设置模态框 Overlay */
+/* 开发调试按钮（设置右侧） */
+.cell-debug-btn {
+  border: 1px solid rgba(255, 140, 66, 0.45);
+  background: rgba(28, 14, 6, 0.78);
+  color: #ffc98a;
+}
+
+.cell-debug-btn:hover {
+  border-color: rgba(255, 179, 71, 0.7);
+  background: rgba(255, 140, 66, 0.2);
+  color: #fff0d8;
+}
+
+.cell-debug-btn:hover .cell-debug-btn__icon {
+  transform: scale(1.08);
+}
+
+.cell-debug-btn__icon {
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.cell-modal-header--debug .cell-modal-title {
+  color: #ffc98a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cell-modal-content--debug {
+  border-color: rgba(255, 140, 66, 0.3);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(255, 140, 66, 0.12);
+}
+
+/* 设置模态框 Overlay（贴合 .cell-stage 540 高，勿用 88vh 以免顶栏被 overflow 裁切） */
 .cell-modal-overlay {
   position: absolute;
   inset: 0;
@@ -622,6 +658,8 @@ body.cell-fs-active {
   align-items: center;
   justify-content: center;
   z-index: 100;
+  padding: 12px;
+  box-sizing: border-box;
   animation: cellModalFadeIn 0.25s ease-out forwards;
   border-radius: 20px; /* 和游戏画布保持一致 */
 }
@@ -631,18 +669,24 @@ body.cell-fs-active {
   to { opacity: 1; }
 }
 
-/* 模态框 Content */
+/* 模态框 Content：定高 flex，header 固定，body 内滚动 */
 .cell-modal-content {
-  width: 88%;
-  max-width: 360px;
+  width: 100%;
+  max-width: 380px;
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: linear-gradient(135deg, rgba(16, 28, 20, 0.95) 0%, rgba(10, 16, 12, 0.98) 100%);
   border: 1px solid rgba(84, 201, 43, 0.25);
   border-radius: 16px;
-  box-shadow: 
+  box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.6),
     0 0 24px rgba(84, 201, 43, 0.1);
-  padding: 20px;
+  padding: 0;
   animation: cellModalScaleIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  box-sizing: border-box;
 }
 
 @keyframes cellModalScaleIn {
@@ -656,14 +700,19 @@ body.cell-fs-active {
   }
 }
 
-/* 模态框 Header */
+/* 模态框 Header（不参与滚动，关闭钮始终可点） */
 .cell-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
+  gap: 8px;
   border-bottom: 1px solid rgba(84, 201, 43, 0.15);
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+  padding: 14px 12px 12px 18px;
+  margin: 0;
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(16, 28, 20, 0.98) 0%, rgba(12, 22, 16, 0.98) 100%);
 }
 
 .cell-modal-title {
@@ -682,13 +731,31 @@ body.cell-fs-active {
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
-  padding: 0 4px;
-  transition: color 0.15s ease, transform 0.15s ease;
+  /* 扩大点击热区，避免被裁切/点偏 */
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 8px;
+  transition: color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  position: relative;
+  z-index: 3;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .cell-modal-close-btn:hover {
   color: #e8ffe0;
-  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(1.06);
+}
+
+.cell-modal-close-btn:focus-visible {
+  outline: 2px solid rgba(123, 232, 83, 0.7);
+  outline-offset: 1px;
 }
 
 /* 模态框 Body & Sections */
@@ -696,6 +763,14 @@ body.cell-fs-active {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(84, 201, 43, 0.35) transparent;
+  -webkit-overflow-scrolling: touch;
 }
 
 .cell-modal-section {
@@ -760,6 +835,181 @@ body.cell-fs-active {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.cell-modal-subtitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffc98a;
+  letter-spacing: 0.02em;
+}
+
+/* 音效调试面板（DEV） */
+.cell-audio-debug {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cell-audio-debug__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cell-audio-debug__group-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.cell-audio-debug__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.cell-audio-debug__btn {
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 179, 71, 0.28);
+  background: rgba(255, 140, 66, 0.08);
+  color: #ffd9a8;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0 6px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.cell-audio-debug__btn:hover {
+  background: rgba(255, 140, 66, 0.16);
+  border-color: rgba(255, 179, 71, 0.55);
+  color: #fff0d8;
+}
+
+.cell-audio-debug__btn:active {
+  transform: scale(0.97);
+}
+
+.cell-audio-debug__btn.is-active {
+  border-color: rgba(255, 200, 120, 0.75);
+  background: rgba(255, 140, 66, 0.22);
+  box-shadow: 0 0 10px rgba(255, 140, 66, 0.2);
+  color: #fff6e8;
+}
+
+.cell-audio-debug__btn:focus-visible {
+  outline: 2px solid rgba(255, 179, 71, 0.65);
+  outline-offset: 1px;
+}
+
+.cell-audio-debug__hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(255, 201, 138, 0.9);
+  min-height: 1.35em;
+}
+
+.cell-audio-debug__current {
+  margin-left: 4px;
+  color: #ffd9a8;
+  font-weight: 700;
+}
+
+/* 命中变体试听 / 选用 */
+.cell-hit-variants {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cell-hit-variant {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 179, 71, 0.2);
+  background: rgba(255, 140, 66, 0.05);
+  overflow: hidden;
+}
+
+.cell-hit-variant.is-selected {
+  border-color: rgba(123, 232, 83, 0.55);
+  background: rgba(84, 201, 43, 0.1);
+  box-shadow: 0 0 10px rgba(84, 201, 43, 0.12);
+}
+
+.cell-hit-variant.is-last:not(.is-selected) {
+  border-color: rgba(255, 179, 71, 0.45);
+}
+
+.cell-hit-variant__play {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: #ffd9a8;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cell-hit-variant__play:hover {
+  background: rgba(255, 140, 66, 0.1);
+}
+
+.cell-hit-variant__name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff0d8;
+}
+
+.cell-hit-variant__desc {
+  font-size: 9px;
+  line-height: 1.3;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.cell-hit-variant__pick {
+  flex-shrink: 0;
+  width: 52px;
+  border: none;
+  border-left: 1px solid rgba(255, 179, 71, 0.2);
+  background: rgba(255, 140, 66, 0.08);
+  color: #ffc98a;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cell-hit-variant__pick:hover {
+  background: rgba(255, 140, 66, 0.2);
+  color: #fff6e8;
+}
+
+.cell-hit-variant__pick.is-on {
+  background: rgba(84, 201, 43, 0.28);
+  border-left-color: rgba(123, 232, 83, 0.4);
+  color: #e8ffe0;
+}
+
+.cell-hit-variant__play:focus-visible,
+.cell-hit-variant__pick:focus-visible {
+  outline: 2px solid rgba(255, 179, 71, 0.65);
+  outline-offset: -2px;
 }
 
 /* 声音设置行 / 开关 / 滑条 */

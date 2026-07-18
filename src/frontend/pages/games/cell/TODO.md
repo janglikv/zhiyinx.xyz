@@ -1,13 +1,15 @@
 # Cell 游戏 — 音频 / 代码整理 To-Do
 
 范围：`src/frontend/pages/games/cell/`（音频、UI 交互音、结构整理）  
-现状：BGM 用 HTMLAudio；射击/烟花用 `@pixi/sound`；hit/hurt/die/UI 用 Web Audio 合成。
+现状：BGM 用 HTMLAudio；射击/烟花用 `@pixi/sound`；hit/hurt/UI 用 Web Audio 合成。
+
+**音效清单与说明** → 见 [AUDIO.md](./AUDIO.md)
 
 ---
 
 ## 已完成（近期）
 
-- [x] 合成 SFX：hit / hurt / die / UI（tap · confirm · back）
+- [x] 合成 SFX：hit / hurt / UI（tap · confirm · back）；吞并用 hurt，已移除 die
 - [x] 合成 SFX 音量拉高（`SFX_MASTER` + 各包络 peak）
 - [x] UI：hover 与点击分轨；可交互按钮覆盖 hover + click
 - [x] BGM：hub / battle 分场景；HTMLAudio 避免 pixi 孤儿轨叠播
@@ -39,7 +41,7 @@
 - [ ] 拆分 `audio.js`（约 480 行），建议：
   - `audio/bgm.js` — HTMLAudio 场景 BGM
   - `audio/media-sfx.js` — pixi bullet / firework
-  - `audio/synth-sfx.js` — hit / hurt / die / UI
+  - `audio/synth-sfx.js` — hit / hurt / UI
   - `audio/index.js` — 再导出 + `unlockCellAudio`
 - [ ] 调用方保持 `from "./audio"`，对 `combat.js` / UI 透明
 - [ ] （可选）`useCellPlaySession` — 再抽 mount / win-lose / tutorial
@@ -58,7 +60,7 @@
 
 ### 音质 / 性能
 
-- [ ] 双层 hit/hurt/die 削波：略降 peak 或 bus 上 `DynamicsCompressorNode`
+- [ ] 双层 hit/hurt 削波：略降 peak 或 bus 上 `DynamicsCompressorNode`
 - [ ] （可选）共用输出图 / 节点池，减轻密集 hit 时的 GC
 - [ ] `makePanner` 无 `StereoPanner` 时：补等功率 L/R，或明确只支持现代浏览器并删无效 fallback
 
@@ -95,7 +97,7 @@
 | 文件 | 职责 |
 |------|------|
 | `audio.js` | BGM + 媒体 SFX + 合成 SFX + UI helper |
-| `combat.js` | hit / hurt / die 触发 |
+| `combat.js` | hit / hurt 触发（吞并也走 hurt） |
 | `index.jsx` | 场景、BGM、开始门、设置入口 |
 | `hub/LevelSelect.jsx` | 选关 UI 音 |
 | `ui/*Button*.jsx` / `SettingsModal.jsx` | 工具与设置 UI 音 |

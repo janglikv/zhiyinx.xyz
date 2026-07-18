@@ -13,10 +13,13 @@ import GameFooter from "./ui/GameFooter";
 import GameStage from "./ui/GameStage";
 import FadeVeil from "./ui/FadeVeil";
 import SettingsModal from "./ui/SettingsModal";
+import DebugModal from "./ui/DebugModal";
 import StartGate from "./ui/StartGate";
 import HubScene from "./ui/HubScene";
 import PlayScene from "./ui/PlayScene";
 import { unlockCellAudio } from "./audio";
+
+const IS_DEV = import.meta.env.DEV;
 import { useCellProgress } from "./hooks/useCellProgress";
 import { useScreenTransition } from "./hooks/useScreenTransition";
 import { useCellBgm } from "./hooks/useCellBgm";
@@ -39,6 +42,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const [winFxKey, setWinFxKey] = useState(0);
   const [playReveal, setPlayReveal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
 
   const {
@@ -195,7 +199,18 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
               onEnterLevel={handleEnterLevel}
               dimming={fadePhase === "out"}
               stageRef={stageRef}
-              onOpenSettings={() => setShowSettings(true)}
+              onOpenSettings={() => {
+                setShowDebug(false);
+                setShowSettings(true);
+              }}
+              onOpenDebug={
+                IS_DEV
+                  ? () => {
+                      setShowSettings(false);
+                      setShowDebug(true);
+                    }
+                  : undefined
+              }
             />
           ) : (
             <PlayScene
@@ -209,7 +224,18 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
               winFxKey={winFxKey}
               nextLabel={hasNextLevel ? "下一关" : "返回选关"}
               onBackToHub={handleBackToHub}
-              onOpenSettings={() => setShowSettings(true)}
+              onOpenSettings={() => {
+                setShowDebug(false);
+                setShowSettings(true);
+              }}
+              onOpenDebug={
+                IS_DEV
+                  ? () => {
+                      setShowSettings(false);
+                      setShowDebug(true);
+                    }
+                  : undefined
+              }
               onSkipTutorial={handleSkipTutorial}
               onNext={handleNextLevel}
               onRestart={handleRestart}
@@ -228,6 +254,13 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             <SettingsModal
               active={showSettings}
               onClose={() => setShowSettings(false)}
+            />
+          )}
+
+          {gameStarted && IS_DEV && (
+            <DebugModal
+              active={showDebug}
+              onClose={() => setShowDebug(false)}
               inGame={screen === "play"}
               onDebugWin={handleDebugWin}
               onResetProgress={handleResetProgress}

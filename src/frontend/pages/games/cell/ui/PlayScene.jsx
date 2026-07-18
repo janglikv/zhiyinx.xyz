@@ -17,6 +17,7 @@ import StageTools from "./StageTools";
  *   nextLabel: string,
  *   onBackToHub: () => void,
  *   onOpenSettings: () => void,
+ *   onOpenDebug?: () => void,
  *   onSkipTutorial: () => void,
  *   onNext: () => void,
  *   onRestart: () => void,
@@ -34,6 +35,7 @@ export default function PlayScene({
   nextLabel,
   onBackToHub,
   onOpenSettings,
+  onOpenDebug,
   onSkipTutorial,
   onNext,
   onRestart,
@@ -51,7 +53,11 @@ export default function PlayScene({
       <div ref={containerRef} className="cell-stage__canvas-host" />
       <BackButton onClick={onBackToHub} />
       <div className="cell-play-tools">
-        <StageTools stageRef={stageRef} onOpenSettings={onOpenSettings} />
+        <StageTools
+          stageRef={stageRef}
+          onOpenSettings={onOpenSettings}
+          onOpenDebug={onOpenDebug}
+        />
       </div>
       <TutorialHud
         key={`${gameKey}-${levelId}`}

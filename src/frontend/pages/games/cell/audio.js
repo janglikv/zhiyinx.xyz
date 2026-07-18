@@ -13,8 +13,70 @@ const lastShotAt = {
 /** BGM 基准音量（用户滑条 1.0 时的实际 HTMLAudio volume） */
 const BGM_VOLUME_MAX = 0.35;
 const AUDIO_SETTINGS_KEY = "cell-audio-settings-v1";
+const HIT_VARIANT_KEY = "cell-hit-variant-v1";
 const CELL_SOUND_ALIASES = ["bullet", "firework"];
 const LEGACY_PIXI_ALIASES = ["bgm", "bgm-hub", "bgm-play"];
+
+/**
+ * 命中音效变体（偏「打中细胞」；`blast` 为旧爆炸对照）
+ * @typedef {"gel"|"pop"|"squish"|"plop"|"thud"|"crack"|"splash"|"blast"} HitVariantId
+ */
+
+/** @type {{ id: HitVariantId, label: string, desc: string }[]} */
+export const HIT_VARIANT_LIST = [
+  { id: "gel", label: "凝胶", desc: "软弹胶质，有弹性回弹" },
+  { id: "pop", label: "膜破", desc: "薄膜气泡「啵」一声" },
+  { id: "squish", label: "湿黏", desc: "湿润挤压，偏有机" },
+  { id: "plop", label: "水滴", desc: "液滴落体，清脆 plop" },
+  { id: "thud", label: "闷击", desc: "软组织闷响，偏厚" },
+  { id: "crack", label: "脆裂", desc: "细胞膜轻裂 + 短噪声" },
+  { id: "splash", label: "溅射", desc: "能量溅开，略亮" },
+  { id: "blast", label: "爆炸", desc: "小爆炸（旧版对照）" },
+];
+
+const HIT_VARIANT_IDS = new Set(HIT_VARIANT_LIST.map((v) => v.id));
+/** @type {HitVariantId} */
+const DEFAULT_HIT_VARIANT = "thud";
+
+/** @returns {HitVariantId} */
+function loadHitVariant() {
+  if (typeof window === "undefined") return DEFAULT_HIT_VARIANT;
+  try {
+    const raw = window.localStorage.getItem(HIT_VARIANT_KEY);
+    if (raw && HIT_VARIANT_IDS.has(/** @type {HitVariantId} */ (raw))) {
+      return /** @type {HitVariantId} */ (raw);
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_HIT_VARIANT;
+}
+
+/** @type {HitVariantId} */
+let hitVariantId = loadHitVariant();
+
+/** 当前对战使用的命中变体 id */
+export function getHitVariant() {
+  return hitVariantId;
+}
+
+/**
+ * 选用命中变体（持久化）
+ * @param {string} id
+ * @returns {boolean}
+ */
+export function setHitVariant(id) {
+  if (!HIT_VARIANT_IDS.has(/** @type {HitVariantId} */ (id))) return false;
+  hitVariantId = /** @type {HitVariantId} */ (id);
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(HIT_VARIANT_KEY, hitVariantId);
+    } catch {
+      /* ignore */
+    }
+  }
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // 音量 / 静音（localStorage 持久化）
@@ -264,6 +326,27 @@ export function unlockCellAudio() {
 }
 
 /**
+ * 手势内解锁并等待 @pixi/sound 就绪（调试试听 / 需保证媒体 SFX 首击可响）。
+ * @returns {Promise<void>}
+ */
+export async function unlockCellAudioReady() {
+  unlockCellAudio();
+  try {
+    await initPixiSound();
+  } catch {
+    /* ignore load failure */
+  }
+  const ctx = getAudioCtx();
+  if (ctx && ctx.state === "suspended") {
+    try {
+      await ctx.resume();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/**
  * 播放从媒体文件加载的子弹发射音效
  * @param {{ x: number, color: number }} options
  */
@@ -310,7 +393,7 @@ export function playFirework({ x, width }) {
 }
 
 // ---------------------------------------------------------------------------
-// 程序合成交互音效（Web Audio）：P0 hit / hurt / die / UI
+// 程序合成交互音效（Web Audio）：P0 hit / hurt / UI
 // ---------------------------------------------------------------------------
 
 /** @type {AudioContext | null} */
@@ -319,13 +402,11 @@ const SFX_MASTER = 1; // 合成音效基准，再乘 sfxGain()
 const lastSynthAt = {
   hit: -Infinity,
   hurt: -Infinity,
-  die: -Infinity,
   ui: -Infinity,
   uiHover: -Infinity,
 };
 const HIT_GAP_MS = 42;
 const HURT_GAP_MS = 70;
-const DIE_GAP_MS = 90;
 const UI_GAP_MS = 40;
 const UI_HOVER_GAP_MS = 55;
 
@@ -409,8 +490,16 @@ let noiseBuffer = null;
 
 /** @param {AudioContext} ctx */
 function getNoiseBuffer(ctx) {
-  if (noiseBuffer && noiseBuffer.sampleRate === ctx.sampleRate) return noiseBuffer;
-  const len = Math.floor(ctx.sampleRate * 0.2);
+  const needSec = 0.35;
+  if (
+    noiseBuffer &&
+    noiseBuffer.sampleRate === ctx.sampleRate &&
+    noiseBuffer.duration >= needSec - 0.01
+  ) {
+    return noiseBuffer;
+  }
+  // 略加长，供爆炸噪声尾音使用
+  const len = Math.floor(ctx.sampleRate * needSec);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < len; i += 1) data[i] = Math.random() * 2 - 1;
@@ -419,52 +508,448 @@ function getNoiseBuffer(ctx) {
 }
 
 /**
- * 命中：短促高通噪声 + 轻脆 click
- * @param {{ x?: number, width?: number, strength?: number }} [opts]
+ * @param {AudioContext} ctx
+ * @param {number} t0
+ * @param {number} strength
+ * @param {number} pan
+ * @param {number} pitch
+ */
+function synthHitGel(ctx, t0, strength, pan, pitch) {
+  // 软弹胶质：正弦下沉 + 轻回弹，少量闷噪声
+  const o = ctx.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(340 * pitch, t0);
+  o.frequency.exponentialRampToValueAtTime(95 * pitch, t0 + 0.055);
+  o.frequency.exponentialRampToValueAtTime(140 * pitch, t0 + 0.1);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.55 * strength, t0 + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+  o.connect(g);
+  connectOut(ctx, g, pan, t0);
+  o.start(t0);
+  o.stop(t0 + 0.16);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(900 * pitch, t0);
+  lp.frequency.exponentialRampToValueAtTime(220 * pitch, t0 + 0.09);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.28 * strength, t0 + 0.004);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+  noise.connect(lp);
+  lp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.12);
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {number} t0
+ * @param {number} strength
+ * @param {number} pan
+ * @param {number} pitch
+ */
+function synthHitPop(ctx, t0, strength, pan, pitch) {
+  // 薄膜气泡「啵」
+  const o = ctx.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(720 * pitch, t0);
+  o.frequency.exponentialRampToValueAtTime(180 * pitch, t0 + 0.045);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.48 * strength, t0 + 0.003);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
+  o.connect(g);
+  connectOut(ctx, g, pan, t0);
+  o.start(t0);
+  o.stop(t0 + 0.08);
+
+  const o2 = ctx.createOscillator();
+  o2.type = "triangle";
+  o2.frequency.setValueAtTime(980 * pitch, t0);
+  o2.frequency.exponentialRampToValueAtTime(420 * pitch, t0 + 0.03);
+  const g2 = ctx.createGain();
+  g2.gain.setValueAtTime(0.0001, t0);
+  g2.gain.exponentialRampToValueAtTime(0.22 * strength, t0 + 0.002);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.04);
+  o2.connect(g2);
+  connectOut(ctx, g2, pan, t0);
+  o2.start(t0);
+  o2.stop(t0 + 0.05);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.setValueAtTime(1600 * pitch, t0);
+  bp.Q.setValueAtTime(1.2, t0);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.32 * strength, t0 + 0.002);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
+  noise.connect(bp);
+  bp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.06);
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {number} t0
+ * @param {number} strength
+ * @param {number} pan
+ * @param {number} pitch
+ */
+function synthHitSquish(ctx, t0, strength, pan, pitch) {
+  // 湿黏挤压：带通噪声主体 + 低频闷音
+  const boom = ctx.createOscillator();
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(160 * pitch, t0);
+  boom.frequency.exponentialRampToValueAtTime(48 * pitch, t0 + 0.12);
+  const bg = ctx.createGain();
+  bg.gain.setValueAtTime(0.0001, t0);
+  bg.gain.exponentialRampToValueAtTime(0.5 * strength, t0 + 0.008);
+  bg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+  boom.connect(bg);
+  connectOut(ctx, bg, pan, t0);
+  boom.start(t0);
+  boom.stop(t0 + 0.16);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.setValueAtTime(700 * pitch, t0);
+  bp.frequency.exponentialRampToValueAtTime(220 * pitch, t0 + 0.14);
+  bp.Q.setValueAtTime(0.7, t0);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(1800, t0);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.52 * strength, t0 + 0.01);
+  ng.gain.linearRampToValueAtTime(0.22 * strength, t0 + 0.06);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+  noise.connect(bp);
+  bp.connect(lp);
+  lp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.2);
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {number} t0
+ * @param {number} strength
+ * @param {number} pan
+ * @param {number} pitch
+ */
+function synthHitPlop(ctx, t0, strength, pan, pitch) {
+  // 液滴 plop：经典下落音高
+  const o = ctx.createOscillator();
+  o.type = "sine";
+  o.frequency.setValueAtTime(520 * pitch, t0);
+  o.frequency.exponentialRampToValueAtTime(110 * pitch, t0 + 0.09);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.58 * strength, t0 + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+  o.connect(g);
+  connectOut(ctx, g, pan, t0);
+  o.start(t0);
+  o.stop(t0 + 0.14);
+
+  const o2 = ctx.createOscillator();
+  o2.type = "sine";
+  o2.frequency.setValueAtTime(780 * pitch, t0 + 0.012);
+  o2.frequency.exponentialRampToValueAtTime(200 * pitch, t0 + 0.07);
+  const g2 = ctx.createGain();
+  g2.gain.setValueAtTime(0.0001, t0 + 0.012);
+  g2.gain.exponentialRampToValueAtTime(0.2 * strength, t0 + 0.016);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+  o2.connect(g2);
+  connectOut(ctx, g2, pan, t0);
+  o2.start(t0 + 0.012);
+  o2.stop(t0 + 0.09);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(1200 * pitch, t0);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.18 * strength, t0 + 0.003);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+  noise.connect(lp);
+  lp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.07);
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {number} t0
+ * @param {number} strength
+ * @param {number} pan
+ * @param {number} pitch
+ */
+function synthHitThud(ctx, t0, strength, pan, pitch) {
+  // 软组织闷击
+  const o = ctx.createOscillator();
+  o.type = "triangle";
+  o.frequency.setValueAtTime(140 * pitch, t0);
+  o.frequency.exponentialRampToValueAtTime(42 * pitch, t0 + 0.11);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.68 * strength, t0 + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
+  o.connect(g);
+  connectOut(ctx, g, pan, t0);
+  o.start(t0);
+  o.stop(t0 + 0.17);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(480 * pitch, t0);
+  lp.frequency.exponentialRampToValueAtTime(120 * pitch, t0 + 0.1);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.4 * strength, t0 + 0.005);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+  noise.connect(lp);
+  lp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.13);
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {number} t0
+ * @param {number} strength
+ * @param {number} pan
+ * @param {number} pitch
+ */
+function synthHitCrack(ctx, t0, strength, pan, pitch) {
+  // 膜脆裂：短 snap + 细噪声
+  const snap = ctx.createOscillator();
+  snap.type = "square";
+  snap.frequency.setValueAtTime(1100 * pitch, t0);
+  snap.frequency.exponentialRampToValueAtTime(260 * pitch, t0 + 0.025);
+  const sf = ctx.createBiquadFilter();
+  sf.type = "bandpass";
+  sf.frequency.setValueAtTime(1400 * pitch, t0);
+  sf.Q.setValueAtTime(1.4, t0);
+  const sg = ctx.createGain();
+  sg.gain.setValueAtTime(0.0001, t0);
+  sg.gain.exponentialRampToValueAtTime(0.28 * strength, t0 + 0.0015);
+  sg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.032);
+  snap.connect(sf);
+  sf.connect(sg);
+  connectOut(ctx, sg, pan, t0);
+  snap.start(t0);
+  snap.stop(t0 + 0.04);
+
+  const body = ctx.createOscillator();
+  body.type = "triangle";
+  body.frequency.setValueAtTime(280 * pitch, t0);
+  body.frequency.exponentialRampToValueAtTime(70 * pitch, t0 + 0.07);
+  const bg = ctx.createGain();
+  bg.gain.setValueAtTime(0.0001, t0);
+  bg.gain.exponentialRampToValueAtTime(0.42 * strength, t0 + 0.004);
+  bg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+  body.connect(bg);
+  connectOut(ctx, bg, pan, t0);
+  body.start(t0);
+  body.stop(t0 + 0.1);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.setValueAtTime(1200 * pitch, t0);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.3 * strength, t0 + 0.002);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.055);
+  noise.connect(hp);
+  hp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.07);
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {number} t0
+ * @param {number} strength
+ * @param {number} pan
+ * @param {number} pitch
+ */
+function synthHitSplash(ctx, t0, strength, pan, pitch) {
+  // 能量溅射：较亮带通噪声扫频 + 轻体量
+  const boom = ctx.createOscillator();
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(200 * pitch, t0);
+  boom.frequency.exponentialRampToValueAtTime(60 * pitch, t0 + 0.08);
+  const bg = ctx.createGain();
+  bg.gain.setValueAtTime(0.0001, t0);
+  bg.gain.exponentialRampToValueAtTime(0.4 * strength, t0 + 0.005);
+  bg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+  boom.connect(bg);
+  connectOut(ctx, bg, pan, t0);
+  boom.start(t0);
+  boom.stop(t0 + 0.11);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.setValueAtTime(0.85, t0);
+  bp.frequency.setValueAtTime(2400 * pitch, t0);
+  bp.frequency.exponentialRampToValueAtTime(480 * pitch, t0 + 0.12);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.48 * strength, t0 + 0.004);
+  ng.gain.exponentialRampToValueAtTime(0.12 * strength, t0 + 0.05);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+  noise.connect(bp);
+  bp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + 0.15);
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {number} t0
+ * @param {number} strength
+ * @param {number} pan
+ * @param {number} pitch
+ */
+function synthHitBlast(ctx, t0, strength, pan, pitch) {
+  // 旧版小爆炸（对照）
+  const bodyDur = 0.1 + strength * 0.06;
+  const tailDur = 0.14 + strength * 0.08;
+
+  const boom = ctx.createOscillator();
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(118 * pitch, t0);
+  boom.frequency.exponentialRampToValueAtTime(38 * pitch, t0 + bodyDur * 0.85);
+  const boomG = ctx.createGain();
+  boomG.gain.setValueAtTime(0.0001, t0);
+  boomG.gain.exponentialRampToValueAtTime(0.72 * strength, t0 + 0.006);
+  boomG.gain.exponentialRampToValueAtTime(0.0001, t0 + bodyDur);
+  boom.connect(boomG);
+  connectOut(ctx, boomG, pan, t0);
+  boom.start(t0);
+  boom.stop(t0 + bodyDur + 0.02);
+
+  const mid = ctx.createOscillator();
+  mid.type = "triangle";
+  mid.frequency.setValueAtTime(220 * pitch, t0);
+  mid.frequency.exponentialRampToValueAtTime(55 * pitch, t0 + 0.08);
+  const midG = ctx.createGain();
+  midG.gain.setValueAtTime(0.0001, t0);
+  midG.gain.exponentialRampToValueAtTime(0.38 * strength, t0 + 0.004);
+  midG.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+  mid.connect(midG);
+  connectOut(ctx, midG, pan, t0);
+  mid.start(t0);
+  mid.stop(t0 + 0.12);
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer(ctx);
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.setValueAtTime(0.55, t0);
+  bp.frequency.setValueAtTime(1400 * pitch, t0);
+  bp.frequency.exponentialRampToValueAtTime(280 * pitch, t0 + tailDur);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(5200 * pitch, t0);
+  lp.frequency.exponentialRampToValueAtTime(420 * pitch, t0 + tailDur * 0.9);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.62 * strength, t0 + 0.005);
+  ng.gain.exponentialRampToValueAtTime(0.18 * strength, t0 + 0.04);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + tailDur);
+  noise.connect(bp);
+  bp.connect(lp);
+  lp.connect(ng);
+  connectOut(ctx, ng, pan, t0);
+  noise.start(t0);
+  noise.stop(t0 + tailDur + 0.02);
+
+  const snap = ctx.createOscillator();
+  snap.type = "square";
+  snap.frequency.setValueAtTime(980 * pitch, t0);
+  snap.frequency.exponentialRampToValueAtTime(160 * pitch, t0 + 0.028);
+  const snapF = ctx.createBiquadFilter();
+  snapF.type = "highpass";
+  snapF.frequency.setValueAtTime(400, t0);
+  const snapG = ctx.createGain();
+  snapG.gain.setValueAtTime(0.0001, t0);
+  snapG.gain.exponentialRampToValueAtTime(0.22 * strength, t0 + 0.002);
+  snapG.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.035);
+  snap.connect(snapF);
+  snapF.connect(snapG);
+  connectOut(ctx, snapG, pan, t0);
+  snap.start(t0);
+  snap.stop(t0 + 0.04);
+}
+
+/** @type {Record<HitVariantId, (ctx: AudioContext, t0: number, strength: number, pan: number, pitch: number) => void>} */
+const HIT_SYNTHS = {
+  gel: synthHitGel,
+  pop: synthHitPop,
+  squish: synthHitSquish,
+  plop: synthHitPlop,
+  thud: synthHitThud,
+  crack: synthHitCrack,
+  splash: synthHitSplash,
+  blast: synthHitBlast,
+};
+
+/**
+ * 命中音效（按当前选用的变体合成；可临时指定 variant 试听）
+ * @param {{
+ *   x?: number,
+ *   width?: number,
+ *   strength?: number,
+ *   variant?: HitVariantId | string,
+ *   force?: boolean,
+ * }} [opts]
  */
 export function playHit(opts = {}) {
   if (sfxGain() <= 0) return;
   const ctx = getPlayableAudioCtx();
   if (!ctx) return;
   const nowMs = performance.now();
-  if (nowMs - lastSynthAt.hit < HIT_GAP_MS) return;
+  if (!opts.force && nowMs - lastSynthAt.hit < HIT_GAP_MS) return;
   lastSynthAt.hit = nowMs;
 
   const t0 = ctx.currentTime;
-  const strength = Math.max(0.35, Math.min(1.2, opts.strength ?? 0.7));
+  const strength = Math.max(0.35, Math.min(1.25, opts.strength ?? 0.75));
   const pan = panFromX(opts.x ?? GAME_WIDTH * 0.5, opts.width);
-  const pitch = 1 + (Math.random() - 0.5) * 0.18;
-
-  // 噪声爆
-  const noise = ctx.createBufferSource();
-  noise.buffer = getNoiseBuffer(ctx);
-  const hp = ctx.createBiquadFilter();
-  hp.type = "highpass";
-  hp.frequency.setValueAtTime(1800 * pitch, t0);
-  const ng = ctx.createGain();
-  const peak = 0.55 * strength;
-  ng.gain.setValueAtTime(0.0001, t0);
-  ng.gain.exponentialRampToValueAtTime(peak, t0 + 0.004);
-  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.055 + strength * 0.02);
-  noise.connect(hp);
-  hp.connect(ng);
-  connectOut(ctx, ng, pan, t0);
-  noise.start(t0);
-  noise.stop(t0 + 0.09);
-
-  // 金属感 click
-  const osc = ctx.createOscillator();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(920 * pitch, t0);
-  osc.frequency.exponentialRampToValueAtTime(280 * pitch, t0 + 0.05);
-  const og = ctx.createGain();
-  og.gain.setValueAtTime(0.0001, t0);
-  og.gain.exponentialRampToValueAtTime(0.32 * strength, t0 + 0.003);
-  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
-  osc.connect(og);
-  connectOut(ctx, og, pan, t0);
-  osc.start(t0);
-  osc.stop(t0 + 0.07);
+  const pitch = 1 + (Math.random() - 0.5) * 0.14;
+  const id =
+    opts.variant && HIT_VARIANT_IDS.has(/** @type {HitVariantId} */ (opts.variant))
+      ? /** @type {HitVariantId} */ (opts.variant)
+      : hitVariantId;
+  const synth = HIT_SYNTHS[id] || HIT_SYNTHS[DEFAULT_HIT_VARIANT];
+  synth(ctx, t0, strength, pan, pitch);
 }
 
 /**
@@ -511,59 +996,6 @@ export function playHurt(opts = {}) {
   connectOut(ctx, ng, pan, t0);
   noise.start(t0);
   noise.stop(t0 + 0.12);
-}
-
-/**
- * 细胞被吞噬/变色：短促「噗」碎裂感
- * @param {{ x?: number, width?: number }} [opts]
- */
-export function playDie(opts = {}) {
-  if (sfxGain() <= 0) return;
-  const ctx = getPlayableAudioCtx();
-  if (!ctx) return;
-  const nowMs = performance.now();
-  if (nowMs - lastSynthAt.die < DIE_GAP_MS) return;
-  lastSynthAt.die = nowMs;
-
-  const t0 = ctx.currentTime;
-  const pan = panFromX(opts.x ?? GAME_WIDTH * 0.5, opts.width);
-  const pitch = 1 + (Math.random() - 0.5) * 0.2;
-
-  // 下降音
-  const osc = ctx.createOscillator();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(340 * pitch, t0);
-  osc.frequency.exponentialRampToValueAtTime(55 * pitch, t0 + 0.14);
-  const filt = ctx.createBiquadFilter();
-  filt.type = "lowpass";
-  filt.frequency.setValueAtTime(1400, t0);
-  filt.frequency.exponentialRampToValueAtTime(220, t0 + 0.14);
-  const og = ctx.createGain();
-  og.gain.setValueAtTime(0.0001, t0);
-  og.gain.exponentialRampToValueAtTime(0.55, t0 + 0.01);
-  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
-  osc.connect(filt);
-  filt.connect(og);
-  connectOut(ctx, og, pan, t0);
-  osc.start(t0);
-  osc.stop(t0 + 0.18);
-
-  // 碎裂噪声
-  const noise = ctx.createBufferSource();
-  noise.buffer = getNoiseBuffer(ctx);
-  const bp = ctx.createBiquadFilter();
-  bp.type = "bandpass";
-  bp.frequency.setValueAtTime(1100 * pitch, t0);
-  bp.Q.setValueAtTime(0.7, t0);
-  const ng = ctx.createGain();
-  ng.gain.setValueAtTime(0.0001, t0);
-  ng.gain.exponentialRampToValueAtTime(0.5, t0 + 0.006);
-  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.11);
-  noise.connect(bp);
-  bp.connect(ng);
-  connectOut(ctx, ng, pan, t0);
-  noise.start(t0);
-  noise.stop(t0 + 0.13);
 }
 
 /** @type {Record<string, { f0: number, f1: number, dur: number, vol: number, type: OscillatorType }>} */
