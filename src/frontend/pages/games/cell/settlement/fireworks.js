@@ -75,6 +75,8 @@ export function startWinFireworks(canvas, { width, height }) {
     return { cx, cy };
   }
 
+  let fireworkSoundPlayed = false;
+
   function spawnRocket() {
     const { cx, cy } = burstOrigin();
     const x = cx + (Math.random() - 0.5) * 24;
@@ -94,7 +96,11 @@ export function startWinFireworks(canvas, { width, height }) {
       2,
       "rocket",
     );
-    playFirework({ x, width });
+    // 素材约 6s，整场烟花只播一次，避免 5 发火箭叠音
+    if (!fireworkSoundPlayed) {
+      fireworkSoundPlayed = true;
+      playFirework({ x, width });
+    }
   }
 
   /**
