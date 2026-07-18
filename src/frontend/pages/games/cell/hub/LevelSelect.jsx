@@ -3,9 +3,9 @@ import {
   LEVELS,
   CHAPTERS,
   LEVELS_PER_CHAPTER,
+  TOTAL_CHAPTERS,
   chapterIndexFromLevelIndex,
 } from "../levels";
-import { COLOR_PLAYER, COLOR_ENEMY, COLOR_NEUTRAL } from "../constants";
 import { uiSfx } from "../audio";
 import bg1 from "../backgrounds/level-1.webp";
 import bg2 from "../backgrounds/level-2.webp";
@@ -22,8 +22,15 @@ const CHAPTER_BGS = {
   "level-5": bg5,
 };
 
+const CHAPTER_TAGLINES = [
+  "从一枚细胞开始，学会占领与集火。",
+  "母巢在膨胀——分兵合流，才能撕开防线。",
+  "星群无主，手慢一步就丢掉整片战场。",
+  "远距衰减致命，跳板才是真正的射程。",
+  "切断补给，母巢再大也只是空壳。",
+];
+
 /**
- * 从 "第一章 · 第1关：初识" 抽出短标题。
  * @param {string} name
  */
 function shortTitle(name) {
@@ -31,15 +38,20 @@ function shortTitle(name) {
   return m ? m[1] : name;
 }
 
-/** 与游戏内阵营色一致（CSS） */
-const HEX = {
-  player: `#${COLOR_PLAYER.toString(16).padStart(6, "0")}`,
-  enemy: `#${COLOR_ENEMY.toString(16).padStart(6, "0")}`,
-  neutral: `#${COLOR_NEUTRAL.toString(16).padStart(6, "0")}`,
-};
+/**
+ * @param {{ unlocked: boolean, done: boolean, isBoss: boolean, isRec: boolean, neverPlayed: boolean }} s
+ */
+function ctaLabel(s) {
+  if (!s.unlocked) return "尚未解锁";
+  if (s.done) return s.isBoss ? "再战 Boss" : "再战一局";
+  if (s.isBoss) return "挑战 Boss";
+  if (s.neverPlayed) return "开始第一关";
+  if (s.isRec) return "继续前进";
+  return "进入关卡";
+}
 
 /**
- * 关卡选择：5 章 × 5 关
+ * 选关大厅 — 全新布局：左章节轨 · 右关卡网格 · 底出击条
  * @param {{
  *   maxUnlocked: number,
  *   cleared: Set<number>,
@@ -55,241 +67,353 @@ export default function LevelSelect({
   onEnterLevel,
   tools,
 }) {
-  const unlockedCount = maxUnlocked + 1;
+  const unlockedCount = Math.min(maxUnlocked + 1, LEVELS.length);
   const clearedCount = cleared.size;
+  const progressPct = Math.round((clearedCount / LEVELS.length) * 100);
+  const neverPlayed = clearedCount === 0;
 
-  const initialChapter = chapterIndexFromLevelIndex(recommendedIndex);
-  const [activeChapter, setActiveChapter] = useState(initialChapter);
+  const [activeChapter, setActiveChapter] = useState(
+    chapterIndexFromLevelIndex(recommendedIndex),
+  );
+  const [selectedIndex, setSelectedIndex] = useState(recommendedIndex);
+  const [bgTick, setBgTick] = useState(0);
 
   useEffect(() => {
     setActiveChapter(chapterIndexFromLevelIndex(recommendedIndex));
+    setSelectedIndex(recommendedIndex);
   }, [recommendedIndex]);
 
   const chapter = CHAPTERS[activeChapter] ?? CHAPTERS[0];
   const hubBg = CHAPTER_BGS[chapter.background] ?? bg1;
+  const tagline = CHAPTER_TAGLINES[activeChapter] ?? chapter.description;
 
   const chapterLevels = useMemo(() => {
     const start = activeChapter * LEVELS_PER_CHAPTER;
     return LEVELS.slice(start, start + LEVELS_PER_CHAPTER).map((lvl, i) => ({
       lvl,
       index: start + i,
+      stage: i + 1,
     }));
   }, [activeChapter]);
 
-  /** 某章是否至少解锁了第 1 关 */
+  const chapterStats = useMemo(() => {
+    const start = activeChapter * LEVELS_PER_CHAPTER;
+    let done = 0;
+    for (let i = 0; i < LEVELS_PER_CHAPTER; i++) {
+      if (cleared.has(start + i)) done += 1;
+    }
+    return { done, total: LEVELS_PER_CHAPTER, pct: Math.round((done / LEVELS_PER_CHAPTER) * 100) };
+  }, [activeChapter, cleared]);
+
   function isChapterReachable(chapterIdx) {
-    const first = chapterIdx * LEVELS_PER_CHAPTER;
-    return first <= maxUnlocked;
+    return chapterIdx * LEVELS_PER_CHAPTER <= maxUnlocked;
   }
 
+  function selectChapter(idx) {
+    if (!isChapterReachable(idx)) return;
+    setActiveChapter(idx);
+    setBgTick((t) => t + 1);
+    const start = idx * LEVELS_PER_CHAPTER;
+    const end = start + LEVELS_PER_CHAPTER - 1;
+    if (recommendedIndex >= start && recommendedIndex <= end) {
+      setSelectedIndex(recommendedIndex);
+    } else {
+      setSelectedIndex(Math.min(Math.max(start, 0), Math.min(maxUnlocked, end)));
+    }
+  }
+
+  function enterLevel(index) {
+    if (index < 0 || index > maxUnlocked || index >= LEVELS.length) return;
+    setActiveChapter(chapterIndexFromLevelIndex(index));
+    onEnterLevel(index);
+  }
+
+  const focus = LEVELS[selectedIndex] ?? LEVELS[0];
+  const focusUnlocked = selectedIndex <= maxUnlocked;
+  const focusDone = cleared.has(selectedIndex);
+  const focusBoss = Boolean(focus?.isBoss);
+  const focusRec = selectedIndex === recommendedIndex;
+  const focusStage = (selectedIndex % LEVELS_PER_CHAPTER) + 1;
+  const focusCh = CHAPTERS[chapterIndexFromLevelIndex(selectedIndex)];
+
   return (
-    <div className="cell-hub">
+    <div className="chub">
       <div
-        className="cell-hub__bg"
+        key={bgTick}
+        className="chub__bg"
         style={{ backgroundImage: `url(${hubBg})` }}
         aria-hidden
       />
-      <div className="cell-hub__vignette" aria-hidden />
-      <div className="cell-hub__cells-deco" aria-hidden>
-        <span className="cell-hub__orb cell-hub__orb--p" style={{ "--c": HEX.player }} />
-        <span className="cell-hub__orb cell-hub__orb--n" style={{ "--c": HEX.neutral }} />
-        <span className="cell-hub__orb cell-hub__orb--e" style={{ "--c": HEX.enemy }} />
-      </div>
+      <div className="chub__shade" aria-hidden />
+      <div className="chub__grid-fx" aria-hidden />
 
-      <div className="cell-hub__ui">
-        <header className="cell-hub__top">
-          <div className="cell-hub__brand">
-            <span className="cell-hub__brand-icon" aria-hidden>
-              🦠
+      <div className="chub__shell">
+        {/* —— 顶栏 —— */}
+        <header className="chub__bar">
+          <div className="chub__brand">
+            <span className="chub__brand-kicker">
+              CELL · {TOTAL_CHAPTERS} CHAPTERS · {LEVELS.length} LEVELS
             </span>
-            <div>
-              <p className="cell-hub__eyebrow">CELL DIVISION · 5 CHAPTERS · 25 LEVELS</p>
-              <h2 className="cell-hub__title">选择关卡</h2>
+            <h1 className="chub__brand-title">细胞分裂战</h1>
+          </div>
+
+          <div className="chub__progress" title={`完成度 ${progressPct}%`}>
+            <div className="chub__progress-meta">
+              <span>
+                通关 <strong>{clearedCount}</strong>
+              </span>
+              <span className="chub__progress-sep" />
+              <span>
+                解锁 <strong>{unlockedCount}</strong>
+                <em>/{LEVELS.length}</em>
+              </span>
+              <span className="chub__progress-sep" />
+              <span className="chub__progress-pct">{progressPct}%</span>
+            </div>
+            <div className="chub__progress-track" aria-hidden>
+              <div
+                className="chub__progress-fill"
+                style={{ width: `${progressPct}%` }}
+              />
             </div>
           </div>
-          <div className="cell-hub__top-right">
-            <div className="cell-hub__stats">
-              <div className="cell-hub__stat">
-                <span className="cell-hub__stat-val">
-                  {unlockedCount}/{LEVELS.length}
-                </span>
-                <span className="cell-hub__stat-lab">已解锁</span>
-              </div>
-              <div className="cell-hub__stat-divider" />
-              <div className="cell-hub__stat">
-                <span className="cell-hub__stat-val">{clearedCount}</span>
-                <span className="cell-hub__stat-lab">已通关</span>
-              </div>
-            </div>
-            {tools ? <div className="cell-hub__tools">{tools}</div> : null}
-          </div>
+
+          {tools ? <div className="chub__tools">{tools}</div> : null}
         </header>
 
-        <nav className="cell-hub__chapters" aria-label="章节">
-          {CHAPTERS.map((ch, idx) => {
-            const reachable = isChapterReachable(idx);
-            const start = idx * LEVELS_PER_CHAPTER;
-            const chapterCleared = Array.from({ length: LEVELS_PER_CHAPTER }, (_, i) =>
-              cleared.has(start + i),
-            ).every(Boolean);
-            const active = idx === activeChapter;
-            return (
-              <button
-                key={ch.id}
-                type="button"
-                className={[
-                  "cell-hub__chapter",
-                  active ? "cell-hub__chapter--active" : "",
-                  !reachable ? "cell-hub__chapter--locked" : "",
-                  chapterCleared ? "cell-hub__chapter--done" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                disabled={!reachable}
-                {...uiSfx("confirm", () => {
-                  if (!reachable) return;
-                  setActiveChapter(idx);
-                })}
-                title={reachable ? ch.description : "通关前一章后解锁"}
-              >
-                <span className="cell-hub__chapter-idx">{ch.title}</span>
-                <span className="cell-hub__chapter-name">{ch.name}</span>
-                {!reachable && (
-                  <span className="cell-hub__chapter-lock" aria-hidden>
-                    🔒
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="cell-hub__chapter-banner">
-          <span className="cell-hub__chapter-banner-title">
-            {chapter.title} · {chapter.name}
-          </span>
-          <span className="cell-hub__chapter-banner-desc">{chapter.description}</span>
-        </div>
-
-        <div className="cell-hub__map" role="list">
-          {chapterLevels.map(({ lvl, index }, slot) => {
-            const unlocked = index <= maxUnlocked;
-            const done = cleared.has(index);
-            const recommended = unlocked && index === recommendedIndex;
-            const nodeClass = [
-              "cell-hub__node",
-              unlocked ? "cell-hub__node--open" : "cell-hub__node--locked",
-              done ? "cell-hub__node--cleared" : "",
-              recommended ? "cell-hub__node--rec" : "",
-            ]
-              .filter(Boolean)
-              .join(" ");
-
-            return (
-              <div key={lvl.id} className="cell-hub__slot" role="listitem">
-                {slot > 0 && (
-                  <div
-                    className={
-                      index <= maxUnlocked
-                        ? "cell-hub__link cell-hub__link--on"
-                        : "cell-hub__link"
-                    }
-                    aria-hidden
-                  />
-                )}
+        {/* —— 主体：左章节 + 右内容 —— */}
+        <div className="chub__body">
+          <nav className="chub__rail" aria-label="章节">
+            {CHAPTERS.map((ch, idx) => {
+              const reachable = isChapterReachable(idx);
+              const start = idx * LEVELS_PER_CHAPTER;
+              let done = 0;
+              for (let i = 0; i < LEVELS_PER_CHAPTER; i++) {
+                if (cleared.has(start + i)) done += 1;
+              }
+              const allDone = done === LEVELS_PER_CHAPTER;
+              const active = idx === activeChapter;
+              return (
                 <button
+                  key={ch.id}
                   type="button"
-                  className={nodeClass}
-                  disabled={!unlocked}
-                  {...uiSfx("confirm", () => {
-                    if (!unlocked) return;
-                    onEnterLevel(index);
-                  })}
-                  title={unlocked ? lvl.description : "通关前一关后解锁"}
+                  className={[
+                    "chub__rail-item",
+                    active ? "chub__rail-item--on" : "",
+                    !reachable ? "chub__rail-item--lock" : "",
+                    allDone ? "chub__rail-item--done" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  disabled={!reachable}
+                  {...uiSfx("confirm", () => selectChapter(idx))}
+                  title={
+                    reachable
+                      ? `${ch.description}（${done}/${LEVELS_PER_CHAPTER}）`
+                      : "通关上一章节后解锁"
+                  }
                 >
-                  <span className="cell-hub__node-ring" aria-hidden />
-                  <span className="cell-hub__node-core">
-                    <span className="cell-hub__node-num">{index + 1}</span>
-                    {!unlocked && (
-                      <span className="cell-hub__node-lock" aria-hidden>
-                        🔒
-                      </span>
-                    )}
-                    {done && (
-                      <span className="cell-hub__node-check" aria-hidden>
-                        ✓
-                      </span>
-                    )}
+                  <span className="chub__rail-no">
+                    {String(idx + 1).padStart(2, "0")}
                   </span>
-                  {recommended && (
-                    <span className="cell-hub__node-pulse" aria-hidden />
+                  <span className="chub__rail-text">
+                    <span className="chub__rail-title">{ch.title}</span>
+                    <span className="chub__rail-name">{ch.name}</span>
+                  </span>
+                  {!reachable ? (
+                    <span className="chub__rail-mark" aria-hidden>
+                      🔒
+                    </span>
+                  ) : allDone ? (
+                    <span className="chub__rail-mark chub__rail-mark--ok" aria-hidden>
+                      ✓
+                    </span>
+                  ) : (
+                    <span className="chub__rail-mini">
+                      {done}/{LEVELS_PER_CHAPTER}
+                    </span>
                   )}
                 </button>
-                <div className="cell-hub__node-meta">
-                  <span className="cell-hub__node-name">{shortTitle(lvl.name)}</span>
-                  <span
-                    className={
-                      done
-                        ? "cell-hub__node-state cell-hub__node-state--done"
-                        : recommended
-                          ? "cell-hub__node-state cell-hub__node-state--rec"
-                          : unlocked
-                            ? "cell-hub__node-state"
-                            : "cell-hub__node-state cell-hub__node-state--lock"
-                    }
-                  >
-                    {done ? "已通关" : recommended ? "推荐" : unlocked ? "可进入" : "锁定"}
-                  </span>
+              );
+            })}
+          </nav>
+
+          <section className="chub__main" aria-label={`${chapter.title}关卡`}>
+            <div className="chub__chapter-head">
+              <div>
+                <p className="chub__chapter-kicker">
+                  CHAPTER {String(activeChapter + 1).padStart(2, "0")}
+                </p>
+                <h2 className="chub__chapter-title">
+                  {chapter.title}
+                  <span className="chub__chapter-name">{chapter.name}</span>
+                </h2>
+                <p className="chub__chapter-tag">{tagline}</p>
+              </div>
+              <div className="chub__chapter-stat">
+                <span className="chub__chapter-stat-val">
+                  {chapterStats.done}
+                  <small>/{chapterStats.total}</small>
+                </span>
+                <span className="chub__chapter-stat-lab">本章节通关</span>
+                <div className="chub__chapter-stat-bar" aria-hidden>
+                  <i style={{ width: `${chapterStats.pct}%` }} />
                 </div>
               </div>
-            );
-          })}
+            </div>
+
+            <div className="chub__levels" role="list">
+              {chapterLevels.map(({ lvl, index, stage }) => {
+                const unlocked = index <= maxUnlocked;
+                const done = cleared.has(index);
+                const isBoss = Boolean(lvl.isBoss);
+                const isRec = unlocked && index === recommendedIndex;
+                const isSel = index === selectedIndex;
+
+                return (
+                  <button
+                    key={lvl.id}
+                    type="button"
+                    role="listitem"
+                    className={[
+                      "chub__lv",
+                      unlocked ? "chub__lv--open" : "chub__lv--lock",
+                      done ? "chub__lv--done" : "",
+                      isBoss ? "chub__lv--boss" : "",
+                      isRec ? "chub__lv--next" : "",
+                      isSel ? "chub__lv--sel" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    disabled={!unlocked}
+                    aria-pressed={isSel}
+                    aria-label={`${shortTitle(lvl.name)}${isBoss ? " Boss" : ""}`}
+                    {...uiSfx("confirm", () => {
+                      if (!unlocked) return;
+                      if (isSel) enterLevel(index);
+                      else setSelectedIndex(index);
+                    })}
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      if (unlocked) enterLevel(index);
+                    }}
+                  >
+                    {isBoss && (
+                      <span className="chub__lv-skull-bg" title="Boss 关" aria-hidden>
+                        ☠
+                      </span>
+                    )}
+                    <span className="chub__lv-top">
+                      <span className="chub__lv-stage">
+                        {String(stage).padStart(2, "0")}
+                      </span>
+                      {done && (
+                        <span className="chub__lv-check" aria-hidden>
+                          ✓
+                        </span>
+                      )}
+                      {!unlocked && (
+                        <span className="chub__lv-lock" aria-hidden>
+                          🔒
+                        </span>
+                      )}
+                    </span>
+                    <span className="chub__lv-name">
+                      {isBoss && (
+                        <span className="chub__lv-warn" aria-hidden>
+                          ⚠
+                        </span>
+                      )}
+                      {shortTitle(lvl.name)}
+                    </span>
+                    <span className="chub__lv-flag">
+                      {done
+                        ? "已通关"
+                        : !unlocked
+                          ? "锁定"
+                          : isRec
+                            ? "下一步"
+                            : isBoss
+                              ? "Boss 战"
+                              : isSel
+                                ? "已选中"
+                                : "可挑战"}
+                    </span>
+                    {isRec && !done && <span className="chub__lv-glow" aria-hidden />}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
-        <div className="cell-hub__detail">
-          {(() => {
-            const focus = LEVELS[recommendedIndex] ?? LEVELS[0];
-            const unlocked = recommendedIndex <= maxUnlocked;
-            const focusCh = CHAPTERS[chapterIndexFromLevelIndex(recommendedIndex)];
-            return (
-              <>
-                <div className="cell-hub__detail-text">
-                  <p className="cell-hub__detail-label">
-                    当前目标
-                    {focusCh ? ` · ${focusCh.title}` : ""}
-                  </p>
-                  <p className="cell-hub__detail-name">{focus.name}</p>
-                  <p className="cell-hub__detail-desc">
-                    {unlocked
-                      ? focus.description
-                      : "完成前一关以解锁此区域。"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="cell-hub__play"
-                  disabled={!unlocked}
-                  {...uiSfx("confirm", () => {
-                    if (!unlocked) return;
-                    // 切到推荐关所在章再进入
-                    setActiveChapter(chapterIndexFromLevelIndex(recommendedIndex));
-                    onEnterLevel(recommendedIndex);
-                  })}
-                >
-                  {cleared.has(recommendedIndex) ? "再次出击" : "开始出击"}
-                </button>
-              </>
-            );
-          })()}
-        </div>
+        {/* —— 底栏出击 —— */}
+        <footer
+          className={[
+            "chub__dock",
+            focusBoss ? "chub__dock--boss" : "",
+            !focusUnlocked ? "chub__dock--lock" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <div className="chub__dock-info">
+            <p className="chub__dock-label">
+              {focusRec ? "推荐出击" : "关卡情报"}
+              {focusCh ? ` · ${focusCh.title}` : ""}
+              <span>
+                章节内 {focusStage}/{LEVELS_PER_CHAPTER}
+              </span>
+            </p>
+            <p className="chub__dock-title">
+              {focus?.name ?? "—"}
+              {focusBoss && <em className="chub__tag chub__tag--boss">Boss</em>}
+              {focusDone && <em className="chub__tag chub__tag--done">已通关</em>}
+              {focus?.tutorial && <em className="chub__tag chub__tag--tut">教程</em>}
+            </p>
+            <p className="chub__dock-desc">
+              {focusUnlocked
+                ? focus?.description
+                : "打通前一关后，这里才会向你开放。"}
+            </p>
+          </div>
 
-        <p className="cell-hub__ops">
-          <span style={{ color: HEX.player }}>● 己方</span>
-          <span style={{ color: HEX.enemy }}>● 敌方</span>
-          <span style={{ color: HEX.neutral }}>● 中立</span>
-          <span className="cell-hub__ops-sep" />
-          拖拽连线发射 · 滑动切断射流 · 肃清全部敌方细胞
-        </p>
+          <div className="chub__dock-actions">
+            {selectedIndex !== recommendedIndex && (
+              <button
+                type="button"
+                className="chub__btn-ghost"
+                {...uiSfx("confirm", () => {
+                  setSelectedIndex(recommendedIndex);
+                  setActiveChapter(chapterIndexFromLevelIndex(recommendedIndex));
+                })}
+              >
+                回到下一步
+              </button>
+            )}
+            <button
+              type="button"
+              className={[
+                "chub__btn-play",
+                focusBoss && focusUnlocked ? "chub__btn-play--boss" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              disabled={!focusUnlocked}
+              {...uiSfx("confirm", () => {
+                if (focusUnlocked) enterLevel(selectedIndex);
+              })}
+            >
+              {ctaLabel({
+                unlocked: focusUnlocked,
+                done: focusDone,
+                isBoss: focusBoss,
+                isRec: focusRec,
+                neverPlayed,
+              })}
+            </button>
+          </div>
+        </footer>
       </div>
     </div>
   );
