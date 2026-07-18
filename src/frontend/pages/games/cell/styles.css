@@ -640,13 +640,6 @@ body.cell-fs-active {
   gap: 8px;
 }
 
-.cell-modal-content--debug {
-  border-color: rgba(255, 140, 66, 0.3);
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.6),
-    0 0 24px rgba(255, 140, 66, 0.12);
-}
-
 /* 设置模态框 Overlay（贴合 .cell-stage 540 高，勿用 88vh 以免顶栏被 overflow 裁切） */
 .cell-modal-overlay {
   position: absolute;
@@ -687,6 +680,69 @@ body.cell-fs-active {
   padding: 0;
   animation: cellModalScaleIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   box-sizing: border-box;
+}
+
+/* 调试面板：贴合舞台，宽高尽量铺满，内容紧凑一屏放下 */
+.cell-modal-overlay--debug {
+  padding: 8px;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.cell-modal-content--debug {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: 100%;
+  border-color: rgba(255, 140, 66, 0.3);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(255, 140, 66, 0.12);
+}
+
+.cell-modal-header--debug {
+  padding: 8px 10px 8px 14px;
+  border-bottom-color: rgba(255, 140, 66, 0.2);
+  background: linear-gradient(
+    180deg,
+    rgba(28, 20, 12, 0.98) 0%,
+    rgba(18, 14, 10, 0.98) 100%
+  );
+}
+
+.cell-debug-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cell-debug-toolbar__btn {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+  width: auto !important;
+  white-space: nowrap;
+}
+
+.cell-modal-body--debug {
+  gap: 8px;
+  padding: 10px 12px 10px;
+  overflow: hidden; /* 优先无内滚动；极端高度再兜底 */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 高度极矮时才允许滚动，避免正常 540 舞台出滚动条 */
+@media (max-height: 420px) {
+  .cell-modal-body--debug {
+    overflow-y: auto;
+  }
 }
 
 @keyframes cellModalScaleIn {
@@ -850,12 +906,46 @@ body.cell-fs-active {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.cell-audio-debug--compact {
+  gap: 8px;
+  height: 100%;
+}
+
+.cell-audio-debug__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.cell-audio-debug__row--hits {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.cell-audio-debug__row--probes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .cell-audio-debug__group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  min-height: 0;
+}
+
+.cell-audio-debug__group-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
 }
 
 .cell-audio-debug__group-title {
@@ -866,15 +956,29 @@ body.cell-fs-active {
   color: rgba(148, 163, 184, 0.75);
 }
 
+.cell-audio-debug__meta {
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.cell-audio-debug__tip {
+  color: rgba(148, 163, 184, 0.55);
+  font-weight: 500;
+}
+
 .cell-audio-debug__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 5px;
+}
+
+.cell-audio-debug--compact .cell-audio-debug__grid {
+  grid-template-columns: 1fr;
 }
 
 .cell-audio-debug__btn {
-  height: 30px;
-  border-radius: 7px;
+  height: 28px;
+  border-radius: 6px;
   border: 1px solid rgba(255, 179, 71, 0.28);
   background: rgba(255, 140, 66, 0.08);
   color: #ffd9a8;
@@ -911,32 +1015,41 @@ body.cell-fs-active {
 .cell-audio-debug__hint {
   margin: 0;
   font-size: 10px;
-  line-height: 1.35;
+  line-height: 1.3;
   color: rgba(255, 201, 138, 0.9);
-  min-height: 1.35em;
+  min-height: 1.2em;
+  flex-shrink: 0;
+}
+
+.cell-audio-debug__hint--idle {
+  color: rgba(148, 163, 184, 0.55);
 }
 
 .cell-audio-debug__current {
-  margin-left: 4px;
+  margin-left: 2px;
   color: #ffd9a8;
   font-weight: 700;
 }
 
-/* 命中变体试听 / 选用 */
+/* 命中变体：多列铺满，减少纵向占用 */
 .cell-hit-variants {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: start;
 }
 
 .cell-hit-variant {
   display: flex;
   align-items: stretch;
-  gap: 6px;
-  border-radius: 8px;
+  gap: 0;
+  border-radius: 7px;
   border: 1px solid rgba(255, 179, 71, 0.2);
   background: rgba(255, 140, 66, 0.05);
   overflow: hidden;
+  min-height: 0;
 }
 
 .cell-hit-variant.is-selected {
@@ -955,8 +1068,9 @@ body.cell-fs-active {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: 7px 10px;
+  justify-content: center;
+  gap: 1px;
+  padding: 6px 8px;
   border: none;
   background: transparent;
   color: #ffd9a8;
@@ -977,13 +1091,17 @@ body.cell-fs-active {
 
 .cell-hit-variant__desc {
   font-size: 9px;
-  line-height: 1.3;
+  line-height: 1.25;
   color: rgba(148, 163, 184, 0.9);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .cell-hit-variant__pick {
   flex-shrink: 0;
-  width: 52px;
+  width: 44px;
   border: none;
   border-left: 1px solid rgba(255, 179, 71, 0.2);
   background: rgba(255, 140, 66, 0.08);

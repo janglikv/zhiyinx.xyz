@@ -89,8 +89,9 @@ const GROUPS = ["媒体", "战斗", "UI", "BGM"];
 
 /**
  * 开发用：点击试听各类音效（仅 DEV 挂载）
+ * @param {{ compact?: boolean }} [props]
  */
-export default function AudioDebugPanel() {
+export default function AudioDebugPanel({ compact = false }) {
   const [lastId, setLastId] = useState(/** @type {string | null} */ (null));
   const [activeHit, setActiveHit] = useState(() => getHitVariant());
   const [hint, setHint] = useState("");
@@ -137,7 +138,7 @@ export default function AudioDebugPanel() {
       variant: variantId,
       force: true,
     });
-    setHint(`试听：${label}（再点「选用」可应用到对局）`);
+    setHint(`试听：${label}（「选用」写入对局）`);
   }
 
   async function handleHitSelect(variantId, label) {
@@ -155,85 +156,93 @@ export default function AudioDebugPanel() {
         force: true,
       });
     }
-    setHint(`已选用命中：${label}（对局即时生效，已保存）`);
+    setHint(`已选用：${label}`);
   }
 
-  return (
-    <div className="cell-audio-debug">
-      <p className="cell-modal-desc">
-        点击试听。命中有多套细胞打击感可选：点名称试听，点「选用」写入对局。
-      </p>
+  const currentLabel =
+    HIT_VARIANT_LIST.find((v) => v.id === activeHit)?.label ?? activeHit;
 
-      <div className="cell-audio-debug__group">
-        <div className="cell-audio-debug__group-title">命中变体（细胞打击）</div>
-        <p className="cell-modal-desc">
-          当前选用：
-          <strong className="cell-audio-debug__current">
-            {HIT_VARIANT_LIST.find((v) => v.id === activeHit)?.label ?? activeHit}
-          </strong>
-        </p>
-        <div className="cell-hit-variants" role="list">
-          {HIT_VARIANT_LIST.map((v) => {
-            const isSelected = activeHit === v.id;
-            const isLast = lastId === `hit-${v.id}`;
-            return (
-              <div
-                key={v.id}
-                className={`cell-hit-variant ${isSelected ? "is-selected" : ""} ${
-                  isLast ? "is-last" : ""
-                }`}
-                role="listitem"
-              >
-                <button
-                  type="button"
-                  className="cell-hit-variant__play"
-                  onClick={() => handleHitPreview(v.id, v.label)}
-                  title={v.desc}
+  return (
+    <div className={`cell-audio-debug ${compact ? "cell-audio-debug--compact" : ""}`}>
+      <div className="cell-audio-debug__row cell-audio-debug__row--hits">
+        <div className="cell-audio-debug__group">
+          <div className="cell-audio-debug__group-head">
+            <span className="cell-audio-debug__group-title">命中变体</span>
+            <span className="cell-audio-debug__meta">
+              当前 <strong className="cell-audio-debug__current">{currentLabel}</strong>
+              <span className="cell-audio-debug__tip"> · 点名试听 · 选用生效</span>
+            </span>
+          </div>
+          <div className="cell-hit-variants" role="list">
+            {HIT_VARIANT_LIST.map((v) => {
+              const isSelected = activeHit === v.id;
+              const isLast = lastId === `hit-${v.id}`;
+              return (
+                <div
+                  key={v.id}
+                  className={`cell-hit-variant ${isSelected ? "is-selected" : ""} ${
+                    isLast ? "is-last" : ""
+                  }`}
+                  role="listitem"
                 >
-                  <span className="cell-hit-variant__name">{v.label}</span>
-                  <span className="cell-hit-variant__desc">{v.desc}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`cell-hit-variant__pick ${isSelected ? "is-on" : ""}`}
-                  onClick={() => handleHitSelect(v.id, v.label)}
-                  aria-pressed={isSelected}
-                >
-                  {isSelected ? "已用" : "选用"}
-                </button>
-              </div>
-            );
-          })}
+                  <button
+                    type="button"
+                    className="cell-hit-variant__play"
+                    onClick={() => handleHitPreview(v.id, v.label)}
+                    title={v.desc}
+                  >
+                    <span className="cell-hit-variant__name">{v.label}</span>
+                    <span className="cell-hit-variant__desc">{v.desc}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`cell-hit-variant__pick ${isSelected ? "is-on" : ""}`}
+                    onClick={() => handleHitSelect(v.id, v.label)}
+                    aria-pressed={isSelected}
+                  >
+                    {isSelected ? "已用" : "选用"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {GROUPS.map((group) => {
-        const items = PROBES.filter((p) => p.group === group);
-        return (
-          <div key={group} className="cell-audio-debug__group">
-            <div className="cell-audio-debug__group-title">{group}</div>
-            <div className="cell-audio-debug__grid" role="group" aria-label={group}>
-              {items.map((probe) => (
-                <button
-                  key={probe.id}
-                  type="button"
-                  className={`cell-audio-debug__btn ${
-                    lastId === probe.id ? "is-active" : ""
-                  }`}
-                  onClick={() => handlePlay(probe)}
-                >
-                  {probe.label}
-                </button>
-              ))}
+      <div className="cell-audio-debug__row cell-audio-debug__row--probes">
+        {GROUPS.map((group) => {
+          const items = PROBES.filter((p) => p.group === group);
+          return (
+            <div key={group} className="cell-audio-debug__group">
+              <div className="cell-audio-debug__group-title">{group}</div>
+              <div className="cell-audio-debug__grid" role="group" aria-label={group}>
+                {items.map((probe) => (
+                  <button
+                    key={probe.id}
+                    type="button"
+                    className={`cell-audio-debug__btn ${
+                      lastId === probe.id ? "is-active" : ""
+                    }`}
+                    onClick={() => handlePlay(probe)}
+                  >
+                    {probe.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
       {hint ? (
         <p className="cell-audio-debug__hint" role="status">
           {hint}
         </p>
-      ) : null}
+      ) : (
+        <p className="cell-audio-debug__hint cell-audio-debug__hint--idle" role="status">
+          仅本地 DEV · 点击试听
+        </p>
+      )}
     </div>
   );
 }
