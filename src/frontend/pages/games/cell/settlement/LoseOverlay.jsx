@@ -1,4 +1,4 @@
-import { playUi, onUiHover } from "../audio";
+import { uiSfx } from "../audio";
 
 /**
  * 失败遮罩
@@ -50,11 +50,7 @@ export default function LoseOverlay({ onRestart, onBackToHub }) {
         <button
           type="button"
           className="btn btn-primary"
-          onMouseEnter={onUiHover}
-          onClick={() => {
-            playUi("confirm");
-            onRestart?.();
-          }}
+          {...uiSfx("confirm", () => onRestart?.())}
           style={{
             padding: "12px 28px",
             borderRadius: "14px",
@@ -69,11 +65,7 @@ export default function LoseOverlay({ onRestart, onBackToHub }) {
           <button
             type="button"
             className="btn btn-ghost"
-            onMouseEnter={onUiHover}
-            onClick={() => {
-              playUi("back");
-              onBackToHub();
-            }}
+            {...uiSfx("back", onBackToHub)}
             style={{
               padding: "12px 22px",
               borderRadius: "14px",

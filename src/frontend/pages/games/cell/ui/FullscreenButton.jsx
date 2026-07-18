@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { playUi, onUiHover } from "../audio";
+import { uiSfx } from "../audio";
 
 const IMMERSIVE_CLASS = "cell-stage--immersive";
 const BODY_CLASS = "cell-fs-active";
@@ -137,7 +137,6 @@ export default function FullscreenButton({ targetRef }) {
   }, [sync, targetRef]);
 
   async function handleClick() {
-    playUi("tap");
     const el = targetRef.current;
     if (!el) return;
 
@@ -172,8 +171,7 @@ export default function FullscreenButton({ targetRef }) {
     <button
       type="button"
       className={`cell-fs-btn${active ? " cell-fs-btn--on" : ""}`}
-      onMouseEnter={onUiHover}
-      onClick={handleClick}
+      {...uiSfx("tap", handleClick)}
       title={active ? "退出全屏" : "全屏游戏"}
       aria-label={active ? "退出全屏" : "全屏游戏"}
       aria-pressed={active}

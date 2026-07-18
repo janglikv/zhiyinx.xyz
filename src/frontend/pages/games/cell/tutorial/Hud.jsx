@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { playUi, onUiHover } from "../audio";
+import { uiSfx } from "../audio";
 import { TUTORIAL_COPY } from "./phases";
 
 /**
@@ -58,6 +58,7 @@ export default function TutorialHud({ phase, onSkip }) {
   if (!copy || anim === "hidden") return null;
 
   const done = displayPhase === "done";
+  const skipSfx = uiSfx("tap", () => onSkip?.());
   const motion =
     anim === "in"
       ? "tutorialBounceIn 1.05s cubic-bezier(0.22, 1, 0.36, 1) both"
@@ -228,9 +229,17 @@ export default function TutorialHud({ phase, onSkip }) {
           {!done && (
             <button
               type="button"
-              onClick={() => {
-                playUi("tap");
-                onSkip?.();
+              onClick={skipSfx.onClick}
+              onMouseEnter={(e) => {
+                skipSfx.onMouseEnter(e);
+                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                e.currentTarget.style.color = "rgba(230, 240, 230, 0.92)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                e.currentTarget.style.color = "rgba(200, 210, 200, 0.72)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
               }}
               style={{
                 flexShrink: 0,
@@ -245,17 +254,6 @@ export default function TutorialHud({ phase, onSkip }) {
                 borderRadius: "10px",
                 transition:
                   "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
-              }}
-              onMouseEnter={(e) => {
-                onUiHover(e);
-                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                e.currentTarget.style.color = "rgba(230, 240, 230, 0.92)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                e.currentTarget.style.color = "rgba(200, 210, 200, 0.72)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
               }}
             >
               跳过

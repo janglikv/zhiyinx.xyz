@@ -1,4 +1,3 @@
-import { sound, filters } from "@pixi/sound";
 import { COLOR_PLAYER, GAME_WIDTH } from "./constants";
 import bulletSoundUrl from "./assets/shoot.mp3";
 import fireworkSoundUrl from "./assets/firework.mp3";
@@ -12,15 +11,40 @@ const lastShotAt = {
   enemy: -Infinity,
 };
 const BGM_VOLUME = 0.35;
-const CELL_SOUND_ALIASES = ["bullet", "firework", "bgm", "bgm-hub", "bgm-play"];
+const CELL_SOUND_ALIASES = ["bullet", "firework"];
+const LEGACY_PIXI_ALIASES = ["bgm", "bgm-hub", "bgm-play"];
 
-// 提前加载资源，减少首次播放时的等待。
-// Vite 热更新会保留 sound 全局单例，先销毁旧注册，避免遗留音轨叠加。
-CELL_SOUND_ALIASES.forEach((alias) => {
-  if (sound.exists(alias)) sound.remove(alias);
-});
-sound.add("bullet", { url: bulletSoundUrl, preload: true });
-sound.add("firework", { url: fireworkSoundUrl, preload: true });
+// ---------------------------------------------------------------------------
+// @pixi/sound：禁止顶层 import。
+// 其 WebAudioContext 构造时会立刻 resume()，无用户手势时 Chrome 刷警告：
+// "The AudioContext was not allowed to start..."
+// 改为在 unlockCellAudio（点击手势）里动态 import 并注册。
+// ---------------------------------------------------------------------------
+
+/** @type {import("@pixi/sound").SoundLibrary | null} */
+let pixiSound = null;
+/** @type {typeof import("@pixi/sound").filters.StereoFilter | null} */
+let StereoFilterCtor = null;
+/** @type {Promise<import("@pixi/sound").SoundLibrary> | null} */
+let pixiInitPromise = null;
+
+function initPixiSound() {
+  if (pixiInitPromise) return pixiInitPromise;
+  pixiInitPromise = import("@pixi/sound").then(({ sound, filters }) => {
+    pixiSound = sound;
+    StereoFilterCtor = filters.StereoFilter;
+    // Vite HMR / 重复 init：清旧 alias 再注册
+    [...CELL_SOUND_ALIASES, ...LEGACY_PIXI_ALIASES].forEach((alias) => {
+      if (sound.exists(alias)) sound.remove(alias);
+    });
+    sound.add("bullet", { url: bulletSoundUrl, preload: true });
+    sound.add("firework", { url: fireworkSoundUrl, preload: true });
+    sound.disableAutoPause = true;
+    sound.resumeAll();
+    return sound;
+  });
+  return pixiInitPromise;
+}
 
 // ---------------------------------------------------------------------------
 // 场景 BGM：不用 @pixi/sound（其 WebAudio 实例在 stop 后仍可能孤儿播放）。
@@ -45,9 +69,6 @@ const bgmAudio = {
   hub: createBgmAudio(bgmUrl),
   play: createBgmAudio(gameBgmUrl),
 };
-
-// 射击等 SFX 仍走 pixi；失焦不自动停
-sound.disableAutoPause = true;
 
 /** @type {"hub" | "play" | null} */
 let activeBgmScene = null;
@@ -92,21 +113,6 @@ export function setBgmScene(scene) {
   }
 }
 
-/** @deprecated 兼容旧名 */
-export function playBgm(scene = "hub") {
-  setBgmScene(scene);
-}
-
-/** @deprecated 转场不再淡出 BGM */
-export function fadeOutBgm() {
-  /* no-op */
-}
-
-/** @deprecated 等同 setBgmScene */
-export function restartBgm(scene) {
-  setBgmScene(scene);
-}
-
 /** 离开页面时停 BGM */
 export function stopBgm() {
   stopAllBgm();
@@ -115,10 +121,15 @@ export function stopBgm() {
 
 /**
  * 浏览器要求音频必须在玩家手势中解锁。
+ * 须在 click/touch 回调同步路径内调用，才能合法 resume AudioContext。
  */
 export function unlockCellAudio() {
-  sound.resumeAll();
-  getAudioCtx();
+  // 仅在用户手势中加载 @pixi/sound，避免顶层构造 WebAudio 刷警告
+  void initPixiSound();
+  const ctx = getAudioCtx();
+  if (ctx && ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
   // 若已选定场景但被 autoplay 挡住，在手势里补一次 play
   if (activeBgmScene && bgmAudio[activeBgmScene]?.paused) {
     bgmAudio[activeBgmScene].play().catch(() => {});
@@ -130,7 +141,8 @@ export function unlockCellAudio() {
  * @param {{ x: number, color: number }} options
  */
 export function playBulletShot({ x, color }) {
-  const now = Date.now();
+  if (!pixiSound || !StereoFilterCtor) return;
+  const now = performance.now();
   const playerShot = color === COLOR_PLAYER;
   const channel = playerShot ? "player" : "enemy";
   const gap = playerShot ? PLAYER_SHOT_GAP_MS : ENEMY_SHOT_GAP_MS;
@@ -141,13 +153,13 @@ export function playBulletShot({ x, color }) {
   // 声道偏置定位 [-0.7, 0.7]
   const pan = Math.max(-0.7, Math.min(0.7, (x / GAME_WIDTH) * 1.4 - 0.7));
 
-  sound.play("bullet", {
+  pixiSound.play("bullet", {
     // 原素材只有约 0.11s～0.20s 有效，裁去前后静音以同步射击画面。
     start: 0.105,
     end: 0.23,
     volume: playerShot ? 1 : 0.72,
     speed: playerShot ? 1.08 : 0.82,
-    filters: [new filters.StereoFilter(pan)],
+    filters: [new StereoFilterCtor(pan)],
   });
 }
 
@@ -156,12 +168,13 @@ export function playBulletShot({ x, color }) {
  * @param {{ x: number, width: number }} options
  */
 export function playFirework({ x, width }) {
+  if (!pixiSound || !StereoFilterCtor) return;
   const pan = Math.max(-0.7, Math.min(0.7, (x / width) * 1.4 - 0.7));
 
-  sound.play("firework", {
+  pixiSound.play("firework", {
     volume: 0.65,
     start: 0,
-    filters: [new filters.StereoFilter(pan)],
+    filters: [new StereoFilterCtor(pan)],
   });
 }
 
@@ -185,15 +198,34 @@ const DIE_GAP_MS = 90;
 const UI_GAP_MS = 40;
 const UI_HOVER_GAP_MS = 55;
 
+/**
+ * 创建/获取 AudioContext。不在此处 resume：
+ * 无用户手势时 resume 会触发 Chrome autoplay 警告。
+ * 解锁请走 unlockCellAudio() 或 playUi 的点击路径。
+ */
 function getAudioCtx() {
   if (typeof window === "undefined") return null;
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
   if (!audioCtx) audioCtx = new AC();
-  if (audioCtx.state === "suspended") {
-    audioCtx.resume().catch(() => {});
-  }
   return audioCtx;
+}
+
+/**
+ * @param {{ resume?: boolean }} [opts] resume=true 仅在已知用户手势栈内使用
+ * @returns {AudioContext | null}
+ */
+function getPlayableAudioCtx(opts = {}) {
+  const ctx = getAudioCtx();
+  if (!ctx) return null;
+  if (ctx.state === "running") return ctx;
+  if (opts.resume && ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+    // resume 异步完成；手势栈内调度的节点通常仍可出声
+    return ctx;
+  }
+  // suspended 且无手势：静默跳过，避免控制台警告
+  return null;
 }
 
 /**
@@ -260,7 +292,7 @@ function getNoiseBuffer(ctx) {
  * @param {{ x?: number, width?: number, strength?: number }} [opts]
  */
 export function playHit(opts = {}) {
-  const ctx = getAudioCtx();
+  const ctx = getPlayableAudioCtx();
   if (!ctx) return;
   const nowMs = performance.now();
   if (nowMs - lastSynthAt.hit < HIT_GAP_MS) return;
@@ -308,7 +340,7 @@ export function playHit(opts = {}) {
  * @param {{ x?: number, width?: number, strength?: number }} [opts]
  */
 export function playHurt(opts = {}) {
-  const ctx = getAudioCtx();
+  const ctx = getPlayableAudioCtx();
   if (!ctx) return;
   const nowMs = performance.now();
   if (nowMs - lastSynthAt.hurt < HURT_GAP_MS) return;
@@ -353,7 +385,7 @@ export function playHurt(opts = {}) {
  * @param {{ x?: number, width?: number }} [opts]
  */
 export function playDie(opts = {}) {
-  const ctx = getAudioCtx();
+  const ctx = getPlayableAudioCtx();
   if (!ctx) return;
   const nowMs = performance.now();
   if (nowMs - lastSynthAt.die < DIE_GAP_MS) return;
@@ -400,12 +432,24 @@ export function playDie(opts = {}) {
   noise.stop(t0 + 0.13);
 }
 
+/** @type {Record<string, { f0: number, f1: number, dur: number, vol: number, type: OscillatorType }>} */
+const UI_PRESETS = {
+  hover: { f0: 920, f1: 1180, dur: 0.03, vol: 0.2, type: "sine" },
+  tap: { f0: 720, f1: 540, dur: 0.045, vol: 0.35, type: "sine" },
+  confirm: { f0: 520, f1: 780, dur: 0.07, vol: 0.42, type: "triangle" },
+  back: { f0: 480, f1: 320, dur: 0.06, vol: 0.32, type: "sine" },
+};
+
 /**
  * UI 反馈
  * @param {"hover" | "tap" | "confirm" | "back"} [kind]
  */
 export function playUi(kind = "tap") {
-  const ctx = getAudioCtx();
+  // hover 非用户激活手势，禁止 resume；点击可 resume
+  const ctx =
+    kind === "hover"
+      ? getPlayableAudioCtx()
+      : getPlayableAudioCtx({ resume: true });
   if (!ctx) return;
   const nowMs = performance.now();
   // hover 与点击分轨限流，避免滑过按钮后立刻点不响
@@ -418,14 +462,7 @@ export function playUi(kind = "tap") {
   }
 
   const t0 = ctx.currentTime;
-  /** @type {Record<string, { f0: number, f1: number, dur: number, vol: number, type: OscillatorType }>} */
-  const presets = {
-    hover: { f0: 920, f1: 1180, dur: 0.03, vol: 0.2, type: "sine" },
-    tap: { f0: 720, f1: 540, dur: 0.045, vol: 0.35, type: "sine" },
-    confirm: { f0: 520, f1: 780, dur: 0.07, vol: 0.42, type: "triangle" },
-    back: { f0: 480, f1: 320, dur: 0.06, vol: 0.32, type: "sine" },
-  };
-  const p = presets[kind] || presets.tap;
+  const p = UI_PRESETS[kind] || UI_PRESETS.tap;
   const pitch = 1 + (Math.random() - 0.5) * 0.04;
 
   const osc = ctx.createOscillator();
@@ -467,12 +504,37 @@ export function onUiHover(e) {
   playUi("hover");
 }
 
+/**
+ * 按钮音效 props：hover + 点击（禁用时静默）
+ * @param {"tap" | "confirm" | "back"} [clickKind]
+ * @param {(e?: MouseEvent) => void} [onClick]
+ * @returns {{ onMouseEnter: typeof onUiHover, onClick: (e: MouseEvent) => void }}
+ */
+export function uiSfx(clickKind = "tap", onClick) {
+  return {
+    onMouseEnter: onUiHover,
+    onClick: (e) => {
+      const el = e?.currentTarget;
+      if (el && "disabled" in el && el.disabled) return;
+      // 先解锁（含懒加载 pixi），再播点击音，保证首击也在手势栈内
+      unlockCellAudio();
+      playUi(clickKind);
+      onClick?.(e);
+    },
+  };
+}
+
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     stopBgm();
-    CELL_SOUND_ALIASES.forEach((alias) => {
-      if (sound.exists(alias)) sound.remove(alias);
-    });
+    if (pixiSound) {
+      CELL_SOUND_ALIASES.forEach((alias) => {
+        if (pixiSound.exists(alias)) pixiSound.remove(alias);
+      });
+    }
+    pixiSound = null;
+    StereoFilterCtor = null;
+    pixiInitPromise = null;
     if (audioCtx) {
       audioCtx.close().catch(() => {});
       audioCtx = null;

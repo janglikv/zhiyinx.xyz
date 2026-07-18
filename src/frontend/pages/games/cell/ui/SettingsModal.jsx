@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { playUi, onUiHover } from "../audio";
+import { playUi, onUiHover, uiSfx } from "../audio";
 
 /**
  * 游戏设置模态框
@@ -38,6 +38,7 @@ export default function SettingsModal({
 
   if (!active) return null;
 
+  // 二次确认：首次 tap、确认 confirm，无法用单一 uiSfx kind
   function handleResetClick() {
     if (confirmReset) {
       playUi("confirm");
@@ -47,20 +48,6 @@ export default function SettingsModal({
     } else {
       playUi("tap");
       setConfirmReset(true);
-    }
-  }
-
-  function handleUnlockAllClick() {
-    playUi("confirm");
-    onUnlockAll();
-    onClose();
-  }
-
-  function handleDebugWinClick() {
-    if (onDebugWin) {
-      playUi("confirm");
-      onDebugWin();
-      onClose();
     }
   }
 
@@ -87,11 +74,7 @@ export default function SettingsModal({
           <button
             type="button"
             className="cell-modal-close-btn"
-            onMouseEnter={onUiHover}
-            onClick={() => {
-              playUi("back");
-              onClose();
-            }}
+            {...uiSfx("back", onClose)}
             aria-label="关闭设置"
           >
             &times;
@@ -108,8 +91,10 @@ export default function SettingsModal({
               <button
                 type="button"
                 className="cell-btn cell-btn--primary"
-                onMouseEnter={onUiHover}
-                onClick={handleDebugWinClick}
+                {...uiSfx("confirm", () => {
+                  onDebugWin();
+                  onClose();
+                })}
               >
                 直接通关
               </button>
@@ -125,8 +110,10 @@ export default function SettingsModal({
               <button
                 type="button"
                 className="cell-btn cell-btn--outline"
-                onMouseEnter={onUiHover}
-                onClick={handleUnlockAllClick}
+                {...uiSfx("confirm", () => {
+                  onUnlockAll();
+                  onClose();
+                })}
               >
                 解锁全部关卡
               </button>

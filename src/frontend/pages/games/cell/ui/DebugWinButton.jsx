@@ -1,4 +1,4 @@
-import { playUi, onUiHover } from "../audio";
+import { uiSfx } from "../audio";
 
 /**
  * 关卡画布内叠加：通关调试
@@ -9,11 +9,7 @@ export default function DebugWinButton({ onClick }) {
     <button
       type="button"
       className="cell-tool-btn cell-tool-btn--debug"
-      onMouseEnter={onUiHover}
-      onClick={() => {
-        playUi("confirm");
-        onClick?.();
-      }}
+      {...uiSfx("confirm", () => onClick?.())}
       title="调试：触发通关"
       aria-label="通关调试"
     >
