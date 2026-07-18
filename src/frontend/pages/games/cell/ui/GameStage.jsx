@@ -18,7 +18,8 @@ function isStageExpanded(el) {
 /**
  * 游戏主画面外框：与网站 layout 明确分离的「游戏区域」。
  * 选关 / 对局共用同一逻辑画布尺寸（GAME_WIDTH × GAME_HEIGHT），
- * 在窄屏上整体等比缩小以完整显示；全屏/沉浸时按视口 contain 放大。
+ * 在窄屏上整体等比缩小以完整显示；全屏/沉浸时按实际视口 contain 放大。
+ * 显示缩放变化后，Pixi 会按实际 CSS 像素 × DPR 提高渲染 resolution（见 mount.js）。
  * @param {{
  *   children: import("react").ReactNode,
  *   label?: string,
@@ -50,8 +51,18 @@ export default function GameStage({ children, label = "游戏区域", stageRef }
     setExpanded(isExp);
 
     if (isExp) {
-      const vw = window.visualViewport?.width ?? window.innerWidth;
-      const vh = window.visualViewport?.height ?? window.innerHeight;
+      // 优先用全屏容器内容区（扣 safe-area padding），回退 visualViewport / inner*
+      let vw = window.visualViewport?.width ?? window.innerWidth;
+      let vh = window.visualViewport?.height ?? window.innerHeight;
+      if (stage && stage.clientWidth > 0 && stage.clientHeight > 0) {
+        const cs = getComputedStyle(stage);
+        const padX =
+          (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const padY =
+          (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+        vw = Math.max(1, stage.clientWidth - padX);
+        vh = Math.max(1, stage.clientHeight - padY);
+      }
       const s = Math.min(vw / GAME_WIDTH, vh / GAME_HEIGHT);
       setScale(Number.isFinite(s) && s > 0 ? s : 1);
       if (stage) {
@@ -106,6 +117,10 @@ export default function GameStage({ children, label = "游戏区域", stageRef }
 
   const frameW = expanded ? undefined : GAME_WIDTH * scale;
   const frameH = expanded ? undefined : GAME_HEIGHT * scale;
+  const displayW = Math.round(GAME_WIDTH * scale);
+  const displayH = Math.round(GAME_HEIGHT * scale);
+  const showDisplaySize =
+    Math.abs(displayW - GAME_WIDTH) > 1 || Math.abs(displayH - GAME_HEIGHT) > 1;
 
   return (
     <div
@@ -124,7 +139,8 @@ export default function GameStage({ children, label = "游戏区域", stageRef }
         <span className="cell-stage-label__text">{label}</span>
         <span className="cell-stage-label__size">
           {GAME_WIDTH}×{GAME_HEIGHT}
-          {scale < 0.999 ? ` · ${Math.round(scale * 100)}%` : ""}
+          {showDisplaySize ? ` → ${displayW}×${displayH}` : ""}
+          {expanded ? " · 全屏" : ""}
         </span>
       </div>
       <div

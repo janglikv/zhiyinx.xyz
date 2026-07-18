@@ -11,6 +11,25 @@ import { createInputSystem } from "./input";
 import { createAI } from "./ai";
 import { createTutorialController } from "./tutorial";
 
+/** 逻辑画布固定；渲染 resolution 随实际显示尺寸 × DPR 变化（全屏更清晰） */
+const MIN_RENDER_RESOLUTION = 0.75;
+const MAX_RENDER_RESOLUTION = 3;
+const RESOLUTION_EPS = 0.04;
+
+/**
+ * 按 canvas 宿主在屏幕上的真实 CSS 像素尺寸，计算 Pixi resolution。
+ * 全屏时 getBoundingClientRect 会反映放大后的显示尺寸，从而用上用户实际分辨率。
+ * @param {HTMLElement} container
+ */
+function computeDisplayResolution(container) {
+  const rect = container.getBoundingClientRect();
+  const cssW = rect.width || GAME_WIDTH;
+  const displayScale = cssW / GAME_WIDTH;
+  const dpr = window.devicePixelRatio || 1;
+  const raw = (Number.isFinite(displayScale) && displayScale > 0 ? displayScale : 1) * dpr;
+  return Math.min(Math.max(raw, MIN_RENDER_RESOLUTION), MAX_RENDER_RESOLUTION);
+}
+
 /**
  * 挂载 Pixi 场景：组装系统并固定 ticker 顺序。
  * @param {HTMLElement} container
@@ -34,20 +53,43 @@ export function mountCellGame(
   let destroyed = false;
   /** @type {ReturnType<typeof createTutorialController> | null} */
   let tutorial = null;
+  /** @type {ResizeObserver | null} */
+  let resizeObserver = null;
+  /** @type {(() => void) | null} */
+  let detachResize = null;
+
+  /**
+   * 同步渲染分辨率到当前实际显示尺寸（窗口缩放 / 全屏 / DPR 变化）。
+   * 逻辑坐标始终为 GAME_WIDTH × GAME_HEIGHT，不影响关卡布局与输入。
+   */
+  function syncRendererToDisplay() {
+    if (destroyed || !app.renderer || !container.isConnected) return;
+    const next = computeDisplayResolution(container);
+    const prev = app.renderer.resolution;
+    if (Math.abs(next - prev) < RESOLUTION_EPS) return;
+    try {
+      app.renderer.resize(GAME_WIDTH, GAME_HEIGHT, next);
+    } catch {
+      // 渲染器销毁过程中忽略
+    }
+  }
 
   async function initPixi() {
+    const initialRes = computeDisplayResolution(container);
     await app.init({
       width: GAME_WIDTH,
       height: GAME_HEIGHT,
       backgroundColor: 0x000000,
       antialias: true,
-      resolution: Math.min(window.devicePixelRatio || 1, 1.5),
+      resolution: initialRes,
       autoDensity: true,
     });
 
     const textureById = await loadBackgroundTextures();
 
     if (destroyed) {
+      detachResize?.();
+      detachResize = null;
       try {
         app.destroy(true, { children: true });
       } catch (e) {
@@ -58,6 +100,35 @@ export function mountCellGame(
 
     container.appendChild(app.canvas);
     app.ticker.maxFPS = 60;
+
+    // 全屏 / 视口 / 宿主尺寸变化 → 按实际像素密度重设 resolution
+    syncRendererToDisplay();
+    const onDisplayChange = () => {
+      // 等 CSS transform / 全屏布局 settle 后再量 rect
+      requestAnimationFrame(() => {
+        requestAnimationFrame(syncRendererToDisplay);
+      });
+    };
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(onDisplayChange);
+      resizeObserver.observe(container);
+      const stage = container.closest(".cell-stage");
+      if (stage) resizeObserver.observe(stage);
+    }
+    window.addEventListener("resize", onDisplayChange);
+    window.addEventListener("orientationchange", onDisplayChange);
+    window.visualViewport?.addEventListener("resize", onDisplayChange);
+    document.addEventListener("fullscreenchange", onDisplayChange);
+    document.addEventListener("webkitfullscreenchange", onDisplayChange);
+    detachResize = () => {
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+      window.removeEventListener("resize", onDisplayChange);
+      window.removeEventListener("orientationchange", onDisplayChange);
+      window.visualViewport?.removeEventListener("resize", onDisplayChange);
+      document.removeEventListener("fullscreenchange", onDisplayChange);
+      document.removeEventListener("webkitfullscreenchange", onDisplayChange);
+    };
 
     const bg = createBackgroundController(app, textureById, getDesiredBgMode);
 
@@ -121,8 +192,15 @@ export function mountCellGame(
     }
 
     if (destroyed) {
+      detachResize?.();
+      detachResize = null;
       tutorial?.destroy();
       tutorial = null;
+      try {
+        app.destroy(true, { children: true });
+      } catch {
+        // ignore
+      }
       return;
     }
 
@@ -196,6 +274,8 @@ export function mountCellGame(
 
   return () => {
     destroyed = true;
+    detachResize?.();
+    detachResize = null;
     tutorial?.destroy();
     tutorial = null;
     if (apiRef) apiRef.current = null;
