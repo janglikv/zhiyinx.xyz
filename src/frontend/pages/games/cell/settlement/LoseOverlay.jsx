@@ -1,4 +1,4 @@
-import { playUi } from "../audio";
+import { playUi, onUiHover } from "../audio";
 
 /**
  * 失败遮罩
@@ -50,6 +50,7 @@ export default function LoseOverlay({ onRestart, onBackToHub }) {
         <button
           type="button"
           className="btn btn-primary"
+          onMouseEnter={onUiHover}
           onClick={() => {
             playUi("confirm");
             onRestart?.();
@@ -68,6 +69,7 @@ export default function LoseOverlay({ onRestart, onBackToHub }) {
           <button
             type="button"
             className="btn btn-ghost"
+            onMouseEnter={onUiHover}
             onClick={() => {
               playUi("back");
               onBackToHub();

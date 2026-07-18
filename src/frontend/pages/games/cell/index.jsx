@@ -21,7 +21,7 @@ import SettingsButton from "./ui/SettingsButton";
 import SettingsModal from "./ui/SettingsModal";
 import FullscreenButton from "./ui/FullscreenButton";
 import FadeVeil from "./ui/FadeVeil";
-import { setBgmScene, stopBgm, unlockCellAudio, playUi } from "./audio";
+import { setBgmScene, stopBgm, unlockCellAudio, playUi, onUiHover } from "./audio";
 import "./styles.css";
 
 /** 全黑后略停，等 Pixi 挂上再淡入 */
@@ -256,6 +256,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             >
               <button
                 type="button"
+                onMouseEnter={onUiHover}
                 onClick={() => {
                   playUi("confirm");
                   handleStartGame();

@@ -171,17 +171,19 @@ export function playFirework({ x, width }) {
 
 /** @type {AudioContext | null} */
 let audioCtx = null;
-const SFX_MASTER = 0.55;
+const SFX_MASTER = 1;
 const lastSynthAt = {
   hit: -Infinity,
   hurt: -Infinity,
   die: -Infinity,
   ui: -Infinity,
+  uiHover: -Infinity,
 };
 const HIT_GAP_MS = 42;
 const HURT_GAP_MS = 70;
 const DIE_GAP_MS = 90;
 const UI_GAP_MS = 40;
+const UI_HOVER_GAP_MS = 55;
 
 function getAudioCtx() {
   if (typeof window === "undefined") return null;
@@ -276,7 +278,7 @@ export function playHit(opts = {}) {
   hp.type = "highpass";
   hp.frequency.setValueAtTime(1800 * pitch, t0);
   const ng = ctx.createGain();
-  const peak = 0.22 * strength;
+  const peak = 0.55 * strength;
   ng.gain.setValueAtTime(0.0001, t0);
   ng.gain.exponentialRampToValueAtTime(peak, t0 + 0.004);
   ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.055 + strength * 0.02);
@@ -293,7 +295,7 @@ export function playHit(opts = {}) {
   osc.frequency.exponentialRampToValueAtTime(280 * pitch, t0 + 0.05);
   const og = ctx.createGain();
   og.gain.setValueAtTime(0.0001, t0);
-  og.gain.exponentialRampToValueAtTime(0.12 * strength, t0 + 0.003);
+  og.gain.exponentialRampToValueAtTime(0.32 * strength, t0 + 0.003);
   og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
   osc.connect(og);
   connectOut(ctx, og, pan, t0);
@@ -323,7 +325,7 @@ export function playHurt(opts = {}) {
   osc.frequency.exponentialRampToValueAtTime(90 * pitch, t0 + 0.12);
   const og = ctx.createGain();
   og.gain.setValueAtTime(0.0001, t0);
-  og.gain.exponentialRampToValueAtTime(0.28 * strength, t0 + 0.008);
+  og.gain.exponentialRampToValueAtTime(0.7 * strength, t0 + 0.008);
   og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
   osc.connect(og);
   connectOut(ctx, og, pan, t0);
@@ -337,7 +339,7 @@ export function playHurt(opts = {}) {
   lp.frequency.setValueAtTime(700, t0);
   const ng = ctx.createGain();
   ng.gain.setValueAtTime(0.0001, t0);
-  ng.gain.exponentialRampToValueAtTime(0.16 * strength, t0 + 0.005);
+  ng.gain.exponentialRampToValueAtTime(0.45 * strength, t0 + 0.005);
   ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
   noise.connect(lp);
   lp.connect(ng);
@@ -372,7 +374,7 @@ export function playDie(opts = {}) {
   filt.frequency.exponentialRampToValueAtTime(220, t0 + 0.14);
   const og = ctx.createGain();
   og.gain.setValueAtTime(0.0001, t0);
-  og.gain.exponentialRampToValueAtTime(0.2, t0 + 0.01);
+  og.gain.exponentialRampToValueAtTime(0.55, t0 + 0.01);
   og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
   osc.connect(filt);
   filt.connect(og);
@@ -389,7 +391,7 @@ export function playDie(opts = {}) {
   bp.Q.setValueAtTime(0.7, t0);
   const ng = ctx.createGain();
   ng.gain.setValueAtTime(0.0001, t0);
-  ng.gain.exponentialRampToValueAtTime(0.18, t0 + 0.006);
+  ng.gain.exponentialRampToValueAtTime(0.5, t0 + 0.006);
   ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.11);
   noise.connect(bp);
   bp.connect(ng);
@@ -400,21 +402,28 @@ export function playDie(opts = {}) {
 
 /**
  * UI 反馈
- * @param {"tap" | "confirm" | "back"} [kind]
+ * @param {"hover" | "tap" | "confirm" | "back"} [kind]
  */
 export function playUi(kind = "tap") {
   const ctx = getAudioCtx();
   if (!ctx) return;
   const nowMs = performance.now();
-  if (nowMs - lastSynthAt.ui < UI_GAP_MS) return;
-  lastSynthAt.ui = nowMs;
+  // hover 与点击分轨限流，避免滑过按钮后立刻点不响
+  if (kind === "hover") {
+    if (nowMs - lastSynthAt.uiHover < UI_HOVER_GAP_MS) return;
+    lastSynthAt.uiHover = nowMs;
+  } else {
+    if (nowMs - lastSynthAt.ui < UI_GAP_MS) return;
+    lastSynthAt.ui = nowMs;
+  }
 
   const t0 = ctx.currentTime;
   /** @type {Record<string, { f0: number, f1: number, dur: number, vol: number, type: OscillatorType }>} */
   const presets = {
-    tap: { f0: 720, f1: 540, dur: 0.045, vol: 0.11, type: "sine" },
-    confirm: { f0: 520, f1: 780, dur: 0.07, vol: 0.13, type: "triangle" },
-    back: { f0: 480, f1: 320, dur: 0.06, vol: 0.1, type: "sine" },
+    hover: { f0: 920, f1: 1180, dur: 0.03, vol: 0.2, type: "sine" },
+    tap: { f0: 720, f1: 540, dur: 0.045, vol: 0.35, type: "sine" },
+    confirm: { f0: 520, f1: 780, dur: 0.07, vol: 0.42, type: "triangle" },
+    back: { f0: 480, f1: 320, dur: 0.06, vol: 0.32, type: "sine" },
   };
   const p = presets[kind] || presets.tap;
   const pitch = 1 + (Math.random() - 0.5) * 0.04;
@@ -439,13 +448,23 @@ export function playUi(kind = "tap") {
     o2.frequency.setValueAtTime(1040 * pitch, t0 + 0.02);
     const g2 = ctx.createGain();
     g2.gain.setValueAtTime(0.0001, t0 + 0.02);
-    g2.gain.exponentialRampToValueAtTime(0.08, t0 + 0.028);
+    g2.gain.exponentialRampToValueAtTime(0.25, t0 + 0.028);
     g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
     o2.connect(g2);
     connectOut(ctx, g2, 0, t0);
     o2.start(t0 + 0.02);
     o2.stop(t0 + 0.1);
   }
+}
+
+/**
+ * 可交互控件：鼠标移入播 hover（禁用时静默）
+ * @param {MouseEvent | { currentTarget?: HTMLElement | null }} [e]
+ */
+export function onUiHover(e) {
+  const el = e?.currentTarget;
+  if (el && "disabled" in el && el.disabled) return;
+  playUi("hover");
 }
 
 if (import.meta.hot) {

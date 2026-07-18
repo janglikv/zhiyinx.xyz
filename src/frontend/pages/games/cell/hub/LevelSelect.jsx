@@ -1,6 +1,6 @@
 import { LEVELS } from "../levels";
 import { COLOR_PLAYER, COLOR_ENEMY, COLOR_NEUTRAL } from "../constants";
-import { playUi } from "../audio";
+import { playUi, onUiHover } from "../audio";
 import hubBg from "../backgrounds/level-1.webp";
 import "./styles.css";
 
@@ -113,6 +113,7 @@ export default function LevelSelect({
                   type="button"
                   className={nodeClass}
                   disabled={!unlocked}
+                  onMouseEnter={onUiHover}
                   onClick={() => {
                     if (!unlocked) return;
                     playUi("confirm");
@@ -178,6 +179,7 @@ export default function LevelSelect({
                   type="button"
                   className="cell-hub__play"
                   disabled={!unlocked}
+                  onMouseEnter={onUiHover}
                   onClick={() => {
                     if (!unlocked) return;
                     playUi("confirm");

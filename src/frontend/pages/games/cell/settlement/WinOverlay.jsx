@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { GAME_WIDTH, GAME_HEIGHT } from "../constants";
-import { playUi } from "../audio";
+import { playUi, onUiHover } from "../audio";
 import { startWinFireworks } from "./fireworks";
 
 /**
@@ -215,6 +215,7 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBac
               {onBackToHub && !compact && (
                 <button
                   type="button"
+                  onMouseEnter={onUiHover}
                   onClick={() => {
                     playUi("back");
                     onBackToHub();
@@ -237,6 +238,7 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBac
               )}
               <button
                 type="button"
+                onMouseEnter={onUiHover}
                 onClick={() => {
                   playUi("confirm");
                   onNext?.();

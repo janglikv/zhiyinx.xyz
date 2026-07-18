@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { playUi, onUiHover } from "../audio";
 import { TUTORIAL_COPY } from "./phases";
 
 /**
@@ -227,7 +228,10 @@ export default function TutorialHud({ phase, onSkip }) {
           {!done && (
             <button
               type="button"
-              onClick={onSkip}
+              onClick={() => {
+                playUi("tap");
+                onSkip?.();
+              }}
               style={{
                 flexShrink: 0,
                 pointerEvents: "auto",
@@ -243,6 +247,7 @@ export default function TutorialHud({ phase, onSkip }) {
                   "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
               }}
               onMouseEnter={(e) => {
+                onUiHover(e);
                 e.currentTarget.style.background = "rgba(255,255,255,0.08)";
                 e.currentTarget.style.color = "rgba(230, 240, 230, 0.92)";
                 e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";

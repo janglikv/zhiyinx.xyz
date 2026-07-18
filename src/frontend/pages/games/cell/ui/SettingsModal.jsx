@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { playUi } from "../audio";
+import { playUi, onUiHover } from "../audio";
 
 /**
  * 游戏设置模态框
@@ -67,7 +67,10 @@ export default function SettingsModal({
   return (
     <div
       className="cell-modal-overlay"
-      onClick={onClose}
+      onClick={() => {
+        playUi("back");
+        onClose();
+      }}
       role="presentation"
     >
       <div
@@ -84,6 +87,7 @@ export default function SettingsModal({
           <button
             type="button"
             className="cell-modal-close-btn"
+            onMouseEnter={onUiHover}
             onClick={() => {
               playUi("back");
               onClose();
@@ -104,6 +108,7 @@ export default function SettingsModal({
               <button
                 type="button"
                 className="cell-btn cell-btn--primary"
+                onMouseEnter={onUiHover}
                 onClick={handleDebugWinClick}
               >
                 直接通关
@@ -120,6 +125,7 @@ export default function SettingsModal({
               <button
                 type="button"
                 className="cell-btn cell-btn--outline"
+                onMouseEnter={onUiHover}
                 onClick={handleUnlockAllClick}
               >
                 解锁全部关卡
@@ -129,6 +135,7 @@ export default function SettingsModal({
                 className={`cell-btn ${
                   confirmReset ? "cell-btn--danger-active" : "cell-btn--danger"
                 }`}
+                onMouseEnter={onUiHover}
                 onClick={handleResetClick}
               >
                 {confirmReset ? "确定重置进度？" : "重置所有进度"}

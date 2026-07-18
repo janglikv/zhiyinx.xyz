@@ -1,4 +1,4 @@
-import { playUi } from "../audio";
+import { playUi, onUiHover } from "../audio";
 
 /**
  * 设置按钮，显示齿轮图标，用于打开设置模态框
@@ -9,6 +9,7 @@ export default function SettingsButton({ onClick }) {
     <button
       type="button"
       className="cell-fs-btn cell-settings-btn"
+      onMouseEnter={onUiHover}
       onClick={() => {
         playUi("tap");
         onClick?.();

@@ -1,4 +1,4 @@
-import { playUi } from "../audio";
+import { playUi, onUiHover } from "../audio";
 
 /**
  * 关卡画布内叠加的返回选关按钮
@@ -9,6 +9,7 @@ export default function BackButton({ onClick, title = "返回选关" }) {
     <button
       type="button"
       className="cell-back"
+      onMouseEnter={onUiHover}
       onClick={() => {
         playUi("back");
         onClick?.();
