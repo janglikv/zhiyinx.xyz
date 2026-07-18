@@ -50,8 +50,9 @@
 
 ### 音量 / 静音
 
-- [ ] 设置弹窗：静音开关 + BGM / SFX 音量
-- [ ] `localStorage` 持久化（`muted` / `bgmVolume` / `sfxVolume`）
+- [x] 设置弹窗：静音开关 + BGM / SFX 音量
+- [x] `localStorage` 持久化（`muted` / `bgm` / `sfx`，key `cell-audio-settings-v1`）
+- [x] 调试项（通关/解锁/重置）独立分组，仅 `import.meta.env.DEV` 显示
 - [ ] 合成 SFX：共享 `masterGain` bus（替代每次 `connectOut` 新建 master）
 - [ ] BGM：直接调 `HTMLAudioElement.volume`
 

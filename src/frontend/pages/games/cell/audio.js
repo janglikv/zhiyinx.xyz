@@ -10,9 +10,133 @@ const lastShotAt = {
   player: -Infinity,
   enemy: -Infinity,
 };
-const BGM_VOLUME = 0.35;
+/** BGM 基准音量（用户滑条 1.0 时的实际 HTMLAudio volume） */
+const BGM_VOLUME_MAX = 0.35;
+const AUDIO_SETTINGS_KEY = "cell-audio-settings-v1";
 const CELL_SOUND_ALIASES = ["bullet", "firework"];
 const LEGACY_PIXI_ALIASES = ["bgm", "bgm-hub", "bgm-play"];
+
+// ---------------------------------------------------------------------------
+// 音量 / 静音（localStorage 持久化）
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {number} n
+ * @returns {number}
+ */
+function clamp01(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(1, v));
+}
+
+/**
+ * @returns {{ muted: boolean, bgm: number, sfx: number }}
+ */
+function loadAudioSettings() {
+  // bgm=1 → 实际 HTMLAudio 为 BGM_VOLUME_MAX（与旧版固定音量一致）
+  const defaults = { muted: false, bgm: 1, sfx: 1 };
+  if (typeof window === "undefined") return defaults;
+  try {
+    const raw = window.localStorage.getItem(AUDIO_SETTINGS_KEY);
+    if (!raw) return defaults;
+    const p = JSON.parse(raw);
+    return {
+      muted: !!p.muted,
+      bgm: clamp01(p.bgm ?? defaults.bgm),
+      sfx: clamp01(p.sfx ?? defaults.sfx),
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+/** @type {{ muted: boolean, bgm: number, sfx: number }} */
+let audioSettings = loadAudioSettings();
+
+function persistAudioSettings() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      AUDIO_SETTINGS_KEY,
+      JSON.stringify(audioSettings),
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+/** 当前有效 BGM 音量（已含静音） */
+function effectiveBgmVolume() {
+  if (audioSettings.muted) return 0;
+  return clamp01(audioSettings.bgm) * BGM_VOLUME_MAX;
+}
+
+/** 当前有效 SFX 倍率（已含静音） */
+function sfxGain() {
+  if (audioSettings.muted) return 0;
+  return clamp01(audioSettings.sfx);
+}
+
+function applyBgmVolumes() {
+  const v = effectiveBgmVolume();
+  try {
+    bgmAudio.hub.volume = v;
+    bgmAudio.play.volume = v;
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 读取音量设置（拷贝） */
+export function getAudioSettings() {
+  return {
+    muted: audioSettings.muted,
+    bgm: audioSettings.bgm,
+    sfx: audioSettings.sfx,
+  };
+}
+
+/**
+ * 总静音开关（音乐 + 音效）
+ * @param {boolean} muted
+ */
+export function setAudioMuted(muted) {
+  audioSettings.muted = !!muted;
+  persistAudioSettings();
+  applyBgmVolumes();
+}
+
+/**
+ * 背景音乐音量 0–1
+ * @param {number} value
+ */
+export function setBgmVolume(value) {
+  audioSettings.bgm = clamp01(value);
+  persistAudioSettings();
+  applyBgmVolumes();
+}
+
+/**
+ * 音效音量 0–1
+ * @param {number} value
+ */
+export function setSfxVolume(value) {
+  audioSettings.sfx = clamp01(value);
+  persistAudioSettings();
+}
+
+/**
+ * 批量更新（可选字段）
+ * @param {{ muted?: boolean, bgm?: number, sfx?: number }} patch
+ */
+export function updateAudioSettings(patch = {}) {
+  if (typeof patch.muted === "boolean") audioSettings.muted = patch.muted;
+  if (patch.bgm != null) audioSettings.bgm = clamp01(patch.bgm);
+  if (patch.sfx != null) audioSettings.sfx = clamp01(patch.sfx);
+  persistAudioSettings();
+  applyBgmVolumes();
+}
 
 // ---------------------------------------------------------------------------
 // @pixi/sound：禁止顶层 import。
@@ -60,7 +184,7 @@ function createBgmAudio(url) {
   const el = new Audio(url);
   el.preload = "auto";
   el.loop = true;
-  el.volume = BGM_VOLUME;
+  el.volume = effectiveBgmVolume();
   // 不挂到 DOM；play() 需在用户手势解锁后调用
   return el;
 }
@@ -69,6 +193,9 @@ const bgmAudio = {
   hub: createBgmAudio(bgmUrl),
   play: createBgmAudio(gameBgmUrl),
 };
+
+// 设置已从 localStorage 加载；确保两轨初始音量一致
+applyBgmVolumes();
 
 /** @type {"hub" | "play" | null} */
 let activeBgmScene = null;
@@ -104,7 +231,7 @@ export function setBgmScene(scene) {
   // 先停干净两条轨，再只播目标
   stopAllBgm();
   activeBgmScene = scene;
-  next.volume = BGM_VOLUME;
+  next.volume = effectiveBgmVolume();
   const playPromise = next.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise.catch(() => {
@@ -142,6 +269,8 @@ export function unlockCellAudio() {
  */
 export function playBulletShot({ x, color }) {
   if (!pixiSound || !StereoFilterCtor) return;
+  const gain = sfxGain();
+  if (gain <= 0) return;
   const now = performance.now();
   const playerShot = color === COLOR_PLAYER;
   const channel = playerShot ? "player" : "enemy";
@@ -157,7 +286,7 @@ export function playBulletShot({ x, color }) {
     // 原素材只有约 0.11s～0.20s 有效，裁去前后静音以同步射击画面。
     start: 0.105,
     end: 0.23,
-    volume: playerShot ? 1 : 0.72,
+    volume: (playerShot ? 1 : 0.72) * gain,
     speed: playerShot ? 1.08 : 0.82,
     filters: [new StereoFilterCtor(pan)],
   });
@@ -169,10 +298,12 @@ export function playBulletShot({ x, color }) {
  */
 export function playFirework({ x, width }) {
   if (!pixiSound || !StereoFilterCtor) return;
+  const gain = sfxGain();
+  if (gain <= 0) return;
   const pan = Math.max(-0.7, Math.min(0.7, (x / width) * 1.4 - 0.7));
 
   pixiSound.play("firework", {
-    volume: 0.65,
+    volume: 0.65 * gain,
     start: 0,
     filters: [new StereoFilterCtor(pan)],
   });
@@ -184,7 +315,7 @@ export function playFirework({ x, width }) {
 
 /** @type {AudioContext | null} */
 let audioCtx = null;
-const SFX_MASTER = 1;
+const SFX_MASTER = 1; // 合成音效基准，再乘 sfxGain()
 const lastSynthAt = {
   hit: -Infinity,
   hurt: -Infinity,
@@ -263,7 +394,7 @@ function makePanner(ctx, pan, when) {
 function connectOut(ctx, node, pan, when) {
   const panner = makePanner(ctx, pan, when);
   const master = ctx.createGain();
-  master.gain.setValueAtTime(SFX_MASTER, when);
+  master.gain.setValueAtTime(SFX_MASTER * sfxGain(), when);
   node.connect(panner);
   panner.connect(master);
   master.connect(ctx.destination);
@@ -292,6 +423,7 @@ function getNoiseBuffer(ctx) {
  * @param {{ x?: number, width?: number, strength?: number }} [opts]
  */
 export function playHit(opts = {}) {
+  if (sfxGain() <= 0) return;
   const ctx = getPlayableAudioCtx();
   if (!ctx) return;
   const nowMs = performance.now();
@@ -340,6 +472,7 @@ export function playHit(opts = {}) {
  * @param {{ x?: number, width?: number, strength?: number }} [opts]
  */
 export function playHurt(opts = {}) {
+  if (sfxGain() <= 0) return;
   const ctx = getPlayableAudioCtx();
   if (!ctx) return;
   const nowMs = performance.now();
@@ -385,6 +518,7 @@ export function playHurt(opts = {}) {
  * @param {{ x?: number, width?: number }} [opts]
  */
 export function playDie(opts = {}) {
+  if (sfxGain() <= 0) return;
   const ctx = getPlayableAudioCtx();
   if (!ctx) return;
   const nowMs = performance.now();
@@ -445,6 +579,7 @@ const UI_PRESETS = {
  * @param {"hover" | "tap" | "confirm" | "back"} [kind]
  */
 export function playUi(kind = "tap") {
+  if (sfxGain() <= 0) return;
   // hover 非用户激活手势，禁止 resume；点击可 resume
   const ctx =
     kind === "hover"

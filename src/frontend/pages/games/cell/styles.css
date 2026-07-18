@@ -730,6 +730,171 @@ body.cell-fs-active {
   width: auto;
 }
 
+.cell-modal-section--debug {
+  padding-top: 12px;
+  border-top: 1px dashed rgba(217, 140, 67, 0.35);
+}
+
+.cell-modal-section--debug .cell-modal-section-title {
+  color: #ffc98a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cell-modal-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #1a0e04;
+  background: linear-gradient(135deg, #ffb347, #ff8c42);
+  box-shadow: 0 0 8px rgba(255, 140, 66, 0.35);
+}
+
+.cell-modal-debug-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 声音设置行 / 开关 / 滑条 */
+.cell-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.cell-settings-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(232, 255, 224, 0.9);
+}
+
+.cell-settings-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(148, 163, 184, 0.9);
+  min-width: 2.5em;
+  text-align: right;
+}
+
+.cell-settings-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cell-settings-slider__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cell-settings-slider.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.cell-toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(84, 201, 43, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.cell-toggle__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(232, 255, 224, 0.85);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.cell-toggle--on {
+  background: rgba(84, 201, 43, 0.35);
+  border-color: rgba(123, 232, 83, 0.7);
+  box-shadow: 0 0 10px rgba(84, 201, 43, 0.25);
+}
+
+.cell-toggle--on .cell-toggle__knob {
+  transform: translateX(20px);
+  background: #b8ff7a;
+}
+
+.cell-toggle:hover {
+  border-color: rgba(154, 240, 90, 0.55);
+}
+
+.cell-toggle:focus-visible {
+  outline: 2px solid rgba(123, 232, 83, 0.7);
+  outline-offset: 2px;
+}
+
+.cell-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+  cursor: pointer;
+  border: 1px solid rgba(84, 201, 43, 0.2);
+}
+
+.cell-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #7be853;
+  border: 1px solid #b8ff7a;
+  box-shadow: 0 0 8px rgba(84, 201, 43, 0.45);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.cell-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #7be853;
+  border: 1px solid #b8ff7a;
+  box-shadow: 0 0 8px rgba(84, 201, 43, 0.45);
+  cursor: pointer;
+}
+
+.cell-range:hover::-webkit-slider-thumb {
+  transform: scale(1.08);
+}
+
+.cell-range:disabled {
+  cursor: not-allowed;
+}
+
+.cell-range:focus-visible {
+  box-shadow: 0 0 0 2px rgba(123, 232, 83, 0.35);
+}
+
 /* 按钮通用样式 */
 .cell-btn {
   width: 100%;
