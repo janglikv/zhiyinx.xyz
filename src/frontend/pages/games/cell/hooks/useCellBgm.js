@@ -2,11 +2,15 @@ import { useEffect } from "react";
 import { setBgmScene, stopBgm } from "../audio";
 
 /**
- * BGM 只跟 screen 走：play 内重开/下一关不重切；回 hub 换选关曲。
+ * BGM 跟场景与对局会话走：
+ * - hub：选关曲
+ * - play：对战曲；换关 / 重开时强制从头播放（不接续上一关进度）
+ *
  * @param {boolean} gameStarted
  * @param {"hub" | "play"} screen
+ * @param {string | number} [playSessionKey] 对局会话键（关卡下标 + gameKey），变化即重置对战 BGM
  */
-export function useCellBgm(gameStarted, screen) {
+export function useCellBgm(gameStarted, screen, playSessionKey = 0) {
   useEffect(() => {
     return () => {
       stopBgm();
@@ -15,6 +19,10 @@ export function useCellBgm(gameStarted, screen) {
 
   useEffect(() => {
     if (!gameStarted) return;
-    setBgmScene(screen);
-  }, [gameStarted, screen]);
+    if (screen === "play") {
+      setBgmScene("play", { restart: true });
+    } else {
+      setBgmScene("hub", { restart: true });
+    }
+  }, [gameStarted, screen, playSessionKey]);
 }

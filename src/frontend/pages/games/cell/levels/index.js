@@ -155,7 +155,8 @@ function buildChapterLevels(chapter, chapterIndex) {
 
     if (chapterIndex === 0) {
       // 第一章：基础增殖 — 直线对峙，逐步加压
-      const player = scaleByStage(stage, 28, 18);
+      // 第 1 关为教程：玩家满能量 99，便于专注学操作
+      const player = stage === 1 ? 99 : scaleByStage(stage, 28, 18);
       const neutral = scaleByStage(stage, 10, 18);
       const enemy = scaleByStage(stage, 12, 32);
       const shorts = ["初识", "增压", "对峙", "夹击", "决裂"];

@@ -278,19 +278,26 @@ function stopAllBgm() {
 
 /**
  * 设置当前场景 BGM。
- * 对战内重开 / 下一关 screen 仍是 "play" → 不重切，保持对战曲连续。
  * @param {"hub" | "play"} scene
+ * @param {{ restart?: boolean }} [opts] restart=true 时强制从头播放（进关 / 下一关 / 重开）
  */
-export function setBgmScene(scene) {
+export function setBgmScene(scene, opts = {}) {
   if (scene !== "hub" && scene !== "play") return;
+  const restart = Boolean(opts.restart);
 
   const next = bgmAudio[scene];
-  // 同场景且未暂停：不打断（对战曲逻辑）
-  if (activeBgmScene === scene && next && !next.paused && !next.ended) {
+  // 同场景且未暂停：默认不打断；restart 时从头重播
+  if (
+    !restart &&
+    activeBgmScene === scene &&
+    next &&
+    !next.paused &&
+    !next.ended
+  ) {
     return;
   }
 
-  // 先停干净两条轨，再只播目标
+  // 先停干净两条轨（含 currentTime=0），再只播目标
   stopAllBgm();
   activeBgmScene = scene;
   next.volume = effectiveBgmVolume();

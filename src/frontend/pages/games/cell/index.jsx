@@ -78,7 +78,12 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       onHoldEnd: () => setPlayReveal(true),
     });
 
-  useCellBgm(gameStarted, screen);
+  // 换关 / 重开时 playSessionKey 变化 → 对战 BGM 从头播放
+  useCellBgm(
+    gameStarted,
+    screen,
+    screen === "play" ? `${currentLevelIndex}:${gameKey}` : "hub",
+  );
 
   const level = LEVELS[currentLevelIndex];
   const hasNextLevel = currentLevelIndex < LEVELS.length - 1;
