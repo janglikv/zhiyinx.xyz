@@ -1,11 +1,29 @@
-import { LEVELS } from "../levels";
+import { useEffect, useMemo, useState } from "react";
+import {
+  LEVELS,
+  CHAPTERS,
+  LEVELS_PER_CHAPTER,
+  chapterIndexFromLevelIndex,
+} from "../levels";
 import { COLOR_PLAYER, COLOR_ENEMY, COLOR_NEUTRAL } from "../constants";
 import { uiSfx } from "../audio";
-import hubBg from "../backgrounds/level-1.webp";
+import bg1 from "../backgrounds/level-1.webp";
+import bg2 from "../backgrounds/level-2.webp";
+import bg3 from "../backgrounds/level-3.webp";
+import bg4 from "../backgrounds/level-4.webp";
+import bg5 from "../backgrounds/level-5.webp";
 import "./styles.css";
 
+const CHAPTER_BGS = {
+  "level-1": bg1,
+  "level-2": bg2,
+  "level-3": bg3,
+  "level-4": bg4,
+  "level-5": bg5,
+};
+
 /**
- * 从 "第一关：基础增殖" 抽出短标题。
+ * 从 "第一章 · 第1关：初识" 抽出短标题。
  * @param {string} name
  */
 function shortTitle(name) {
@@ -21,7 +39,7 @@ const HEX = {
 };
 
 /**
- * 关卡选择：画布内的游戏菜单（非网站卡片风）
+ * 关卡选择：5 章 × 5 关
  * @param {{
  *   maxUnlocked: number,
  *   cleared: Set<number>,
@@ -39,6 +57,30 @@ export default function LevelSelect({
 }) {
   const unlockedCount = maxUnlocked + 1;
   const clearedCount = cleared.size;
+
+  const initialChapter = chapterIndexFromLevelIndex(recommendedIndex);
+  const [activeChapter, setActiveChapter] = useState(initialChapter);
+
+  useEffect(() => {
+    setActiveChapter(chapterIndexFromLevelIndex(recommendedIndex));
+  }, [recommendedIndex]);
+
+  const chapter = CHAPTERS[activeChapter] ?? CHAPTERS[0];
+  const hubBg = CHAPTER_BGS[chapter.background] ?? bg1;
+
+  const chapterLevels = useMemo(() => {
+    const start = activeChapter * LEVELS_PER_CHAPTER;
+    return LEVELS.slice(start, start + LEVELS_PER_CHAPTER).map((lvl, i) => ({
+      lvl,
+      index: start + i,
+    }));
+  }, [activeChapter]);
+
+  /** 某章是否至少解锁了第 1 关 */
+  function isChapterReachable(chapterIdx) {
+    const first = chapterIdx * LEVELS_PER_CHAPTER;
+    return first <= maxUnlocked;
+  }
 
   return (
     <div className="cell-hub">
@@ -61,7 +103,7 @@ export default function LevelSelect({
               🦠
             </span>
             <div>
-              <p className="cell-hub__eyebrow">CELL DIVISION · CAMPAIGN</p>
+              <p className="cell-hub__eyebrow">CELL DIVISION · 5 CHAPTERS · 25 LEVELS</p>
               <h2 className="cell-hub__title">选择关卡</h2>
             </div>
           </div>
@@ -83,8 +125,54 @@ export default function LevelSelect({
           </div>
         </header>
 
+        <nav className="cell-hub__chapters" aria-label="章节">
+          {CHAPTERS.map((ch, idx) => {
+            const reachable = isChapterReachable(idx);
+            const start = idx * LEVELS_PER_CHAPTER;
+            const chapterCleared = Array.from({ length: LEVELS_PER_CHAPTER }, (_, i) =>
+              cleared.has(start + i),
+            ).every(Boolean);
+            const active = idx === activeChapter;
+            return (
+              <button
+                key={ch.id}
+                type="button"
+                className={[
+                  "cell-hub__chapter",
+                  active ? "cell-hub__chapter--active" : "",
+                  !reachable ? "cell-hub__chapter--locked" : "",
+                  chapterCleared ? "cell-hub__chapter--done" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                disabled={!reachable}
+                {...uiSfx("confirm", () => {
+                  if (!reachable) return;
+                  setActiveChapter(idx);
+                })}
+                title={reachable ? ch.description : "通关前一章后解锁"}
+              >
+                <span className="cell-hub__chapter-idx">{ch.title}</span>
+                <span className="cell-hub__chapter-name">{ch.name}</span>
+                {!reachable && (
+                  <span className="cell-hub__chapter-lock" aria-hidden>
+                    🔒
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="cell-hub__chapter-banner">
+          <span className="cell-hub__chapter-banner-title">
+            {chapter.title} · {chapter.name}
+          </span>
+          <span className="cell-hub__chapter-banner-desc">{chapter.description}</span>
+        </div>
+
         <div className="cell-hub__map" role="list">
-          {LEVELS.map((lvl, index) => {
+          {chapterLevels.map(({ lvl, index }, slot) => {
             const unlocked = index <= maxUnlocked;
             const done = cleared.has(index);
             const recommended = unlocked && index === recommendedIndex;
@@ -99,7 +187,7 @@ export default function LevelSelect({
 
             return (
               <div key={lvl.id} className="cell-hub__slot" role="listitem">
-                {index > 0 && (
+                {slot > 0 && (
                   <div
                     className={
                       index <= maxUnlocked
@@ -162,10 +250,14 @@ export default function LevelSelect({
           {(() => {
             const focus = LEVELS[recommendedIndex] ?? LEVELS[0];
             const unlocked = recommendedIndex <= maxUnlocked;
+            const focusCh = CHAPTERS[chapterIndexFromLevelIndex(recommendedIndex)];
             return (
               <>
                 <div className="cell-hub__detail-text">
-                  <p className="cell-hub__detail-label">当前目标</p>
+                  <p className="cell-hub__detail-label">
+                    当前目标
+                    {focusCh ? ` · ${focusCh.title}` : ""}
+                  </p>
                   <p className="cell-hub__detail-name">{focus.name}</p>
                   <p className="cell-hub__detail-desc">
                     {unlocked
@@ -179,6 +271,8 @@ export default function LevelSelect({
                   disabled={!unlocked}
                   {...uiSfx("confirm", () => {
                     if (!unlocked) return;
+                    // 切到推荐关所在章再进入
+                    setActiveChapter(chapterIndexFromLevelIndex(recommendedIndex));
                     onEnterLevel(recommendedIndex);
                   })}
                 >

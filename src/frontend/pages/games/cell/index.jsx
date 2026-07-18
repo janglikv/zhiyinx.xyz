@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import GameLayout from "../../../components/GameLayout";
 import { GAME_WIDTH, GAME_HEIGHT } from "./constants";
-import { LEVELS } from "./levels";
+import { LEVELS, backgroundIdForLevelIndex } from "./levels";
 import { mountCellGame } from "./mount";
 import {
   getRecommendedLevelIndex,
@@ -94,7 +94,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     const cleanup = mountCellGame(
       containerRef.current,
       gameApiRef,
-      () => `level-${level.id}`,
+      () => backgroundIdForLevelIndex(currentLevelIndex),
       level,
       (isWin) => {
         if (isWin) {

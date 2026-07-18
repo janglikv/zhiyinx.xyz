@@ -95,8 +95,108 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  padding: 22px 28px 16px;
-  gap: 18px;
+  padding: 16px 24px 12px;
+  gap: 10px;
+}
+
+/* 章节切换 */
+.cell-hub__chapters {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cell-hub__chapter {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.38);
+  color: rgba(200, 220, 190, 0.85);
+  cursor: pointer;
+  font: inherit;
+  position: relative;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.cell-hub__chapter:hover:not(:disabled) {
+  border-color: rgba(154, 240, 90, 0.35);
+  background: rgba(84, 201, 43, 0.08);
+}
+
+.cell-hub__chapter--active {
+  border-color: rgba(154, 240, 90, 0.55);
+  background: rgba(84, 201, 43, 0.14);
+  box-shadow: 0 0 16px rgba(84, 201, 43, 0.18);
+  color: #e8ffe0;
+}
+
+.cell-hub__chapter--locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+
+.cell-hub__chapter--done:not(.cell-hub__chapter--active) {
+  border-color: rgba(122, 224, 74, 0.28);
+}
+
+.cell-hub__chapter-idx {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(154, 240, 90, 0.7);
+}
+
+.cell-hub__chapter--active .cell-hub__chapter-idx {
+  color: #9af05a;
+}
+
+.cell-hub__chapter-name {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.cell-hub__chapter-lock {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 9px;
+  opacity: 0.8;
+}
+
+.cell-hub__chapter-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.cell-hub__chapter-banner-title {
+  font-family: var(--font-title);
+  font-size: 14px;
+  font-weight: 800;
+  color: #f0ffe8;
+  white-space: nowrap;
+  text-shadow: 0 0 16px rgba(84, 201, 43, 0.3);
+}
+
+.cell-hub__chapter-banner-desc {
+  font-size: 11px;
+  color: rgba(180, 200, 175, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cell-hub__top {
@@ -151,7 +251,7 @@
 .cell-hub__title {
   margin: 0;
   font-family: var(--font-title);
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: 0.04em;
   color: #f0ffe8;
@@ -206,7 +306,7 @@
   justify-content: center;
   gap: 0;
   min-height: 0;
-  padding: 8px 0 4px;
+  padding: 4px 0 2px;
 }
 
 .cell-hub__slot {
@@ -215,7 +315,7 @@
   flex-direction: column;
   align-items: center;
   width: 148px;
-  animation: cellHubNodeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: cellHubNodeIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .cell-hub__slot:nth-child(1) { animation-delay: 0.04s; }
@@ -226,9 +326,9 @@
 
 .cell-hub__link {
   position: absolute;
-  top: 44px;
-  right: calc(50% + 40px);
-  width: calc(100% - 80px);
+  top: 38px;
+  right: calc(50% + 36px);
+  width: calc(100% - 72px);
   height: 2px;
   background: rgba(115, 125, 136, 0.35);
   border-radius: 2px;
@@ -243,8 +343,8 @@
 .cell-hub__node {
   position: relative;
   z-index: 1;
-  width: 88px;
-  height: 88px;
+  width: 76px;
+  height: 76px;
   padding: 0;
   border: none;
   background: transparent;
@@ -327,7 +427,7 @@
 
 .cell-hub__node-num {
   font-family: var(--font-title);
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 800;
   color: #f4ffe8;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
@@ -366,7 +466,7 @@
 }
 
 .cell-hub__node-meta {
-  margin-top: 12px;
+  margin-top: 8px;
   text-align: center;
   max-width: 132px;
 }
