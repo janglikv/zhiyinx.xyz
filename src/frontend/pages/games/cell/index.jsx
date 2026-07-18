@@ -21,7 +21,7 @@ import SettingsButton from "./ui/SettingsButton";
 import SettingsModal from "./ui/SettingsModal";
 import FullscreenButton from "./ui/FullscreenButton";
 import FadeVeil from "./ui/FadeVeil";
-import { unlockCellAudio, playBgm } from "./audio";
+import { fadeOutBgm, restartBgm, stopBgm, unlockCellAudio } from "./audio";
 import "./styles.css";
 
 /** 全黑后略停，等 Pixi 挂上再淡入 */
@@ -75,6 +75,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     return () => {
       if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
       window.removeEventListener("click", handleFirstClick);
+      stopBgm();
     };
   }, []);
 
@@ -109,6 +110,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     if (transitioning) return;
     pendingScreenRef.current = nextScreen;
     pendingLevelRef.current = levelIndex;
+    fadeOutBgm(1000);
     setFadePhase("out");
   }
 
@@ -124,7 +126,6 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       setPlayReveal(false);
       setScreen("play");
       setGameKey((prev) => prev + 1);
-      playBgm(true); // 进入游戏关卡，重新开始播放 BGM
     } else if (next === "hub") {
       setPlayReveal(false);
       setScreen("hub");
@@ -132,15 +133,17 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       setTutorialPhase(null);
       refreshProgress();
     }
+    return next;
   }
 
   function handleVeilCovered() {
     // 黑场到位：切换内容，短暂 hold 后淡入
-    applyPendingScreen();
+    const nextScreen = applyPendingScreen();
     setFadePhase("hold");
     if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
     holdTimerRef.current = window.setTimeout(() => {
       setPlayReveal(true);
+      restartBgm(nextScreen, 1000);
       setFadePhase("in");
     }, HOLD_BLACK_MS);
   }

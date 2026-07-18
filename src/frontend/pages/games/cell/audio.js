@@ -3,123 +3,137 @@ import { COLOR_PLAYER, GAME_WIDTH } from "./constants";
 import bulletSoundUrl from "./assets/shoot.mp3";
 import fireworkSoundUrl from "./assets/firework.mp3";
 import bgmUrl from "./assets/bgm.mp3";
+import gameBgmUrl from "./assets/battle-bgm.mp3";
 
-const SHOT_GAP_SECONDS = 0.045;
-let lastShotAt = -Infinity;
+const PLAYER_SHOT_GAP_MS = 55;
+const ENEMY_SHOT_GAP_MS = 75;
+const lastShotAt = {
+  player: -Infinity,
+  enemy: -Infinity,
+};
+const BGM_VOLUME = 0.35;
+const CELL_SOUND_ALIASES = ["bullet", "firework", "bgm", "bgm-hub", "bgm-play"];
 
-// 注册音频资源。@pixi/sound 会自动在后台异步加载
-sound.add("bullet", bulletSoundUrl);
-sound.add("firework", fireworkSoundUrl);
-sound.add("bgm", bgmUrl);
+// 提前加载资源，减少首次播放时的等待。
+// Vite 热更新会保留 sound 全局单例，先销毁旧注册，避免遗留音轨叠加。
+CELL_SOUND_ALIASES.forEach((alias) => {
+  if (sound.exists(alias)) sound.remove(alias);
+});
+sound.add("bullet", { url: bulletSoundUrl, preload: true });
+sound.add("firework", { url: fireworkSoundUrl, preload: true });
+function addBgmTrack(alias, url) {
+  let resolveReady;
+  const ready = new Promise((resolve) => {
+    resolveReady = resolve;
+  });
+  const track = sound.add(alias, {
+    url,
+    preload: true,
+    singleInstance: true,
+    loaded: () => resolveReady(),
+  });
+  return { track, ready };
+}
 
-// 设置当页面失去焦点时也继续播放音效，禁用自动暂停
+const bgmTracks = {
+  hub: addBgmTrack("bgm-hub", bgmUrl),
+  play: addBgmTrack("bgm-play", gameBgmUrl),
+};
+
+// 游戏失焦时仍保持音乐和音效播放。
 sound.disableAutoPause = true;
 
-/** @type {any} */
-let bgmInstance = null;
 let fadeIntervalId = null;
+let bgmCommandId = 0;
+let currentBgm = bgmTracks.hub;
 
 /**
  * 辅助函数：在指定时间内平滑渐变实例的音量
- * @param {any} instance @pixi/sound 播放实例
- * @param {number} startVol 起始音量
- * @param {number} endVol 目标音量
+ * @param {number} targetVolume 目标音量
  * @param {number} duration 渐变时长（毫秒）
- * @param {Function} [onComplete] 渐变结束回调
  */
-function fadeInstanceVolume(instance, startVol, endVol, duration, onComplete) {
-  if (!instance) {
-    if (onComplete) onComplete();
-    return;
-  }
-
-  // 清除前一次可能的渐变定时器，防止重叠冲突
+function fadeBgmTo(targetVolume, duration) {
   if (fadeIntervalId) {
     clearInterval(fadeIntervalId);
     fadeIntervalId = null;
   }
 
   const startTime = Date.now();
-  instance.volume = startVol;
+  const track = currentBgm.track;
+  const startVolume = track.volume;
 
   const timer = setInterval(() => {
-    // 保护：如果实例已经不处于播放状态，且我们要调高音量（淡入），则直接清除以防浪费
-    if (typeof instance.isPlaying === "boolean" && !instance.isPlaying && endVol > startVol) {
-      clearInterval(timer);
-      if (fadeIntervalId === timer) fadeIntervalId = null;
-      return;
-    }
-
     const elapsed = Date.now() - startTime;
     if (elapsed >= duration) {
       clearInterval(timer);
       if (fadeIntervalId === timer) fadeIntervalId = null;
-      instance.volume = endVol;
-      if (onComplete) onComplete();
+      track.volume = targetVolume;
     } else {
       const progress = elapsed / duration;
-      // 线性平滑插值 volume
-      instance.volume = startVol + (endVol - startVol) * progress;
+      track.volume = startVolume + (targetVolume - startVolume) * progress;
     }
-  }, 16); // 约60FPS的高频更新
+  }, 16);
 
   fadeIntervalId = timer;
 }
 
 /**
- * 播放全局背景音乐 (BGM)，循环播放并防止重叠，支持淡入淡出切换
- * @param {boolean} [forceRestart=false] 是否强制从头重新播放（带淡出淡入过渡）
+ * 播放当前场景背景音乐。
  */
-export function playBgm(forceRestart = false) {
-  const targetVolume = 0.35;
+export async function playBgm(fadeDuration = 600) {
+  if (currentBgm.track.isPlaying) return;
+  const commandId = ++bgmCommandId;
+  await currentBgm.ready;
+  if (commandId !== bgmCommandId) return;
 
-  if (forceRestart && bgmInstance) {
-    const oldInstance = bgmInstance;
-    // 1. 让旧的实例淡出到 0，时长 600ms
-    fadeInstanceVolume(oldInstance, oldInstance.volume, 0, 600, () => {
-      try {
-        oldInstance.stop();
-      } catch (e) {
-        // 忽略
-      }
+  currentBgm.track.volume = 0;
+  currentBgm.track.play({ loop: true });
+  fadeBgmTo(BGM_VOLUME, fadeDuration);
+}
 
-      // 2. 旧实例淡出停掉后，启动新实例并淡入
-      bgmInstance = sound.play("bgm", {
-        volume: 0, // 从 0 开始淡入
-        loop: true,
-        singleInstance: true,
-      });
+/**
+ * 跟随场景变暗阶段淡出音乐。
+ */
+export function fadeOutBgm(duration = 1000) {
+  bgmCommandId += 1;
+  if (!currentBgm.track.isPlaying) return;
+  fadeBgmTo(0, duration);
+}
 
-      if (bgmInstance) {
-        fadeInstanceVolume(bgmInstance, 0, targetVolume, 600);
-      }
-    });
-    return;
+/**
+ * 跟随新场景揭开阶段，从头播放并淡入音乐。
+ * @param {"hub" | "play"} scene
+ * @param {number} duration
+ */
+export async function restartBgm(scene, duration = 1000) {
+  const commandId = ++bgmCommandId;
+  if (fadeIntervalId) {
+    clearInterval(fadeIntervalId);
+    fadeIntervalId = null;
   }
+  const nextBgm = bgmTracks[scene];
+  await nextBgm.ready;
+  if (commandId !== bgmCommandId) return;
 
-  // 正常首次播放，使用渐入从 0 升到 0.35
-  if (!bgmInstance || !bgmInstance.isPlaying) {
-    bgmInstance = sound.play("bgm", {
-      volume: 0,
-      loop: true,
-      singleInstance: true,
-    });
-    if (bgmInstance) {
-      fadeInstanceVolume(bgmInstance, 0, targetVolume, 600);
-    }
-  }
+  // 场景音乐必须互斥，不能只依赖 currentBgm 指针判断旧音轨。
+  Object.values(bgmTracks).forEach(({ track }) => track.stop());
+  currentBgm = nextBgm;
+  currentBgm.track.volume = 0;
+  currentBgm.track.play({ loop: true });
+  fadeBgmTo(BGM_VOLUME, duration);
 }
 
 /**
  * 停止播放全局背景音乐
  */
 export function stopBgm() {
+  bgmCommandId += 1;
   if (fadeIntervalId) {
     clearInterval(fadeIntervalId);
     fadeIntervalId = null;
   }
-  sound.stop("bgm");
-  bgmInstance = null;
+  bgmTracks.hub.track.stop();
+  bgmTracks.play.track.stop();
 }
 
 /**
@@ -137,16 +151,22 @@ export function unlockCellAudio() {
  */
 export function playBulletShot({ x, color }) {
   const now = Date.now();
-  if ((now - lastShotAt) / 1000 < SHOT_GAP_SECONDS) return;
-  lastShotAt = now;
-
   const playerShot = color === COLOR_PLAYER;
+  const channel = playerShot ? "player" : "enemy";
+  const gap = playerShot ? PLAYER_SHOT_GAP_MS : ENEMY_SHOT_GAP_MS;
+  // 两个阵营分别限流，避免敌方密集射击吞掉玩家操作反馈。
+  if (now - lastShotAt[channel] < gap) return;
+  lastShotAt[channel] = now;
+
   // 声道偏置定位 [-0.7, 0.7]
   const pan = Math.max(-0.7, Math.min(0.7, (x / GAME_WIDTH) * 1.4 - 0.7));
 
   sound.play("bullet", {
-    volume: 0.9,
-    speed: playerShot ? 1.05 : 0.85,
+    // 原素材只有约 0.11s～0.20s 有效，裁去前后静音以同步射击画面。
+    start: 0.105,
+    end: 0.23,
+    volume: playerShot ? 1 : 0.72,
+    speed: playerShot ? 1.08 : 0.82,
     filters: [new filters.StereoFilter(pan)],
   });
 }
@@ -162,5 +182,14 @@ export function playFirework({ x, width }) {
     volume: 0.65,
     start: 0,
     filters: [new filters.StereoFilter(pan)],
+  });
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    stopBgm();
+    CELL_SOUND_ALIASES.forEach((alias) => {
+      if (sound.exists(alias)) sound.remove(alias);
+    });
   });
 }
