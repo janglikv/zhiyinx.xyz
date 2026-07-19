@@ -12,11 +12,14 @@ export const CHAPTER_UNLOCK_STARS = 18;
 
 /**
  * 章内主线关数参考（1-based）。第 12 关仍为章节闸门 Boss 位。
- * 其后 HARD_STAGE_START–LEVELS_PER_CHAPTER 为紫色高难可选关。
+ * 13–17 为紫色高难可选关（14 / 16 为紫色 Boss）；
+ * 第 18 关为红色终章 Boss。
  * 章节解锁改由 {@link CHAPTER_UNLOCK_STARS} 控制。
  */
 export const CHAPTER_UNLOCK_STAGE = 12;
 export const HARD_STAGE_START = 13;
+/** 紫色高难区结束 stage（含）；18 为红色终章 Boss，不在紫区 */
+export const HARD_STAGE_END = 17;
 
 /** 默认对局失败时限（秒）——防动态平衡拖死局 */
 export const DEFAULT_TIME_LIMIT_SEC = 180;
@@ -25,8 +28,11 @@ export const DEFAULT_STAR_TIME_SEC = 120;
 /** 能量星：通关时己方总能量 ≥ 开局己方总能量 × 该系数 */
 export const DEFAULT_ENERGY_STAR_RATIO = 1;
 
-/** 章内 Boss 关（1-based stage）：第 6 关中 Boss、第 12 关章节闸门 */
-export const BOSS_STAGES = Object.freeze([6, 12]);
+/**
+ * 章内 Boss 关（1-based stage）：
+ * 6 中 Boss · 12 章节闸门 · 14/16 紫色高难 Boss · 18 红色终章 Boss
+ */
+export const BOSS_STAGES = Object.freeze([6, 12, 14, 16, 18]);
 
 /**
  * @param {number} stage 章内第几关 1–18
@@ -36,16 +42,25 @@ export function isBossStage(stage) {
 }
 
 /**
- * 章内高难关（紫色）：后 6 关
+ * 章内高难关（紫色）：13–17（含 14/16 紫 Boss；不含 18）
  * @param {number} stage 章内第几关 1–18
  */
 export function isHardStage(stage) {
-  return stage >= HARD_STAGE_START && stage <= LEVELS_PER_CHAPTER;
+  return stage >= HARD_STAGE_START && stage <= HARD_STAGE_END;
+}
+
+/**
+ * 紫色高难区内的 Boss（isHard && isBoss）——目前 14、16
+ * @param {number} stage 章内第几关 1–18
+ */
+export function isHardBossStage(stage) {
+  return isHardStage(stage) && isBossStage(stage);
 }
 
 /**
  * 章节：每章 18 关共用一张背景（level-1 … level-5）。
- * 本章累计 {@link CHAPTER_UNLOCK_STARS} 星解锁下一章；13–18 为紫色高难。
+ * 本章累计 {@link CHAPTER_UNLOCK_STARS} 星解锁下一章；
+ * 13–17 为紫色高难（14 / 16 紫 Boss），18 为红色终章 Boss。
  * @typedef {{
  *   id: number,
  *   name: string,
@@ -408,7 +423,7 @@ function buildChapter1MidBossCells() {
 
 /**
  * Boss 关占位：多巢 vs 巨型母巢
- * stage 6 = 中 Boss，stage 12 = 章节闸门 Boss
+ * stage 6 = 中 Boss；≥12（含 12 闸门、14/16 紫 Boss、18 终章）用加强布局
  * @param {number} stage
  */
 function buildBossCells(stage) {
@@ -467,7 +482,11 @@ function buildChapterLevels(chapter, chapterIndex) {
     if (!contentReady) {
       // 第 2–5 章：只保留槽位、Boss / 高难标记，关卡内容清空
       let short;
-      if (boss) short = stage === 6 ? "中 Boss" : "章节闸门";
+      if (boss && hard) short = `紫 Boss ${stage}`;
+      else if (boss && stage === 6) short = "中 Boss";
+      else if (boss && stage === 12) short = "章节闸门";
+      else if (boss && stage === 18) short = "终章 Boss";
+      else if (boss) short = "Boss";
       else if (hard) short = `高难 ${stage}`;
       else short = `关卡 ${stage}`;
 
@@ -475,8 +494,12 @@ function buildChapterLevels(chapter, chapterIndex) {
         id,
         name: levelName(chapter, id, short),
         description: hard
-          ? "高难挑战（可选）· 内容待定"
-          : "内容待定",
+          ? boss
+            ? "紫色高难 Boss（可选）· 内容待定"
+            : "高难挑战（可选）· 内容待定"
+          : boss && stage === 18
+            ? "终章 Boss · 内容待定"
+            : "内容待定",
         cells: [],
         aiSeed,
         chapterId: chapter.id,
@@ -499,6 +522,15 @@ function buildChapterLevels(chapter, chapterIndex) {
         description =
           "敌群四面合围——别慌，你的核巢能量爆表。多路连线逐个撕开，享受被围仍能碾压的快感。";
         cells = buildChapter1MidBossCells();
+      } else if (hard) {
+        short = `紫 Boss ${stage}`;
+        description = `${chapter.name} · 紫色高难 Boss（可选）· 更强母巢布局，章节内第 ${stage} 关（占位，后续细化）。`;
+        cells = buildBossCells(stage);
+      } else if (stage === 18) {
+        short = "终章 Boss";
+        description =
+          "终章 Boss：红色终极关卡。肃清本章最强母巢，亦可回头刷满紫色高难与星数。";
+        cells = buildBossCells(stage);
       } else {
         short = "章节闸门";
         description =

@@ -25,11 +25,11 @@ const CHAPTER_BGS = {
 };
 
 const CHAPTER_TAGLINES = [
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–18 高难可选。`,
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–18 高难可选。`,
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–18 高难可选。`,
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–18 高难可选。`,
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁最终内容 · 紫关 13–18 高难可选。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–17 · 18 终章 Boss。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–17 · 18 终章 Boss。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–17 · 18 终章 Boss。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–17 · 18 终章 Boss。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁最终内容 · 紫关 13–17 · 18 终章 Boss。`,
 ];
 
 /**
@@ -69,10 +69,12 @@ function shortTitle(name) {
 function ctaLabel(s) {
   if (!s.unlocked) return "尚未解锁";
   if (s.done) {
+    if (s.isBoss && s.isHard) return "再战紫 Boss";
     if (s.isBoss) return "再战 Boss";
     if (s.isHard) return "再战高难";
     return "再战一局";
   }
+  if (s.isBoss && s.isHard) return "挑战紫 Boss";
   if (s.isBoss) return "挑战 Boss";
   if (s.isHard) return "挑战高难";
   if (s.neverPlayed) return "开始第一关";
@@ -365,7 +367,7 @@ export default function LevelSelect({
                       .join(" ")}
                     disabled={!unlocked}
                     aria-pressed={isSel}
-                    aria-label={`${shortTitle(lvl.name)}${isBoss ? " Boss" : ""}${isHard ? " 高难" : ""}${lvStars ? ` ${lvStars}星` : ""}`}
+                    aria-label={`${shortTitle(lvl.name)}${isBoss && isHard ? " 紫色 Boss" : isBoss ? " Boss" : ""}${isHard && !isBoss ? " 高难" : ""}${lvStars ? ` ${lvStars}星` : ""}`}
                     {...uiSfx("confirm", () => {
                       if (!unlocked) return;
                       if (isSel) enterLevel(index);
@@ -377,7 +379,11 @@ export default function LevelSelect({
                     }}
                   >
                     {isBoss && (
-                      <span className="chub__lv-skull-bg" title="Boss 关" aria-hidden>
+                      <span
+                        className="chub__lv-skull-bg"
+                        title={isHard ? "紫色 Boss 关" : "Boss 关"}
+                        aria-hidden
+                      >
                         ☠
                       </span>
                     )}
@@ -424,13 +430,15 @@ export default function LevelSelect({
                           ? "锁定"
                           : isRec
                             ? "下一步"
-                            : isBoss
-                              ? "Boss 战"
-                              : isHard
-                                ? "高难"
-                                : isSel
-                                  ? "已选中"
-                                  : "可挑战"}
+                            : isBoss && isHard
+                              ? "紫 Boss"
+                              : isBoss
+                                ? "Boss 战"
+                                : isHard
+                                  ? "高难"
+                                  : isSel
+                                    ? "已选中"
+                                    : "可挑战"}
                     </span>
                     {isRec && !done && <span className="chub__lv-glow" aria-hidden />}
                   </button>
@@ -444,8 +452,13 @@ export default function LevelSelect({
         <footer
           className={[
             "chub__dock",
-            focusBoss ? "chub__dock--boss" : "",
-            focusHard && !focusBoss ? "chub__dock--hard" : "",
+            focusHard && focusBoss
+              ? "chub__dock--hard-boss"
+              : focusHard
+                ? "chub__dock--hard"
+                : focusBoss
+                  ? "chub__dock--boss"
+                  : "",
             !focusUnlocked ? "chub__dock--lock" : "",
           ]
             .filter(Boolean)
@@ -461,8 +474,15 @@ export default function LevelSelect({
             </p>
             <p className="chub__dock-title">
               {focus?.name ?? "—"}
-              {focusBoss && <em className="chub__tag chub__tag--boss">Boss</em>}
-              {focusHard && <em className="chub__tag chub__tag--hard">高难</em>}
+              {focusBoss && focusHard && (
+                <em className="chub__tag chub__tag--hard-boss">紫 Boss</em>
+              )}
+              {focusBoss && !focusHard && (
+                <em className="chub__tag chub__tag--boss">Boss</em>
+              )}
+              {focusHard && !focusBoss && (
+                <em className="chub__tag chub__tag--hard">高难</em>
+              )}
               {focusDone && <em className="chub__tag chub__tag--done">已通关</em>}
               {focus?.tutorial && <em className="chub__tag chub__tag--tut">教程</em>}
             </p>
@@ -500,8 +520,13 @@ export default function LevelSelect({
               type="button"
               className={[
                 "chub__btn-play",
-                focusBoss && focusUnlocked ? "chub__btn-play--boss" : "",
-                focusHard && !focusBoss && focusUnlocked ? "chub__btn-play--hard" : "",
+                focusHard && focusBoss && focusUnlocked
+                  ? "chub__btn-play--hard-boss"
+                  : focusHard && focusUnlocked
+                    ? "chub__btn-play--hard"
+                    : focusBoss && focusUnlocked
+                      ? "chub__btn-play--boss"
+                      : "",
               ]
                 .filter(Boolean)
                 .join(" ")}

@@ -580,7 +580,7 @@
     0 8px 18px rgba(80, 10, 0, 0.35);
 }
 
-/* 紫色高难关（章内 13–18） */
+/* 紫色高难关（章内 13–17） */
 .chub__lv--hard.chub__lv--lock {
   border-color: rgba(120, 70, 180, 0.4);
   background:
@@ -618,9 +618,135 @@
     linear-gradient(165deg, rgba(60, 28, 90, 0.9) 0%, rgba(22, 10, 40, 0.85) 100%);
 }
 
+/* 紫色 Boss（14 / 16）：红→紫渐变；18 为红色终章 Boss，走普通 boss 样式 */
+.chub__lv--hard.chub__lv--boss.chub__lv--lock {
+  border-color: rgba(180, 70, 140, 0.42);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(48, 14, 18, 0.78) 0%,
+      rgba(36, 12, 40, 0.74) 48%,
+      rgba(22, 10, 38, 0.72) 100%
+    );
+  box-shadow: inset 0 0 0 1px rgba(200, 70, 120, 0.1);
+  color: rgba(210, 160, 190, 0.78);
+}
+
+.chub__lv--hard.chub__lv--boss.chub__lv--open {
+  border-color: rgba(255, 100, 140, 0.55);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(72, 18, 22, 0.94) 0%,
+      rgba(58, 16, 48, 0.9) 42%,
+      rgba(36, 12, 62, 0.9) 100%
+    );
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 90, 120, 0.12),
+    0 0 18px rgba(200, 40, 100, 0.2),
+    0 0 22px rgba(140, 50, 220, 0.18);
+}
+
+.chub__lv--hard.chub__lv--boss.chub__lv--done {
+  border-color: rgba(230, 120, 180, 0.55);
+}
+
+.chub__lv--hard.chub__lv--boss.chub__lv--open:hover {
+  border-color: rgba(255, 130, 180, 0.78);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 120, 170, 0.2),
+    0 8px 20px rgba(90, 10, 40, 0.32),
+    0 0 18px rgba(150, 60, 220, 0.22);
+}
+
+.chub__lv--sel.chub__lv--hard.chub__lv--boss {
+  border-color: #ffb8e0;
+  box-shadow:
+    0 0 0 1px rgba(255, 140, 180, 0.4),
+    0 0 24px rgba(200, 60, 140, 0.28),
+    0 0 20px rgba(160, 80, 255, 0.22);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(80, 22, 32, 0.94) 0%,
+      rgba(62, 18, 58, 0.92) 45%,
+      rgba(40, 14, 70, 0.9) 100%
+    );
+}
+
 .chub__lv--hard .chub__lv-stage {
   color: #c89bff;
   text-shadow: 0 0 12px rgba(180, 100, 255, 0.45);
+}
+
+.chub__lv--hard.chub__lv--boss .chub__lv-stage {
+  background: linear-gradient(105deg, #ff7a5c 0%, #ff6aa8 48%, #c89bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 8px rgba(255, 90, 140, 0.4));
+}
+
+.chub__lv--hard.chub__lv--boss .chub__lv-skull-bg {
+  color: rgba(255, 70, 120, 0.38);
+  text-shadow:
+    0 0 10px rgba(255, 50, 80, 0.4),
+    0 0 22px rgba(160, 50, 220, 0.35);
+  filter: saturate(1.3);
+}
+
+.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-skull-bg {
+  color: rgba(200, 70, 120, 0.26);
+  text-shadow: 0 0 10px rgba(160, 40, 100, 0.2);
+}
+
+.chub__lv--done.chub__lv--hard.chub__lv--boss .chub__lv-skull-bg {
+  color: rgba(230, 80, 140, 0.32);
+}
+
+.chub__lv--sel.chub__lv--hard.chub__lv--boss .chub__lv-skull-bg {
+  color: rgba(255, 80, 140, 0.48);
+  text-shadow:
+    0 0 14px rgba(255, 60, 100, 0.5),
+    0 0 28px rgba(160, 50, 230, 0.35);
+}
+
+.chub__lv--hard.chub__lv--boss .chub__lv-warn {
+  color: #ff8a9a;
+  text-shadow: 0 0 8px rgba(255, 80, 140, 0.5);
+}
+
+.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-warn {
+  color: rgba(220, 120, 150, 0.75);
+  text-shadow: none;
+}
+
+.chub__lv--hard.chub__lv--boss.chub__lv--open .chub__lv-flag {
+  color: rgba(255, 160, 200, 0.9);
+}
+
+.chub__lv--hard.chub__lv--boss.chub__lv--open .chub__lv-name {
+  color: #ffe8f4;
+}
+
+.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-stage {
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  color: rgba(220, 140, 180, 0.8);
+  -webkit-text-fill-color: unset;
+  filter: none;
+  text-shadow: none;
+}
+
+.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-name {
+  color: rgba(220, 170, 200, 0.75);
+}
+
+.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-flag {
+  color: rgba(210, 130, 170, 0.7);
 }
 
 .chub__lv--lock.chub__lv--hard .chub__lv-stage {
@@ -896,6 +1022,21 @@
     0 10px 28px rgba(40, 10, 0, 0.28);
 }
 
+.chub__dock--hard {
+  border-color: rgba(180, 110, 255, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(200, 150, 255, 0.08),
+    0 10px 28px rgba(30, 8, 50, 0.28);
+}
+
+.chub__dock--hard-boss {
+  border-color: rgba(255, 110, 160, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 150, 180, 0.08),
+    0 10px 28px rgba(50, 8, 30, 0.28),
+    0 0 18px rgba(140, 50, 200, 0.12);
+}
+
 .chub__dock--lock {
   border-color: rgba(100, 110, 115, 0.25);
   opacity: 0.92;
@@ -968,6 +1109,23 @@
   color: #ffd0b8;
   background: rgba(224, 90, 40, 0.32);
   border: 1px solid rgba(255, 140, 90, 0.4);
+}
+
+.chub__tag--hard {
+  color: #edd8ff;
+  background: rgba(140, 70, 220, 0.3);
+  border: 1px solid rgba(190, 130, 255, 0.42);
+}
+
+.chub__tag--hard-boss {
+  color: #ffe4f0;
+  background: linear-gradient(
+    105deg,
+    rgba(224, 70, 60, 0.38) 0%,
+    rgba(170, 50, 160, 0.36) 50%,
+    rgba(130, 60, 220, 0.38) 100%
+  );
+  border: 1px solid rgba(255, 140, 190, 0.48);
 }
 
 .chub__tag--done {
@@ -1051,4 +1209,27 @@
   box-shadow:
     0 2px 0 rgba(90, 30, 10, 0.4),
     0 8px 20px rgba(224, 90, 40, 0.35);
+}
+
+.chub__btn-play--hard {
+  color: #14081c;
+  background: linear-gradient(135deg, #e8c8ff 0%, #a05aff 50%, #6a28c8 100%);
+  box-shadow:
+    0 2px 0 rgba(60, 20, 100, 0.4),
+    0 8px 20px rgba(140, 70, 220, 0.38);
+}
+
+.chub__btn-play--hard-boss {
+  color: #1a080c;
+  background: linear-gradient(
+    125deg,
+    #ffb090 0%,
+    #ff6a8a 38%,
+    #c060ff 72%,
+    #8a3ce0 100%
+  );
+  box-shadow:
+    0 2px 0 rgba(90, 20, 50, 0.4),
+    0 8px 20px rgba(220, 60, 120, 0.32),
+    0 0 16px rgba(140, 60, 220, 0.22);
 }
