@@ -280,8 +280,8 @@
   top: 18px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(440px, calc(100% - 32px));
-  max-width: min(440px, calc(100% - 32px));
+  width: min(500px, calc(100% - 32px));
+  max-width: min(500px, calc(100% - 32px));
   pointer-events: none;
   animation: winToastIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -390,8 +390,10 @@
 .cell-win-toast-panel__actions {
   flex-shrink: 0;
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .cell-win-btn-ghost {

@@ -255,6 +255,7 @@ export default function PlayScene({
         fxKey={winFxKey}
         nextLabel={nextLabel}
         onNext={onNext}
+        onRestart={onRestart}
         onBackToHub={onBackToHub}
         sceneRef={sceneRef}
         onCompactChange={handleWinCompact}

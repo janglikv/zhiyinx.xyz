@@ -113,6 +113,7 @@ function buildStarChecklist(endResult) {
  *   fxKey?: number,
  *   nextLabel: string,
  *   onNext: () => void,
+ *   onRestart?: () => void,
  *   onBackToHub?: () => void,
  *   sceneRef?: React.RefObject<HTMLElement | null>,
  *   onCompactChange?: (compact: boolean, meta?: { fromRect?: object }) => void,
@@ -133,6 +134,7 @@ export default function WinOverlay({
   fxKey = 0,
   nextLabel,
   onNext,
+  onRestart,
   onBackToHub,
   sceneRef,
   onCompactChange,
@@ -319,6 +321,15 @@ export default function WinOverlay({
                     {...uiSfx("back", onBackToHub)}
                   >
                     选关
+                  </button>
+                )}
+                {onRestart && (
+                  <button
+                    type="button"
+                    className="cell-win-btn-ghost"
+                    {...uiSfx("confirm", () => onRestart?.())}
+                  >
+                    再次挑战
                   </button>
                 )}
                 <button

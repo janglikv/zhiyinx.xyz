@@ -76,7 +76,8 @@ export const CHAPTERS = [
     id: 1,
     name: "基础增殖",
     title: "第一章节",
-    description: "连线、占领、集火、前哨输送、蓄势——打牢细胞战争底盘。",
+    description:
+      "1–6 教学打底，7–11 试炼组合，12 闸门验收；其后紫色高难与终章可选挑战。",
     background: "level-1",
   },
   {
@@ -291,7 +292,7 @@ function levelName(chapter, globalId, short) {
 }
 
 /**
- * 普通关：直线对峙（章内 7–11 等占位布局）
+ * 普通关占位：直线对峙（紫高难等未细做布局时回退）
  * @param {number} stage
  * @param {boolean} tutorial
  */
@@ -422,6 +423,175 @@ function buildChapter1MidBossCells() {
 }
 
 /**
+ * 第一章试炼 7–11：组合应用教学技能（无强制引导）。
+ * 细胞数规律：第 N 关场上共计 N 个细胞（7→7 … 11→11）。
+ * 7 争点 · 8 断流 · 9 夹击 · 10 纵深 · 11 饥荒
+ * @param {number} stage 7–11
+ * @returns {Array<{ x: number, y: number, value: number, color: number }>}
+ */
+function buildChapter1TrialCells(stage) {
+  switch (stage) {
+    // 关 7 · 争点（7 细胞）：2绿 + 3灰偏敌 + 2红；先抢点再合击
+    case 7:
+      return [
+        { x: 180, y: 180, value: 24, color: COLOR_PLAYER },
+        { x: 180, y: 360, value: 24, color: COLOR_PLAYER },
+        { x: 460, y: 140, value: 11, color: COLOR_NEUTRAL },
+        { x: 500, y: 270, value: 12, color: COLOR_NEUTRAL },
+        { x: 460, y: 400, value: 11, color: COLOR_NEUTRAL },
+        { x: 760, y: 180, value: 28, color: COLOR_ENEMY },
+        { x: 760, y: 360, value: 30, color: COLOR_ENEMY },
+      ];
+
+    // 关 8 · 断流（8 细胞）：3绿 + 1灰 + 2前哨 + 1中继红 + 1母巢（红方略削）
+    case 8:
+      return [
+        { x: 160, y: 140, value: 22, color: COLOR_PLAYER },
+        { x: 160, y: 270, value: 24, color: COLOR_PLAYER },
+        { x: 160, y: 400, value: 22, color: COLOR_PLAYER },
+        { x: 380, y: 270, value: 10, color: COLOR_NEUTRAL },
+        // 双前哨贴中线，喂后方母巢（再削一档，保教学节奏）
+        { x: 540, y: 180, value: 11, color: COLOR_ENEMY },
+        { x: 540, y: 360, value: 11, color: COLOR_ENEMY },
+        { x: 680, y: 270, value: 12, color: COLOR_ENEMY },
+        { x: 820, y: 270, value: 30, color: COLOR_ENEMY },
+      ];
+
+    // 关 9 · 夹击（9 细胞）：3绿 + 2灰中路 + 上翼2红 + 下翼2红
+    case 9:
+      return [
+        { x: 190, y: 150, value: 22, color: COLOR_PLAYER },
+        { x: 190, y: 270, value: 24, color: COLOR_PLAYER },
+        { x: 190, y: 390, value: 22, color: COLOR_PLAYER },
+        { x: 440, y: 200, value: 12, color: COLOR_NEUTRAL },
+        { x: 440, y: 340, value: 12, color: COLOR_NEUTRAL },
+        // 上翼（略弱）
+        { x: 700, y: 100, value: 22, color: COLOR_ENEMY },
+        { x: 780, y: 160, value: 24, color: COLOR_ENEMY },
+        // 下翼（略强）
+        { x: 700, y: 440, value: 26, color: COLOR_ENEMY },
+        { x: 780, y: 380, value: 28, color: COLOR_ENEMY },
+      ];
+
+    // 关 10 · 纵深（10 细胞）：后排2 + 中继2 + 前线1 + 1灰 + 侧翼2 + 母巢线2
+    case 10:
+      return [
+        // 后排
+        { x: 140, y: 150, value: 24, color: COLOR_PLAYER },
+        { x: 140, y: 390, value: 24, color: COLOR_PLAYER },
+        // 中继
+        { x: 300, y: 200, value: 16, color: COLOR_PLAYER },
+        { x: 300, y: 340, value: 16, color: COLOR_PLAYER },
+        // 前线前哨
+        { x: 480, y: 270, value: 14, color: COLOR_PLAYER },
+        { x: 400, y: 100, value: 10, color: COLOR_NEUTRAL },
+        // 上下侧翼骚扰
+        { x: 620, y: 100, value: 16, color: COLOR_ENEMY },
+        { x: 620, y: 440, value: 16, color: COLOR_ENEMY },
+        // 母巢纵深
+        { x: 760, y: 220, value: 28, color: COLOR_ENEMY },
+        { x: 820, y: 340, value: 36, color: COLOR_ENEMY },
+      ];
+
+    // 关 11 · 饥荒（11 细胞）：无中立；4 绿低开 vs 7 红环压，必须先养
+    case 11:
+      return [
+        { x: 180, y: 130, value: 12, color: COLOR_PLAYER },
+        { x: 180, y: 230, value: 14, color: COLOR_PLAYER },
+        { x: 180, y: 330, value: 14, color: COLOR_PLAYER },
+        { x: 180, y: 430, value: 12, color: COLOR_PLAYER },
+        // 前压线
+        { x: 520, y: 160, value: 18, color: COLOR_ENEMY },
+        { x: 520, y: 270, value: 20, color: COLOR_ENEMY },
+        { x: 520, y: 380, value: 18, color: COLOR_ENEMY },
+        // 后排红核
+        { x: 740, y: 120, value: 22, color: COLOR_ENEMY },
+        { x: 780, y: 220, value: 24, color: COLOR_ENEMY },
+        { x: 780, y: 340, value: 24, color: COLOR_ENEMY },
+        { x: 740, y: 440, value: 22, color: COLOR_ENEMY },
+      ];
+
+    default:
+      return buildNormalCells(stage, false);
+  }
+}
+
+/**
+ * 第一章试炼 7–11 文案
+ * @param {number} stage 7–11
+ * @returns {{ short: string, description: string, starTimeSec?: number }}
+ */
+function chapter1TrialCopy(stage) {
+  switch (stage) {
+    case 7:
+      return {
+        short: "争点",
+        description:
+          "中立更靠近敌巢。先抢占灰色扩势，再合击红色；开局硬刚母巢容易两头空。",
+        starTimeSec: 110,
+      };
+    case 8:
+      return {
+        short: "断流",
+        description:
+          "前方小红在喂后方母巢。先拆掉前哨（或划刀切断补给线），再集火母巢，比死磕大血条更快。",
+        starTimeSec: 105,
+      };
+    case 9:
+      return {
+        short: "夹击",
+        description:
+          "上下两翼同时来犯。可先灭较弱一翼再转火，或抢中路中立稳住局面——别两边平均磨。",
+        starTimeSec: 100,
+      };
+    case 10:
+      return {
+        short: "纵深",
+        description:
+          "后排输送 → 中继中转 → 前线输出。把火力叠在贴脸前哨上；全员远射射速差，还要提防侧翼骚扰。",
+        starTimeSec: 100,
+      };
+    case 11:
+      return {
+        short: "饥荒",
+        description:
+          "没有中立可抢，己方四巢开局偏瘦，对面七红压境。先空窗自增养厚再分路出手；低能硬冲会被前压线吃掉。",
+        // 略紧：鼓励蓄势后高效清场，服务三星
+        starTimeSec: 95,
+      };
+    default:
+      return { short: `关卡 ${stage}`, description: "内容待定" };
+  }
+}
+
+/**
+ * 第一章章节闸门（关 12，共 12 细胞）：
+ * 4 绿 + 3 灰争点 + 侧翼/前哨/母巢 5 红，综合验收 7–11。
+ * @returns {Array<{ x: number, y: number, value: number, color: number }>}
+ */
+function buildChapter1GateBossCells() {
+  return [
+    // 己方左纵列（4）
+    { x: 150, y: 120, value: 20, color: COLOR_PLAYER },
+    { x: 150, y: 220, value: 22, color: COLOR_PLAYER },
+    { x: 150, y: 320, value: 22, color: COLOR_PLAYER },
+    { x: 150, y: 420, value: 20, color: COLOR_PLAYER },
+    // 争点带中立（3）
+    { x: 380, y: 160, value: 11, color: COLOR_NEUTRAL },
+    { x: 420, y: 270, value: 12, color: COLOR_NEUTRAL },
+    { x: 380, y: 380, value: 11, color: COLOR_NEUTRAL },
+    // 敌前哨补给（1）
+    { x: 580, y: 270, value: 18, color: COLOR_ENEMY },
+    // 上下侧翼（2）
+    { x: 680, y: 100, value: 18, color: COLOR_ENEMY },
+    { x: 680, y: 440, value: 18, color: COLOR_ENEMY },
+    // 母巢集群（2）
+    { x: 800, y: 200, value: 32, color: COLOR_ENEMY },
+    { x: 820, y: 340, value: 40, color: COLOR_ENEMY },
+  ];
+}
+
+/**
  * Boss 关占位：多巢 vs 巨型母巢
  * stage 6 = 中 Boss；≥12（含 12 闸门、14/16 紫 Boss、18 终章）用加强布局
  * @param {number} stage
@@ -515,6 +685,10 @@ function buildChapterLevels(chapter, chapterIndex) {
     let description;
     /** @type {Array<{ x: number, y: number, value: number, color: number }>} */
     let cells;
+    /** @type {number | undefined} */
+    let starTimeSec;
+    /** @type {number | undefined} */
+    let timeLimitSec;
 
     if (boss) {
       if (stage === 6) {
@@ -531,6 +705,13 @@ function buildChapterLevels(chapter, chapterIndex) {
         description =
           "终章 Boss：红色终极关卡。肃清本章最强母巢，亦可回头刷满紫色高难与星数。";
         cells = buildBossCells(stage);
+      } else if (stage === 12) {
+        short = "闸门";
+        description =
+          "章节闸门（12 细胞）：侧翼、中路争点、前哨补给与双核母巢。按阶段拆掉守卫——先翼后点再断流，最后合击母巢。";
+        cells = buildChapter1GateBossCells();
+        starTimeSec = 130;
+        timeLimitSec = 200;
       } else {
         short = "章节闸门";
         description =
@@ -546,6 +727,12 @@ function buildChapterLevels(chapter, chapterIndex) {
       short = copy.short;
       description = copy.description;
       cells = buildChapter1TutorialCells(stage);
+    } else if (stage >= 7 && stage <= 11) {
+      const copy = chapter1TrialCopy(stage);
+      short = copy.short;
+      description = copy.description;
+      cells = buildChapter1TrialCells(stage);
+      if (copy.starTimeSec != null) starTimeSec = copy.starTimeSec;
     } else {
       short = `关卡 ${stage}`;
       description = `${chapter.name} · 章节内第 ${stage} 关（占位布局，后续细化）。`;
@@ -563,6 +750,8 @@ function buildChapterLevels(chapter, chapterIndex) {
       isBoss: boss,
       isHard: hard,
       stage,
+      ...(starTimeSec != null ? { starTimeSec } : {}),
+      ...(timeLimitSec != null ? { timeLimitSec } : {}),
       ...(tutorial ? { tutorial: "basic-capture" } : {}),
     });
   }
