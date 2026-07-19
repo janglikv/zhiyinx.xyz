@@ -59,6 +59,8 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
   let dragStartY = 0;
   let pointerX = 0;
   let pointerY = 0;
+  /** 结算等场景可关闭交互 */
+  let inputEnabled = true;
 
   let cutting = false;
   /** @type {{ x: number, y: number, age: number }[]} */
@@ -205,10 +207,22 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
    * @param {import("./cell").Cell} cell
    * @param {PIXI.FederatedPointerEvent} event
    */
+  /**
+   * @param {boolean} enabled
+   */
+  function setEnabled(enabled) {
+    inputEnabled = Boolean(enabled);
+    if (!inputEnabled) {
+      cancelAimDrag();
+      endCutGesture();
+    }
+  }
+
   function onCellPointerDown(cell, event) {
     event.stopPropagation();
     endCutGesture();
 
+    if (!inputEnabled) return;
     if (!cell.isPlayer()) return;
 
     dragSource = cell;
@@ -241,6 +255,7 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
   app.stage.hitArea = app.screen;
 
   app.stage.on("pointerdown", (event) => {
+    if (!inputEnabled) return;
     if (dragSource) return;
     const onEmpty = event.target === app.stage || event.target === background;
     if (!onEmpty) return;
@@ -250,6 +265,7 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
   });
 
   app.stage.on("pointermove", (event) => {
+    if (!inputEnabled) return;
     pointerX = event.global.x;
     pointerY = event.global.y;
 
@@ -270,6 +286,11 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
   });
 
   app.stage.on("pointerup", (event) => {
+    if (!inputEnabled) {
+      cancelAimDrag();
+      endCutGesture();
+      return;
+    }
     if (dragSource) {
       endAimDrag(event.global.x, event.global.y);
       return;
@@ -278,6 +299,11 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
   });
 
   app.stage.on("pointerupoutside", (event) => {
+    if (!inputEnabled) {
+      cancelAimDrag();
+      endCutGesture();
+      return;
+    }
     if (dragSource) {
       endAimDrag(event.global.x, event.global.y);
       return;
@@ -291,6 +317,7 @@ export function createInputSystem({ app, background, cells, combat, aim }) {
     onCellPointerDown,
     tickBlade,
     syncSelection,
+    setEnabled,
     cutTrail,
   };
 }

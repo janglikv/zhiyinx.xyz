@@ -15,6 +15,7 @@ import {
   resolveLevelStarRules,
   startingPlayerEnergy,
 } from "./levels";
+import { getDebugTimeScale } from "./debugSettings";
 
 /** 逻辑画布固定；渲染 resolution 随实际显示尺寸 × DPR 变化（全屏更清晰） */
 const MIN_RENDER_RESOLUTION = 0.75;
@@ -223,13 +224,21 @@ export function mountCellGame(
     app.stage.addChild(input.cutTrail);
 
     let gameEnded = false;
+    /** 失败：整帧冻结；胜利：场景继续动，但停自增 / 停射击 / 停 AI */
     let gamePaused = false;
+    let postWinFreeze = false;
     /** 实战用时（ms）；引导未放敌前不累计，避免教学吃掉限时 */
     let battleMs = 0;
     const starRules = resolveLevelStarRules(level);
     const timeLimitMs = starRules.timeLimitSec * 1000;
     const startEnergy = startingPlayerEnergy(level);
     let lastHudSec = -1;
+
+    function clearAllFireLinks() {
+      for (const [source] of [...combat.fireLinks]) {
+        combat.stopFireLink(source, { force: true });
+      }
+    }
 
     /**
      * @param {boolean} isWin
@@ -238,7 +247,20 @@ export function mountCellGame(
     function finish(isWin, reason) {
       if (gameEnded) return;
       gameEnded = true;
-      gamePaused = true;
+
+      if (isWin) {
+        // 结算不停帧：细胞闲置动画继续，但不再自增 / 连线开火 / 交互
+        postWinFreeze = true;
+        gamePaused = false;
+        clearAllFireLinks();
+        input.setEnabled(false);
+        aim.clearAimLine?.();
+      } else {
+        postWinFreeze = false;
+        gamePaused = true;
+        clearAllFireLinks();
+        input.setEnabled(false);
+      }
 
       const elapsedSec = battleMs / 1000;
       if (!isWin) {
@@ -278,14 +300,20 @@ export function mountCellGame(
 
     app.ticker.add((ticker) => {
       if (gamePaused) return;
-      elapsed += ticker.deltaTime;
-      const dt = ticker.deltaMS;
+      // DEV 倍速：放大逻辑 dt / 帧序号，音效与真实时间不受影响
+      const timeScale = getDebugTimeScale();
+      elapsed += ticker.deltaTime * timeScale;
+      const dt = ticker.deltaMS * timeScale;
 
-      const freezeGrowth = tutorial?.freezeGrowth ?? false;
+      const freezeGrowth =
+        postWinFreeze || (tutorial?.freezeGrowth ?? false);
       cells.forEach((cell, index) => {
         if (freezeGrowth) {
+          // 停自增，保留呼吸 / 闲置动画
           const grow = cell.tickGrowth.bind(cell);
           cell.tickGrowth = () => {};
+          // 结算期清空溢出，避免任何旁路输出
+          if (postWinFreeze) cell.overflowEnergy = 0;
           cell.update(dt, elapsed, index);
           cell.tickGrowth = grow;
         } else {
@@ -294,16 +322,19 @@ export function mountCellGame(
       });
 
       const enemyUnlocked = tutorial ? tutorial.enemyUnlocked : true;
-      if (enemyUnlocked) {
-        ai.update(dt);
-      }
 
-      combat.tickFireLinks(dt);
-      input.tickBlade(dt);
-      tutorial?.tick();
+      if (!postWinFreeze) {
+        if (enemyUnlocked) {
+          ai.update(dt);
+        }
+        combat.tickFireLinks(dt);
+        input.tickBlade(dt);
+        tutorial?.tick();
+      }
 
       aim.tickAimRing(dt);
       aim.redrawLinkLines();
+      // 场上已有子弹可飞完消失；结算后不再产生新弹
       combat.tickBullets(dt);
 
       // 倒计时：教学放敌后才走表；超时判负（防动态平衡）

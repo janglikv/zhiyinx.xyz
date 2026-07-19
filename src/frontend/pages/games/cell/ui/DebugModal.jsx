@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { playUi, onUiHover, uiSfx } from "../audio";
 import AudioDebugPanel from "./AudioDebugPanel";
+import {
+  DEBUG_TIME_SCALES,
+  formatTimeScaleLabel,
+  getDebugTimeScale,
+  setDebugTimeScale,
+} from "../debugSettings";
 
 /**
  * 开发调试模态框（仅 DEV 挂载）
@@ -23,9 +29,11 @@ export default function DebugModal({
   onUnlockAll,
 }) {
   const [confirmReset, setConfirmReset] = useState(false);
+  const [timeScale, setTimeScale] = useState(getDebugTimeScale);
 
   useEffect(() => {
     if (!active) setConfirmReset(false);
+    else setTimeScale(getDebugTimeScale());
   }, [active]);
 
   useEffect(() => {
@@ -46,6 +54,11 @@ export default function DebugModal({
       playUi("tap");
       setConfirmReset(true);
     }
+  }
+
+  function handleSpeed(scale) {
+    playUi("tap");
+    setTimeScale(setDebugTimeScale(scale));
   }
 
   return (
@@ -114,6 +127,30 @@ export default function DebugModal({
         </header>
 
         <div className="cell-modal-body cell-modal-body--debug">
+          <div className="cell-debug-speed" role="group" aria-label="游戏倍速">
+            <div className="cell-debug-speed__head">
+              <span className="cell-debug-speed__title">游戏倍速</span>
+              <span className="cell-debug-speed__meta">
+                当前 <strong>{formatTimeScaleLabel(timeScale)}</strong>
+                <span className="cell-debug-speed__tip"> · 即时生效 · 刷新恢复 1×</span>
+              </span>
+            </div>
+            <div className="cell-debug-speed__grid">
+              {DEBUG_TIME_SCALES.map((scale) => (
+                <button
+                  key={scale}
+                  type="button"
+                  className={`cell-debug-speed__btn ${
+                    timeScale === scale ? "is-active" : ""
+                  }`}
+                  onMouseEnter={onUiHover}
+                  onClick={() => handleSpeed(scale)}
+                >
+                  {formatTimeScaleLabel(scale)}
+                </button>
+              ))}
+            </div>
+          </div>
           <AudioDebugPanel compact />
         </div>
       </div>

@@ -273,6 +273,208 @@
   gap: 8px;
 }
 
+/* 结算卡：居中展开 → 收起淡出（下一关改到工具栏设置左侧） */
+.cell-win-toast-panel {
+  position: absolute;
+  z-index: 9;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(400px, calc(100% - 32px));
+  max-width: min(400px, calc(100% - 32px));
+  pointer-events: none;
+  animation: winToastIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.cell-win-toast-panel--ready {
+  animation: none;
+}
+
+.cell-win-toast-panel--compact {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-10px) scale(0.96);
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.cell-win-toast-panel__card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(165deg, rgba(18, 32, 24, 0.9) 0%, rgba(8, 14, 12, 0.92) 100%);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(84, 201, 43, 0.08),
+    0 0 48px rgba(84, 201, 43, 0.1);
+  pointer-events: auto;
+}
+
+.cell-win-toast-panel--compact .cell-win-toast-panel__card {
+  pointer-events: none;
+}
+
+.cell-win-toast-panel__shine {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(122, 224, 74, 0.75),
+    rgba(255, 213, 74, 0.5),
+    transparent
+  );
+}
+
+.cell-win-toast-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 14px 14px 16px;
+}
+
+.cell-win-toast-panel__badge {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(84, 201, 43, 0.28), rgba(60, 160, 26, 0.1));
+  border: 1px solid rgba(122, 224, 74, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 18px rgba(84, 201, 43, 0.2);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  color: #9af05a;
+  text-shadow: 0 0 12px rgba(84, 201, 43, 0.55);
+}
+
+.cell-win-toast-panel__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cell-win-toast-panel__title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-family: var(--font-title);
+  background: linear-gradient(105deg, #e8ffe0 0%, #7ae04a 45%, #c8f06a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+}
+
+.cell-win-toast-panel__sub {
+  margin-top: 4px;
+  color: rgba(180, 200, 175, 0.72);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+.cell-win-toast-panel__actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cell-win-btn-ghost {
+  padding: 10px 12px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: rgba(230, 240, 225, 0.9);
+  cursor: pointer;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 结算「下一关」；--dock 与工具栏同高，排在设置左侧 */
+.cell-win-next {
+  padding: 10px 14px;
+  border-radius: 11px;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: #0a140c;
+  cursor: pointer;
+  font-family: inherit;
+  background: linear-gradient(135deg, #9af05a 0%, #54c92b 48%, #3ca01a 100%);
+  box-shadow:
+    0 2px 0 rgba(30, 90, 20, 0.45),
+    0 6px 16px rgba(84, 201, 43, 0.35);
+}
+
+/* 工具栏旁略矮于 40 图标，视觉更轻 */
+.cell-win-next--dock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid rgba(84, 201, 43, 0.45);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* FLIP 飞入：从结算卡位置绝对定位飞到工具栏 */
+.cell-win-next--fly {
+  position: absolute;
+  z-index: 20;
+  margin: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.cell-win-next--fly-dock {
+  /* 终点形态接近 dock，宽高由 inline style 过渡 */
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1;
+  border: 1px solid rgba(84, 201, 43, 0.45);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.cell-win-next:active {
+  transform: translateY(1px);
+}
+
+.cell-win-next--dock:active,
+.cell-win-next--fly:active {
+  transform: none;
+}
+
 /* 对局倒计时：顶栏居中偏上，避开返回/工具 */
 .cell-battle-timer {
   position: absolute;
@@ -535,6 +737,12 @@ body.cell-fs-active {
   .cell-tool-btn {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  .cell-win-next--dock {
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
   }
 
   .cell-play-tools {
@@ -1010,6 +1218,86 @@ body.cell-fs-active {
   font-weight: 600;
   color: #ffc98a;
   letter-spacing: 0.02em;
+}
+
+/* 调试 · 游戏倍速 */
+.cell-debug-speed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(217, 140, 67, 0.3);
+}
+
+.cell-debug-speed__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.cell-debug-speed__title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffc98a;
+  letter-spacing: 0.02em;
+}
+
+.cell-debug-speed__meta {
+  font-size: 11px;
+  color: rgba(255, 220, 180, 0.75);
+}
+
+.cell-debug-speed__meta strong {
+  color: #ffe0b0;
+  font-weight: 800;
+}
+
+.cell-debug-speed__tip {
+  color: rgba(255, 200, 150, 0.45);
+}
+
+.cell-debug-speed__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cell-debug-speed__btn {
+  min-width: 48px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 160, 80, 0.35);
+  background: rgba(40, 22, 8, 0.65);
+  color: #ffd9a8;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.cell-debug-speed__btn:hover {
+  border-color: rgba(255, 180, 100, 0.55);
+  background: rgba(60, 32, 12, 0.8);
+}
+
+.cell-debug-speed__btn.is-active {
+  border-color: rgba(255, 170, 70, 0.85);
+  background: linear-gradient(135deg, rgba(255, 160, 60, 0.35), rgba(200, 90, 30, 0.45));
+  color: #fff4e0;
+  box-shadow: 0 0 10px rgba(255, 140, 50, 0.35);
+}
+
+.cell-debug-speed__btn:focus-visible {
+  outline: 2px solid rgba(255, 180, 90, 0.7);
+  outline-offset: 2px;
 }
 
 /* 音效调试面板（DEV） */
