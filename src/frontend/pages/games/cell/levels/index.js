@@ -443,18 +443,19 @@ function buildChapter1TrialCells(stage) {
         { x: 760, y: 360, value: 30, color: COLOR_ENEMY },
       ];
 
-    // 关 8 · 断流（8 细胞）：3绿 + 1灰 + 2前哨 + 1中继红 + 1母巢（红方略削）
+    // 关 8 · 断流（8 细胞）：3绿 + 1灰 + 2前哨 + 1中继 + 1母巢
+    // 前哨/中继会 AI 同色喂母巢；母巢开局偏瘦，靠补给变壮——先拆补给线才是正解
     case 8:
       return [
         { x: 160, y: 140, value: 22, color: COLOR_PLAYER },
         { x: 160, y: 270, value: 24, color: COLOR_PLAYER },
         { x: 160, y: 400, value: 22, color: COLOR_PLAYER },
         { x: 380, y: 270, value: 10, color: COLOR_NEUTRAL },
-        // 双前哨贴中线，喂后方母巢（再削一档，保教学节奏）
-        { x: 540, y: 180, value: 11, color: COLOR_ENEMY },
-        { x: 540, y: 360, value: 11, color: COLOR_ENEMY },
-        { x: 680, y: 270, value: 12, color: COLOR_ENEMY },
-        { x: 820, y: 270, value: 30, color: COLOR_ENEMY },
+        // 前哨/中继能量够开火，才能稳定输血；母巢本体不强
+        { x: 540, y: 180, value: 16, color: COLOR_ENEMY },
+        { x: 540, y: 360, value: 16, color: COLOR_ENEMY },
+        { x: 680, y: 270, value: 18, color: COLOR_ENEMY },
+        { x: 820, y: 270, value: 22, color: COLOR_ENEMY },
       ];
 
     // 关 9 · 夹击（9 细胞）：3绿 + 2灰中路 + 上翼2红 + 下翼2红
@@ -534,8 +535,9 @@ function chapter1TrialCopy(stage) {
       return {
         short: "断流",
         description:
-          "前方小红在喂后方母巢。先拆掉前哨（或划刀切断补给线），再集火母巢，比死磕大血条更快。",
-        starTimeSec: 105,
+          "前哨与中继会给后方母巢输送能量。先拆掉补给（或划刀切断红方连线），再集火变瘦的母巢；放任输血会把母巢养肥。",
+        // 正确断流节奏可三星；硬刚满补给母巢会超时
+        starTimeSec: 115,
       };
     case 9:
       return {

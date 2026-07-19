@@ -36,6 +36,13 @@ export const AI_RECOVERY_THRESHOLD = 12;
 export const AI_PRESS_COST_MULT = 3.2;
 /** 同目标最短保持时间，避免抖动换目标 */
 export const AI_HOLD_TARGET_MS = 900;
+/**
+ * 同色输送：己方「大核」比源至少高出该值时，小巢可进入 supply 意图喂养。
+ * 与玩家后排→前排输送同一套同色治疗规则。
+ */
+export const AI_SUPPLY_ALLY_LEAD = 4;
+/** 大核距满额至少还有这么多空间才值得继续喂 */
+export const AI_SUPPLY_ROOM_MIN = 4;
 
 /** 半径线性动画速度（像素/秒） */
 export const RADIUS_ANIM_SPEED = 36;

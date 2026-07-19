@@ -316,12 +316,19 @@ export function createAimSystem({
     linkLines.clear();
     const fireLinks = getFireLinks();
     for (const [source, link] of fireLinks) {
-      // 只绘制玩家（绿色方）的射击连接线，隐藏 AI（红色方）的连线
-      if (!source.isPlayer()) continue;
-
       const target = link.target;
-      const ep = linkEndpoints(source, target);
-      drawDashedBeam(linkLines, ep.x1, ep.y1, ep.x2, ep.y2, source.color, 0.28);
+      if (!target) continue;
+
+      // 玩家连线始终显示；红方仅显示「同色输送」补给线（断流可读/可切），进攻线仍隐藏以免糊屏
+      if (source.isPlayer()) {
+        const ep = linkEndpoints(source, target);
+        drawDashedBeam(linkLines, ep.x1, ep.y1, ep.x2, ep.y2, source.color, 0.28);
+        continue;
+      }
+      if (source.isEnemy() && target.isEnemy()) {
+        const ep = linkEndpoints(source, target);
+        drawDashedBeam(linkLines, ep.x1, ep.y1, ep.x2, ep.y2, source.color, 0.4);
+      }
     }
   }
 
