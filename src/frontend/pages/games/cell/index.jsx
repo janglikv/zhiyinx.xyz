@@ -288,6 +288,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             <SettingsModal
               active={showSettings}
               onClose={() => setShowSettings(false)}
+              inGame={screen === "play"}
+              onRestart={handleRestart}
             />
           )}
 

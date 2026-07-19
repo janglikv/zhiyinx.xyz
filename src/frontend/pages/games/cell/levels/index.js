@@ -333,11 +333,11 @@ function buildChapter1TutorialCells(stage) {
         { x: 740, y: 270, value: 52, color: COLOR_ENEMY },
       ];
 
-    // 关 5 · 蓄势：仅绿 vs 红，无中立。同一排；先养厚再出手
+    // 关 5 · 蓄势：仅绿 vs 红，无中立。同一排；先养厚再出手（略放水：开局差缩小）
     case 5:
       return [
-        { x: 260, y: 270, value: 20, color: COLOR_PLAYER },
-        { x: 700, y: 270, value: 40, color: COLOR_ENEMY },
+        { x: 260, y: 270, value: 26, color: COLOR_PLAYER },
+        { x: 700, y: 270, value: 34, color: COLOR_ENEMY },
       ];
 
     default:

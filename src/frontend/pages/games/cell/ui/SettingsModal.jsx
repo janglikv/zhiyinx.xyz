@@ -15,9 +15,11 @@ import {
  * @param {{
  *   active: boolean,
  *   onClose: () => void,
+ *   inGame?: boolean,
+ *   onRestart?: () => void,
  * }} props
  */
-export default function SettingsModal({ active, onClose }) {
+export default function SettingsModal({ active, onClose, inGame = false, onRestart }) {
   const [muted, setMuted] = useState(() => getAudioSettings().muted);
   const [bgm, setBgm] = useState(() => getAudioSettings().bgm);
   const [sfx, setSfx] = useState(() => getAudioSettings().sfx);
@@ -90,6 +92,25 @@ export default function SettingsModal({ active, onClose }) {
         </header>
 
         <div className="cell-modal-body">
+          {inGame && onRestart && (
+            <section className="cell-modal-section">
+              <h4 className="cell-modal-section-title">对局</h4>
+              <p className="cell-modal-desc">从当前关卡重新开始，进度不会写入通关记录。</p>
+              <div className="cell-modal-actions">
+                <button
+                  type="button"
+                  className="cell-btn cell-btn--outline"
+                  {...uiSfx("confirm", () => {
+                    onRestart();
+                    onClose();
+                  })}
+                >
+                  重新开始
+                </button>
+              </div>
+            </section>
+          )}
+
           <section className="cell-modal-section">
             <h4 className="cell-modal-section-title">声音</h4>
             <p className="cell-modal-desc">调节背景音乐与音效，设置会自动保存。</p>
