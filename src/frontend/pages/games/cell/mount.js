@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
 import { Cell } from "./cell";
-import { GAME_WIDTH, GAME_HEIGHT, COLOR_NEUTRAL, COLOR_ENEMY } from "./constants";
+import { GAME_WIDTH, GAME_HEIGHT, COLOR_NEUTRAL } from "./constants";
 import {
   loadBackgroundTextures,
   createBackgroundController,
@@ -45,22 +45,7 @@ function computeDisplayResolution(container) {
  * @param {(isWin: boolean, detail?: object) => void} onGameEnd
  * @param {(phase: import("./tutorial/phases").TutorialPhase) => void} onTutorialPhase
  * @param {() => void} onTutorialComplete
- * @param {(hud: {
- *   remainingSec: number,
- *   elapsedSec: number,
- *   timeLimitSec: number,
- *   starTimeSec: number,
- *   urgent: boolean,
- *   clearProgress: number,
- *   timeProgress: number,
- *   energyProgress: number,
- *   clearLit: boolean,
- *   timeLit: boolean,
- *   energyLit: boolean,
- *   playerEnergy: number,
- *   enemyEnergy: number,
- *   energyTarget: number,
- * }) => void} [onBattleHud]
+ * @param {(hud: { remainingSec: number, elapsedSec: number, timeLimitSec: number, urgent: boolean }) => void} [onBattleHud]
  */
 export function mountCellGame(
   container,
@@ -246,19 +231,8 @@ export function mountCellGame(
     let battleMs = 0;
     const starRules = resolveLevelStarRules(level);
     const timeLimitMs = starRules.timeLimitSec * 1000;
-    const starTimeMs = starRules.starTimeSec * 1000;
     const startEnergy = startingPlayerEnergy(level);
-    const energyTarget = Math.max(1e-6, startEnergy * starRules.energyStarRatio);
-    const startEnemyEnergy = Math.max(
-      0,
-      (level.cells || []).reduce((sum, c) => {
-        if (c.color === COLOR_ENEMY) return sum + (Number(c.value) || 0);
-        return sum;
-      }, 0),
-    );
     let lastHudSec = -1;
-    /** 星进度 HUD 节流键（量化后变化才推 React） */
-    let lastStarHudKey = "";
 
     function clearAllFireLinks() {
       for (const [source] of [...combat.fireLinks]) {
@@ -366,15 +340,21 @@ export function mountCellGame(
       // 倒计时：教学放敌后才走表；超时判负（防动态平衡）
       if (!gameEnded && enemyUnlocked) {
         battleMs += dt;
+        const remainingMs = Math.max(0, timeLimitMs - battleMs);
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        if (onBattleHud && remainingSec !== lastHudSec) {
+          lastHudSec = remainingSec;
+          onBattleHud({
+            remainingSec,
+            elapsedSec: battleMs / 1000,
+            timeLimitSec: starRules.timeLimitSec,
+            urgent: remainingSec <= 30,
+          });
+        }
         if (battleMs >= timeLimitMs) {
-          pushBattleHud(true);
           finish(false, "timeout");
           return;
         }
-      }
-
-      if (!gameEnded) {
-        pushBattleHud(false);
       }
 
       if (!gameEnded && enemyUnlocked && elapsed > 8) {
@@ -388,87 +368,10 @@ export function mountCellGame(
         if (!hasPlayer) {
           finish(false, "wipe");
         } else if (!hasEnemy) {
-          pushBattleHud(true);
           finish(true, "clear");
         }
       }
     });
-
-    /**
-     * 推送失败倒计时 + 三星进度（量化后才更新 React，降低重绘）
-     * @param {boolean} force
-     */
-    function pushBattleHud(force) {
-      if (!onBattleHud) return;
-
-      let playerEnergy = 0;
-      let enemyEnergy = 0;
-      let hasEnemy = false;
-      for (const cell of cells) {
-        const v = cell.value || 0;
-        if (cell.isPlayer()) playerEnergy += v;
-        if (cell.isEnemy()) {
-          hasEnemy = true;
-          enemyEnergy += v;
-        }
-      }
-
-      // ★1 清场：相对开局敌方能量的消灭进度；无开局红巢时有敌=0、无敌=1
-      let clearProgress;
-      if (startEnemyEnergy > 0) {
-        clearProgress = Math.min(
-          1,
-          Math.max(0, 1 - enemyEnergy / startEnemyEnergy),
-        );
-        if (!hasEnemy) clearProgress = 1;
-      } else {
-        clearProgress = hasEnemy ? 0 : 1;
-      }
-
-      // ★3 时间星展示为第 2 颗：开局满格，评星时限耗尽后熄灭
-      const timeProgress = Math.min(
-        1,
-        Math.max(0, 1 - battleMs / Math.max(1, starTimeMs)),
-      );
-      // ★2 能量星展示为第 3 颗
-      const energyProgress = Math.min(
-        1,
-        Math.max(0, playerEnergy / energyTarget),
-      );
-
-      const remainingMs = Math.max(0, timeLimitMs - battleMs);
-      const remainingSec = Math.ceil(remainingMs / 1000);
-      const elapsedSec = battleMs / 1000;
-
-      // 量化：进度 0–40 档 + 秒数，避免每帧 setState
-      const qClear = Math.round(clearProgress * 40);
-      const qTime = Math.round(timeProgress * 40);
-      const qEnergy = Math.round(energyProgress * 40);
-      const key = `${remainingSec}|${qClear}|${qTime}|${qEnergy}`;
-      if (!force && key === lastStarHudKey) return;
-      lastStarHudKey = key;
-      lastHudSec = remainingSec;
-
-      onBattleHud({
-        remainingSec,
-        elapsedSec,
-        timeLimitSec: starRules.timeLimitSec,
-        starTimeSec: starRules.starTimeSec,
-        urgent: remainingSec <= 30,
-        clearProgress,
-        timeProgress,
-        energyProgress,
-        clearLit: clearProgress >= 1 - 1e-6,
-        timeLit: timeProgress > 1e-6,
-        energyLit: energyProgress >= 1 - 1e-6,
-        playerEnergy,
-        enemyEnergy,
-        energyTarget,
-      });
-    }
-
-    // 开局先推一帧，避免返回键旁星星空白
-    pushBattleHud(true);
   }
 
   initPixi().catch((err) => {

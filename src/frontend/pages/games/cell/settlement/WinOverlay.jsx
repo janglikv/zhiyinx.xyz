@@ -170,7 +170,6 @@ export default function WinOverlay({
             </div>
             <div className="cell-win-toast-panel__body">
               <div className="cell-win-toast-panel__title">挑战成功</div>
-              <div className="cell-win-toast-panel__sub">对抗细胞已肃清</div>
               <div className="cell-win-stars" aria-label={`${stars} 星`}>
                 {[1, 2, 3].map((i) => (
                   <span
