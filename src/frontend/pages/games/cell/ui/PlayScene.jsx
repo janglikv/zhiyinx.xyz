@@ -5,6 +5,7 @@ import { uiSfx } from "../audio";
 import BackButton from "./BackButton";
 import StageTools from "./StageTools";
 import BattleTimer from "./BattleTimer";
+import StarProgressHud from "./StarProgressHud";
 
 /**
  * 元素相对场景根的逻辑坐标（兼容父级 CSS scale）。
@@ -36,7 +37,19 @@ function relativeRect(el, root) {
  *   gameState: string,
  *   winFxKey: number,
  *   nextLabel: string,
- *   battleHud?: { remainingSec: number, timeLimitSec: number, urgent: boolean } | null,
+ *   battleHud?: {
+ *     remainingSec: number,
+ *     timeLimitSec: number,
+ *     starTimeSec?: number,
+ *     urgent: boolean,
+ *     clearProgress?: number,
+ *     timeProgress?: number,
+ *     energyProgress?: number,
+ *     clearLit?: boolean,
+ *     timeLit?: boolean,
+ *     energyLit?: boolean,
+ *     energyTarget?: number,
+ *   } | null,
  *   endResult?: object | null,
  *   onBackToHub: () => void,
  *   onOpenSettings: () => void,
@@ -187,7 +200,20 @@ export default function PlayScene({
         .join(" ")}
     >
       <div ref={containerRef} className="cell-stage__canvas-host" />
-      <BackButton onClick={onBackToHub} />
+      <div className="cell-play-chrome-left">
+        <BackButton onClick={onBackToHub} />
+        <StarProgressHud
+          clearProgress={battleHud?.clearProgress}
+          timeProgress={battleHud?.timeProgress ?? 1}
+          energyProgress={battleHud?.energyProgress}
+          clearLit={battleHud?.clearLit}
+          timeLit={battleHud?.timeLit ?? true}
+          energyLit={battleHud?.energyLit}
+          starTimeSec={battleHud?.starTimeSec}
+          energyTarget={battleHud?.energyTarget}
+          hidden={gameState !== "playing"}
+        />
+      </div>
       <BattleTimer
         remainingSec={battleHud?.remainingSec ?? null}
         timeLimitSec={battleHud?.timeLimitSec}
