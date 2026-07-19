@@ -2,6 +2,7 @@ import { TutorialHud } from "../tutorial";
 import { WinOverlay, LoseOverlay } from "../settlement";
 import BackButton from "./BackButton";
 import StageTools from "./StageTools";
+import BattleTimer from "./BattleTimer";
 
 /**
  * 对局场景：画布 + 工具 + 引导 + 胜负
@@ -15,6 +16,8 @@ import StageTools from "./StageTools";
  *   gameState: string,
  *   winFxKey: number,
  *   nextLabel: string,
+ *   battleHud?: { remainingSec: number, timeLimitSec: number, urgent: boolean } | null,
+ *   endResult?: object | null,
  *   onBackToHub: () => void,
  *   onOpenSettings: () => void,
  *   onOpenDebug?: () => void,
@@ -33,6 +36,8 @@ export default function PlayScene({
   gameState,
   winFxKey,
   nextLabel,
+  battleHud,
+  endResult,
   onBackToHub,
   onOpenSettings,
   onOpenDebug,
@@ -52,6 +57,12 @@ export default function PlayScene({
     >
       <div ref={containerRef} className="cell-stage__canvas-host" />
       <BackButton onClick={onBackToHub} />
+      <BattleTimer
+        remainingSec={battleHud?.remainingSec ?? null}
+        timeLimitSec={battleHud?.timeLimitSec}
+        urgent={Boolean(battleHud?.urgent)}
+        hidden={gameState !== "playing"}
+      />
       <div className="cell-play-tools">
         <StageTools
           stageRef={stageRef}
@@ -70,9 +81,14 @@ export default function PlayScene({
         nextLabel={nextLabel}
         onNext={onNext}
         onBackToHub={onBackToHub}
+        endResult={endResult}
       />
       {gameState === "lose" && (
-        <LoseOverlay onRestart={onRestart} onBackToHub={onBackToHub} />
+        <LoseOverlay
+          onRestart={onRestart}
+          onBackToHub={onBackToHub}
+          reason={endResult?.reason}
+        />
       )}
     </div>
   );

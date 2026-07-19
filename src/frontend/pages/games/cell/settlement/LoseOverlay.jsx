@@ -2,9 +2,19 @@ import { uiSfx } from "../audio";
 
 /**
  * 失败遮罩
- * @param {{ onRestart: () => void, onBackToHub?: () => void }} props
+ * @param {{
+ *   onRestart: () => void,
+ *   onBackToHub?: () => void,
+ *   reason?: "wipe" | "timeout" | string,
+ * }} props
  */
-export default function LoseOverlay({ onRestart, onBackToHub }) {
+export default function LoseOverlay({ onRestart, onBackToHub, reason }) {
+  const isTimeout = reason === "timeout";
+  const title = isTimeout ? "战线僵持" : "细胞湮灭";
+  const subtitle = isTimeout
+    ? "时间耗尽，双方陷入动态平衡。再试一次，更快撕开防线！"
+    : "你的细胞全部被吞噬了。别灰心，再试一次！";
+
   return (
     <div
       style={{
@@ -41,10 +51,20 @@ export default function LoseOverlay({ onRestart, onBackToHub }) {
           letterSpacing: "2px",
         }}
       >
-        细胞湮灭
+        {title}
       </h1>
-      <p style={{ color: "var(--text-secondary)", fontSize: "14px", marginTop: "-8px" }}>
-        你的细胞全部被吞噬了。别灰心，再试一次！
+      <p
+        style={{
+          color: "var(--text-secondary)",
+          fontSize: "14px",
+          marginTop: "-8px",
+          maxWidth: "320px",
+          textAlign: "center",
+          lineHeight: 1.45,
+          padding: "0 16px",
+        }}
+      >
+        {subtitle}
       </p>
       <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
         <button

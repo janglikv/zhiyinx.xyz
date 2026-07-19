@@ -44,10 +44,15 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  /** @type {[null | { remainingSec: number, timeLimitSec: number, urgent: boolean }, Function]} */
+  const [battleHud, setBattleHud] = useState(null);
+  /** @type {[null | object, Function]} */
+  const [endResult, setEndResult] = useState(null);
 
   const {
     maxUnlocked,
     cleared,
+    stars,
     recommendedIndex,
     refresh,
     clearLevel,
@@ -59,6 +64,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     if (typeof levelIndex === "number") setCurrentLevelIndex(levelIndex);
     setGameState("playing");
     setPlayReveal(false);
+    setBattleHud(null);
+    setEndResult(null);
     setScreen("play");
     setGameKey((prev) => prev + 1);
   }, []);
@@ -68,6 +75,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
     setScreen("hub");
     setGameState("playing");
     setTutorialPhase(null);
+    setBattleHud(null);
+    setEndResult(null);
     refresh();
   }, [refresh]);
 
@@ -94,6 +103,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
     setLastLevelIndex(currentLevelIndex);
     setGameState("playing");
+    setBattleHud(null);
+    setEndResult(null);
     setTutorialPhase(level.tutorial ? TUTORIAL_START_PHASE : null);
 
     const cleanup = mountCellGame(
@@ -101,16 +112,21 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
       gameApiRef,
       () => backgroundIdForLevelIndex(currentLevelIndex),
       level,
-      (isWin) => {
+      (isWin, detail = {}) => {
         if (isWin) {
-          clearLevel(currentLevelIndex);
+          const earned = Math.min(3, Math.max(1, detail.stars ?? 1));
+          const { bestStars } = clearLevel(currentLevelIndex, earned);
+          setEndResult({ ...detail, stars: earned, bestStars });
           setGameState("win");
+          setWinFxKey((k) => k + 1);
         } else {
+          setEndResult(detail);
           setGameState("lose");
         }
       },
       (phase) => setTutorialPhase(phase),
       () => setTutorialPhase(null),
+      (hud) => setBattleHud(hud),
     );
     return cleanup;
   }, [screen, currentLevelIndex, gameKey, level, clearLevel]);
@@ -133,6 +149,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
   function handleRestart() {
     if (transitioning) return;
+    setBattleHud(null);
+    setEndResult(null);
     setGameKey((prev) => prev + 1);
     setGameState("playing");
   }
@@ -150,7 +168,15 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
   }
 
   function handleDebugWin() {
-    clearLevel(currentLevelIndex);
+    const { bestStars } = clearLevel(currentLevelIndex, 3);
+    setEndResult({
+      reason: "clear",
+      stars: 3,
+      bestStars,
+      energyOk: true,
+      timeOk: true,
+      elapsedSec: 0,
+    });
     setGameState("win");
     setWinFxKey((k) => k + 1);
   }
@@ -200,6 +226,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
             <HubScene
               maxUnlocked={maxUnlocked}
               cleared={cleared}
+              stars={stars}
               recommendedIndex={recommendedIndex}
               onEnterLevel={handleEnterLevel}
               dimming={fadePhase === "out"}
@@ -228,6 +255,8 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
               gameState={gameState}
               winFxKey={winFxKey}
               nextLabel={hasNextLevel ? "下一关" : "返回选关"}
+              battleHud={battleHud}
+              endResult={endResult}
               onBackToHub={handleBackToHub}
               onOpenSettings={() => {
                 setShowDebug(false);

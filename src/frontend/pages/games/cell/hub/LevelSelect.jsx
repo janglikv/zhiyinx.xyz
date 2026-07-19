@@ -4,8 +4,10 @@ import {
   CHAPTERS,
   LEVELS_PER_CHAPTER,
   TOTAL_CHAPTERS,
+  CHAPTER_UNLOCK_STARS,
   chapterIndexFromLevelIndex,
 } from "../levels";
+import { isChapterUnlocked, isLevelUnlocked } from "./progress";
 import { uiSfx } from "../audio";
 import bg1 from "../backgrounds/level-1.webp";
 import bg2 from "../backgrounds/level-2.webp";
@@ -23,12 +25,35 @@ const CHAPTER_BGS = {
 };
 
 const CHAPTER_TAGLINES = [
-  "主线 1–12 通关开下一章 · 紫关 13–18 高难可选。",
-  "主线 1–12 通关开下一章 · 紫关 13–18 高难可选。",
-  "主线 1–12 通关开下一章 · 紫关 13–18 高难可选。",
-  "主线 1–12 通关开下一章 · 紫关 13–18 高难可选。",
-  "主线 1–12 通关开下一章 · 紫关 13–18 高难可选。",
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–18 高难可选。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–18 高难可选。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–18 高难可选。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–18 高难可选。`,
+  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁最终内容 · 紫关 13–18 高难可选。`,
 ];
+
+/**
+ * @param {number} n 0–3
+ */
+function StarRow({ n, compact = false }) {
+  const count = Math.min(3, Math.max(0, n | 0));
+  return (
+    <span
+      className={compact ? "chub__lv-stars chub__lv-stars--compact" : "chub__lv-stars"}
+      aria-label={`${count} 星`}
+    >
+      {[1, 2, 3].map((i) => (
+        <i
+          key={i}
+          className={i <= count ? "chub__star chub__star--on" : "chub__star"}
+          aria-hidden
+        >
+          ★
+        </i>
+      ))}
+    </span>
+  );
+}
 
 /**
  * @param {string} name
@@ -60,6 +85,7 @@ function ctaLabel(s) {
  * @param {{
  *   maxUnlocked: number,
  *   cleared: Set<number>,
+ *   stars?: number[],
  *   recommendedIndex: number,
  *   onEnterLevel: (index: number) => void,
  *   tools?: import("react").ReactNode,
@@ -68,14 +94,22 @@ function ctaLabel(s) {
 export default function LevelSelect({
   maxUnlocked,
   cleared,
+  stars = [],
   recommendedIndex,
   onEnterLevel,
   tools,
 }) {
-  const unlockedCount = Math.min(maxUnlocked + 1, LEVELS.length);
+  const unlockedCount = useMemo(() => {
+    let n = 0;
+    for (let i = 0; i < LEVELS.length; i += 1) {
+      if (isLevelUnlocked(i)) n += 1;
+    }
+    return n;
+  }, [maxUnlocked, cleared, stars]);
   const clearedCount = cleared.size;
   const progressPct = Math.round((clearedCount / LEVELS.length) * 100);
   const neverPlayed = clearedCount === 0;
+  const totalStars = stars.reduce((a, b) => a + (b || 0), 0);
 
   const [activeChapter, setActiveChapter] = useState(
     chapterIndexFromLevelIndex(recommendedIndex),
@@ -104,14 +138,27 @@ export default function LevelSelect({
   const chapterStats = useMemo(() => {
     const start = activeChapter * LEVELS_PER_CHAPTER;
     let done = 0;
+    let starSum = 0;
     for (let i = 0; i < LEVELS_PER_CHAPTER; i++) {
       if (cleared.has(start + i)) done += 1;
+      starSum += stars[start + i] || 0;
     }
-    return { done, total: LEVELS_PER_CHAPTER, pct: Math.round((done / LEVELS_PER_CHAPTER) * 100) };
-  }, [activeChapter, cleared]);
+    const starNeed = CHAPTER_UNLOCK_STARS;
+    const starPct = Math.min(100, Math.round((starSum / starNeed) * 100));
+    return {
+      done,
+      total: LEVELS_PER_CHAPTER,
+      pct: Math.round((done / LEVELS_PER_CHAPTER) * 100),
+      stars: starSum,
+      starNeed,
+      starPct,
+      chapterOpen:
+        activeChapter >= TOTAL_CHAPTERS - 1 || starSum >= starNeed,
+    };
+  }, [activeChapter, cleared, stars]);
 
   function isChapterReachable(chapterIdx) {
-    return chapterIdx * LEVELS_PER_CHAPTER <= maxUnlocked;
+    return isChapterUnlocked(chapterIdx);
   }
 
   function selectChapter(idx) {
@@ -123,19 +170,28 @@ export default function LevelSelect({
     if (recommendedIndex >= start && recommendedIndex <= end) {
       setSelectedIndex(recommendedIndex);
     } else {
-      setSelectedIndex(Math.min(Math.max(start, 0), Math.min(maxUnlocked, end)));
+      // 选本章第一个已解锁关，否则章首
+      let pick = start;
+      for (let i = start; i <= end; i += 1) {
+        if (isLevelUnlocked(i)) {
+          pick = i;
+          break;
+        }
+      }
+      setSelectedIndex(pick);
     }
   }
 
   function enterLevel(index) {
-    if (index < 0 || index > maxUnlocked || index >= LEVELS.length) return;
+    if (!isLevelUnlocked(index)) return;
     setActiveChapter(chapterIndexFromLevelIndex(index));
     onEnterLevel(index);
   }
 
   const focus = LEVELS[selectedIndex] ?? LEVELS[0];
-  const focusUnlocked = selectedIndex <= maxUnlocked;
+  const focusUnlocked = isLevelUnlocked(selectedIndex);
   const focusDone = cleared.has(selectedIndex);
+  const focusStars = stars[selectedIndex] || 0;
   const focusBoss = Boolean(focus?.isBoss);
   const focusHard = Boolean(focus?.isHard);
   const focusRec = selectedIndex === recommendedIndex;
@@ -167,6 +223,10 @@ export default function LevelSelect({
             <div className="chub__progress-meta">
               <span>
                 通关 <strong>{clearedCount}</strong>
+              </span>
+              <span className="chub__progress-sep" />
+              <span>
+                星 <strong>{totalStars}</strong>
               </span>
               <span className="chub__progress-sep" />
               <span>
@@ -258,20 +318,30 @@ export default function LevelSelect({
               </div>
               <div className="chub__chapter-stat">
                 <span className="chub__chapter-stat-val">
-                  {chapterStats.done}
-                  <small>/{chapterStats.total}</small>
+                  {chapterStats.stars}
+                  <small>/{chapterStats.starNeed}★</small>
                 </span>
-                <span className="chub__chapter-stat-lab">本章节通关</span>
+                <span className="chub__chapter-stat-lab">
+                  {chapterStats.chapterOpen
+                    ? activeChapter >= TOTAL_CHAPTERS - 1
+                      ? "本章星数"
+                      : "已可解锁下章"
+                    : "解锁下章进度"}
+                </span>
                 <div className="chub__chapter-stat-bar" aria-hidden>
-                  <i style={{ width: `${chapterStats.pct}%` }} />
+                  <i style={{ width: `${chapterStats.starPct}%` }} />
                 </div>
+                <span className="chub__chapter-stat-sub">
+                  通关 {chapterStats.done}/{chapterStats.total}
+                </span>
               </div>
             </div>
 
             <div className="chub__levels" role="list">
               {chapterLevels.map(({ lvl, index, stage }) => {
-                const unlocked = index <= maxUnlocked;
+                const unlocked = isLevelUnlocked(index);
                 const done = cleared.has(index);
+                const lvStars = stars[index] || 0;
                 const isBoss = Boolean(lvl.isBoss);
                 const isHard = Boolean(lvl.isHard);
                 const isRec = unlocked && index === recommendedIndex;
@@ -295,7 +365,7 @@ export default function LevelSelect({
                       .join(" ")}
                     disabled={!unlocked}
                     aria-pressed={isSel}
-                    aria-label={`${shortTitle(lvl.name)}${isBoss ? " Boss" : ""}${isHard ? " 高难" : ""}`}
+                    aria-label={`${shortTitle(lvl.name)}${isBoss ? " Boss" : ""}${isHard ? " 高难" : ""}${lvStars ? ` ${lvStars}星` : ""}`}
                     {...uiSfx("confirm", () => {
                       if (!unlocked) return;
                       if (isSel) enterLevel(index);
@@ -344,9 +414,12 @@ export default function LevelSelect({
                       )}
                       {shortTitle(lvl.name)}
                     </span>
+                    <StarRow n={lvStars} compact />
                     <span className="chub__lv-flag">
                       {done
-                        ? "已通关"
+                        ? lvStars >= 3
+                          ? "满星"
+                          : `${lvStars}★ 已通关`
                         : !unlocked
                           ? "锁定"
                           : isRec
@@ -393,6 +466,16 @@ export default function LevelSelect({
               {focusDone && <em className="chub__tag chub__tag--done">已通关</em>}
               {focus?.tutorial && <em className="chub__tag chub__tag--tut">教程</em>}
             </p>
+            <div className="chub__dock-stars">
+              <StarRow n={focusStars} />
+              <span className="chub__dock-stars-lab">
+                {focusDone
+                  ? focusStars >= 3
+                    ? "本关满星"
+                    : `历史最佳 ${focusStars}★ · 可再战刷星`
+                  : "通关 1★ · 能量充沛 · 限时达成"}
+              </span>
+            </div>
             <p className="chub__dock-desc">
               {focusUnlocked
                 ? focus?.description

@@ -11,9 +11,24 @@ import { startWinFireworks } from "./fireworks";
  *   nextLabel: string,
  *   onNext: () => void,
  *   onBackToHub?: () => void,
+ *   endResult?: {
+ *     stars?: number,
+ *     bestStars?: number,
+ *     energyOk?: boolean,
+ *     timeOk?: boolean,
+ *     elapsedSec?: number,
+ *     starTimeSec?: number,
+ *   } | null,
  * }} props
  */
-export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBackToHub }) {
+export default function WinOverlay({
+  active,
+  fxKey = 0,
+  nextLabel,
+  onNext,
+  onBackToHub,
+  endResult = null,
+}) {
   const canvasRef = useRef(null);
   const [compact, setCompact] = useState(false);
   const [toastReady, setToastReady] = useState(false);
@@ -202,6 +217,43 @@ export default function WinOverlay({ active, fxKey = 0, nextLabel, onNext, onBac
               >
                 对抗细胞已肃清
               </div>
+              {(() => {
+                const n = Math.min(3, Math.max(1, endResult?.stars ?? 1));
+                const best = endResult?.bestStars ?? n;
+                const bits = [];
+                if (endResult?.energyOk != null) {
+                  bits.push(endResult.energyOk ? "能量充沛" : "能量不足");
+                }
+                if (endResult?.timeOk != null) {
+                  bits.push(endResult.timeOk ? "限时达成" : "超时未达星");
+                }
+                if (endResult?.elapsedSec != null) {
+                  bits.push(`${Math.round(endResult.elapsedSec)}s`);
+                }
+                return (
+                  <>
+                    <div className="cell-win-stars" aria-label={`${n} 星`}>
+                      {[1, 2, 3].map((i) => (
+                        <span
+                          key={i}
+                          className={
+                            i <= n ? "cell-win-star cell-win-star--on" : "cell-win-star"
+                          }
+                          aria-hidden
+                        >
+                          ★
+                        </span>
+                      ))}
+                      {best > n && (
+                        <span className="cell-win-star-meta">历史 {best}★</span>
+                      )}
+                    </div>
+                    {bits.length > 0 && (
+                      <div className="cell-win-star-meta">{bits.join(" · ")}</div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <div
               style={{

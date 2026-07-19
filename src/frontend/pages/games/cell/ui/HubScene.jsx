@@ -6,6 +6,7 @@ import StageTools from "./StageTools";
  * @param {{
  *   maxUnlocked: number,
  *   cleared: Set<number>,
+ *   stars?: number[],
  *   recommendedIndex: number,
  *   onEnterLevel: (index: number) => void,
  *   dimming?: boolean,
@@ -17,6 +18,7 @@ import StageTools from "./StageTools";
 export default function HubScene({
   maxUnlocked,
   cleared,
+  stars,
   recommendedIndex,
   onEnterLevel,
   dimming = false,
@@ -33,6 +35,7 @@ export default function HubScene({
       <LevelSelect
         maxUnlocked={maxUnlocked}
         cleared={cleared}
+        stars={stars}
         recommendedIndex={recommendedIndex}
         onEnterLevel={onEnterLevel}
         tools={

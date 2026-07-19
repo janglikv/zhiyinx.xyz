@@ -5,11 +5,25 @@ export const LEVELS_PER_CHAPTER = 18;
 export const TOTAL_CHAPTERS = 5;
 
 /**
- * 章内主线关数（1-based）。通关第 N 关后解锁下一章节。
+ * 本章累计星达到该值后解锁下一章节第 1 关。
+ * 单关最高 3★，18★ ≈ 主线平均 1.5★ 或 18 关各 1★。
+ */
+export const CHAPTER_UNLOCK_STARS = 18;
+
+/**
+ * 章内主线关数参考（1-based）。第 12 关仍为章节闸门 Boss 位。
  * 其后 HARD_STAGE_START–LEVELS_PER_CHAPTER 为紫色高难可选关。
+ * 章节解锁改由 {@link CHAPTER_UNLOCK_STARS} 控制。
  */
 export const CHAPTER_UNLOCK_STAGE = 12;
 export const HARD_STAGE_START = 13;
+
+/** 默认对局失败时限（秒）——防动态平衡拖死局 */
+export const DEFAULT_TIME_LIMIT_SEC = 180;
+/** 默认时间星目标（秒），须明显短于失败时限 */
+export const DEFAULT_STAR_TIME_SEC = 120;
+/** 能量星：通关时己方总能量 ≥ 开局己方总能量 × 该系数 */
+export const DEFAULT_ENERGY_STAR_RATIO = 1;
 
 /** 章内 Boss 关（1-based stage）：第 6 关中 Boss、第 12 关章节闸门 */
 export const BOSS_STAGES = Object.freeze([6, 12]);
@@ -31,7 +45,7 @@ export function isHardStage(stage) {
 
 /**
  * 章节：每章 18 关共用一张背景（level-1 … level-5）。
- * 主线 1–12 通关第 12 关开下一章；13–18 为紫色高难。
+ * 本章累计 {@link CHAPTER_UNLOCK_STARS} 星解锁下一章；13–18 为紫色高难。
  * @typedef {{
  *   id: number,
  *   name: string,
@@ -93,8 +107,106 @@ export const CHAPTERS = [
  *   isBoss?: boolean,
  *   isHard?: boolean,
  *   stage?: number,
+ *   timeLimitSec?: number,
+ *   starTimeSec?: number,
+ *   energyStarRatio?: number,
  * }} LevelDef
  */
+
+/**
+ * 解析关卡时限与评星参数（缺省补全）。
+ * @param {LevelDef | null | undefined} level
+ * @returns {{
+ *   timeLimitSec: number,
+ *   starTimeSec: number,
+ *   energyStarRatio: number,
+ * }}
+ */
+export function resolveLevelStarRules(level) {
+  const stage = level?.stage ?? 1;
+  const boss = Boolean(level?.isBoss);
+  const hard = Boolean(level?.isHard);
+
+  let timeLimitSec = level?.timeLimitSec;
+  if (timeLimitSec == null || !Number.isFinite(timeLimitSec)) {
+    timeLimitSec = boss ? 210 : DEFAULT_TIME_LIMIT_SEC;
+  }
+
+  let starTimeSec = level?.starTimeSec;
+  if (starTimeSec == null || !Number.isFinite(starTimeSec)) {
+    if (boss) starTimeSec = 150;
+    else if (hard) starTimeSec = 100;
+    else if (stage <= 5) starTimeSec = 120;
+    else starTimeSec = DEFAULT_STAR_TIME_SEC;
+  }
+
+  // 时间星必须严于失败时限，否则与 1★ 重合
+  starTimeSec = Math.min(starTimeSec, Math.max(15, timeLimitSec - 15));
+
+  let energyStarRatio = level?.energyStarRatio;
+  if (energyStarRatio == null || !Number.isFinite(energyStarRatio)) {
+    energyStarRatio = DEFAULT_ENERGY_STAR_RATIO;
+  }
+
+  return {
+    timeLimitSec: Math.max(30, timeLimitSec),
+    starTimeSec: Math.max(10, starTimeSec),
+    energyStarRatio: Math.max(0.1, energyStarRatio),
+  };
+}
+
+/**
+ * 开局己方总能量（用于能量星对照）。
+ * @param {LevelDef | null | undefined} level
+ */
+export function startingPlayerEnergy(level) {
+  if (!level?.cells?.length) return 0;
+  return level.cells.reduce((sum, c) => {
+    if (c.color === COLOR_PLAYER) return sum + (Number(c.value) || 0);
+    return sum;
+  }, 0);
+}
+
+/**
+ * 通关后评星：1★ 通关 + 能量充沛 + 限时。
+ * @param {{
+ *   elapsedSec: number,
+ *   playerEnergy: number,
+ *   startPlayerEnergy: number,
+ *   starTimeSec: number,
+ *   energyStarRatio?: number,
+ * }} p
+ * @returns {{
+ *   stars: number,
+ *   energyOk: boolean,
+ *   timeOk: boolean,
+ *   energyTarget: number,
+ *   elapsedSec: number,
+ *   starTimeSec: number,
+ * }}
+ */
+export function evaluateClearStars(p) {
+  const ratio =
+    p.energyStarRatio != null && Number.isFinite(p.energyStarRatio)
+      ? p.energyStarRatio
+      : DEFAULT_ENERGY_STAR_RATIO;
+  const energyTarget = (p.startPlayerEnergy || 0) * ratio;
+  const energyOk = (p.playerEnergy || 0) + 1e-6 >= energyTarget;
+  const timeOk = (p.elapsedSec || 0) <= (p.starTimeSec || DEFAULT_STAR_TIME_SEC);
+
+  let stars = 1;
+  if (energyOk) stars += 1;
+  if (timeOk) stars += 1;
+
+  return {
+    stars,
+    energyOk,
+    timeOk,
+    energyTarget,
+    elapsedSec: p.elapsedSec || 0,
+    starTimeSec: p.starTimeSec || DEFAULT_STAR_TIME_SEC,
+  };
+}
 
 /**
  * @param {number} levelIndex 0-based
@@ -390,7 +502,7 @@ function buildChapterLevels(chapter, chapterIndex) {
       } else {
         short = "章节闸门";
         description =
-          "章节闸门 Boss：更强母巢与侧翼。通关后开启下一章节，亦可继续挑战本章紫色高难关。";
+          "章节闸门 Boss：更强母巢与侧翼。本章攒满星数可解锁下一章节，亦可继续挑战紫色高难关。";
         cells = buildBossCells(stage);
       }
     } else if (hard) {

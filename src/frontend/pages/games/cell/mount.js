@@ -10,6 +10,11 @@ import { createAimSystem } from "./aim";
 import { createInputSystem } from "./input";
 import { createAI } from "./ai";
 import { createTutorialController } from "./tutorial";
+import {
+  evaluateClearStars,
+  resolveLevelStarRules,
+  startingPlayerEnergy,
+} from "./levels";
 
 /** 逻辑画布固定；渲染 resolution 随实际显示尺寸 × DPR 变化（全屏更清晰） */
 const MIN_RENDER_RESOLUTION = 0.75;
@@ -36,9 +41,10 @@ function computeDisplayResolution(container) {
  * @param {React.MutableRefObject<{ setBackgroundMode: Function, getBackgroundMode: Function, skipTutorial?: Function } | null>} apiRef
  * @param {() => string} getDesiredBgMode
  * @param {import("./levels").LevelDef} level
- * @param {(isWin: boolean) => void} onGameEnd
+ * @param {(isWin: boolean, detail?: object) => void} onGameEnd
  * @param {(phase: import("./tutorial/phases").TutorialPhase) => void} onTutorialPhase
  * @param {() => void} onTutorialComplete
+ * @param {(hud: { remainingSec: number, elapsedSec: number, timeLimitSec: number, urgent: boolean }) => void} [onBattleHud]
  */
 export function mountCellGame(
   container,
@@ -48,6 +54,7 @@ export function mountCellGame(
   onGameEnd,
   onTutorialPhase,
   onTutorialComplete,
+  onBattleHud,
 ) {
   const app = new PIXI.Application();
   let destroyed = false;
@@ -217,6 +224,57 @@ export function mountCellGame(
 
     let gameEnded = false;
     let gamePaused = false;
+    /** 实战用时（ms）；引导未放敌前不累计，避免教学吃掉限时 */
+    let battleMs = 0;
+    const starRules = resolveLevelStarRules(level);
+    const timeLimitMs = starRules.timeLimitSec * 1000;
+    const startEnergy = startingPlayerEnergy(level);
+    let lastHudSec = -1;
+
+    /**
+     * @param {boolean} isWin
+     * @param {"clear" | "wipe" | "timeout"} reason
+     */
+    function finish(isWin, reason) {
+      if (gameEnded) return;
+      gameEnded = true;
+      gamePaused = true;
+
+      const elapsedSec = battleMs / 1000;
+      if (!isWin) {
+        onGameEnd(false, {
+          reason,
+          elapsedSec,
+          timeLimitSec: starRules.timeLimitSec,
+        });
+        return;
+      }
+
+      let playerEnergy = 0;
+      for (const cell of cells) {
+        if (cell.isPlayer()) playerEnergy += cell.value || 0;
+      }
+
+      const rating = evaluateClearStars({
+        elapsedSec,
+        playerEnergy,
+        startPlayerEnergy: startEnergy,
+        starTimeSec: starRules.starTimeSec,
+        energyStarRatio: starRules.energyStarRatio,
+      });
+
+      onGameEnd(true, {
+        reason: "clear",
+        stars: rating.stars,
+        energyOk: rating.energyOk,
+        timeOk: rating.timeOk,
+        energyTarget: rating.energyTarget,
+        playerEnergy,
+        elapsedSec: rating.elapsedSec,
+        starTimeSec: rating.starTimeSec,
+        timeLimitSec: starRules.timeLimitSec,
+      });
+    }
 
     app.ticker.add((ticker) => {
       if (gamePaused) return;
@@ -248,6 +306,26 @@ export function mountCellGame(
       aim.redrawLinkLines();
       combat.tickBullets(dt);
 
+      // 倒计时：教学放敌后才走表；超时判负（防动态平衡）
+      if (!gameEnded && enemyUnlocked) {
+        battleMs += dt;
+        const remainingMs = Math.max(0, timeLimitMs - battleMs);
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        if (onBattleHud && remainingSec !== lastHudSec) {
+          lastHudSec = remainingSec;
+          onBattleHud({
+            remainingSec,
+            elapsedSec: battleMs / 1000,
+            timeLimitSec: starRules.timeLimitSec,
+            urgent: remainingSec <= 30,
+          });
+        }
+        if (battleMs >= timeLimitMs) {
+          finish(false, "timeout");
+          return;
+        }
+      }
+
       if (!gameEnded && enemyUnlocked && elapsed > 8) {
         let hasPlayer = false;
         let hasEnemy = false;
@@ -257,12 +335,9 @@ export function mountCellGame(
         }
 
         if (!hasPlayer) {
-          gameEnded = true;
-          gamePaused = true;
-          onGameEnd(false);
+          finish(false, "wipe");
         } else if (!hasEnemy) {
-          gameEnded = true;
-          onGameEnd(true);
+          finish(true, "clear");
         }
       }
     });

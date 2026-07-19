@@ -412,6 +412,67 @@
   transition: width 0.3s ease;
 }
 
+.chub__chapter-stat-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(180, 200, 175, 0.55);
+}
+
+/* 关卡星级 */
+.chub__lv-stars {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  line-height: 1;
+}
+
+.chub__lv-stars--compact {
+  margin-top: -1px;
+}
+
+.chub__star {
+  font-style: normal;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.18);
+  text-shadow: none;
+}
+
+.chub__star--on {
+  color: #ffd56a;
+  text-shadow: 0 0 8px rgba(255, 200, 60, 0.55);
+}
+
+.chub__lv--hard .chub__star--on {
+  color: #e0b0ff;
+  text-shadow: 0 0 8px rgba(180, 100, 255, 0.5);
+}
+
+.chub__lv--lock .chub__star {
+  opacity: 0.35;
+}
+
+.chub__dock-stars {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 4px;
+  min-height: 18px;
+}
+
+.chub__dock-stars .chub__star {
+  font-size: 16px;
+}
+
+.chub__dock-stars-lab {
+  font-size: 11px;
+  color: rgba(180, 200, 175, 0.7);
+  letter-spacing: 0.02em;
+}
+
 /* 关卡网格 6×3（每章 18 关：主线 12 + 高难 6） */
 .chub__levels {
   flex: 1;

@@ -273,6 +273,96 @@
   gap: 8px;
 }
 
+/* 对局倒计时：顶栏居中偏上，避开返回/工具 */
+.cell-battle-timer {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: rgba(230, 245, 220, 0.95);
+  background: rgba(6, 12, 10, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  transition: color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cell-battle-timer__icon {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.cell-battle-timer__value {
+  min-width: 3.2em;
+  text-align: center;
+}
+
+.cell-battle-timer--urgent {
+  color: #ffd36a;
+  border-color: rgba(255, 190, 70, 0.45);
+  box-shadow: 0 4px 18px rgba(180, 100, 0, 0.25), 0 0 20px rgba(255, 180, 40, 0.15);
+}
+
+.cell-battle-timer--critical {
+  color: #ff6b6b;
+  border-color: rgba(255, 90, 90, 0.55);
+  box-shadow: 0 4px 20px rgba(180, 30, 30, 0.35), 0 0 24px rgba(255, 60, 60, 0.2);
+  animation: cellTimerPulse 0.7s ease-in-out infinite;
+}
+
+@keyframes cellTimerPulse {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.04);
+  }
+}
+
+/* 通关星级展示 */
+.cell-win-stars {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  align-items: center;
+}
+
+.cell-win-star {
+  font-size: 18px;
+  line-height: 1;
+  filter: grayscale(1) brightness(0.7);
+  opacity: 0.45;
+}
+
+.cell-win-star--on {
+  filter: none;
+  opacity: 1;
+  text-shadow: 0 0 10px rgba(255, 200, 60, 0.65);
+}
+
+.cell-win-star-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(180, 200, 175, 0.75);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 
 .cell-tool-btn {
   height: 40px;

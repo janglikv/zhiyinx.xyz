@@ -3,6 +3,8 @@ import {
   getClearedIndices,
   getMaxUnlockedIndex,
   getRecommendedLevelIndex,
+  getStarsArray,
+  getTotalStars,
   markLevelCleared,
   resetAllProgress,
   unlockAllLevels,
@@ -14,6 +16,7 @@ import {
 export function useCellProgress() {
   const [maxUnlocked, setMaxUnlocked] = useState(() => getMaxUnlockedIndex());
   const [cleared, setCleared] = useState(() => getClearedIndices());
+  const [stars, setStars] = useState(() => getStarsArray());
   const [recommendedIndex, setRecommendedIndex] = useState(() =>
     getRecommendedLevelIndex(),
   );
@@ -21,13 +24,20 @@ export function useCellProgress() {
   const refresh = useCallback(() => {
     setMaxUnlocked(getMaxUnlockedIndex());
     setCleared(getClearedIndices());
+    setStars(getStarsArray());
     setRecommendedIndex(getRecommendedLevelIndex());
   }, []);
 
+  /**
+   * @param {number} index
+   * @param {number} [earnedStars=1]
+   * @returns {{ bestStars: number }}
+   */
   const clearLevel = useCallback(
-    (index) => {
-      markLevelCleared(index);
+    (index, earnedStars = 1) => {
+      const result = markLevelCleared(index, earnedStars);
       refresh();
+      return { bestStars: result.bestStars };
     },
     [refresh],
   );
@@ -45,10 +55,13 @@ export function useCellProgress() {
   return {
     maxUnlocked,
     cleared,
+    stars,
+    totalStars: stars.reduce((a, b) => a + (b || 0), 0),
     recommendedIndex,
     refresh,
     clearLevel,
     resetAll,
     unlockAll,
+    getTotalStars,
   };
 }
