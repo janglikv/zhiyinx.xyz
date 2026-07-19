@@ -21,8 +21,93 @@ function relativeRect(el, root) {
 }
 
 /**
+ * 构建三星 checklist 条目（通关 / 能量 / 限时）。
+ * @param {object | null | undefined} endResult
+ * @returns {Array<{ key: string, ok: boolean, label: string, detail: string, gap: string }>}
+ */
+function buildStarChecklist(endResult) {
+  // 通关结算应始终带上 energyOk / timeOk；缺省按未达标，避免误亮
+  const energyOk = endResult?.energyOk === true;
+  const timeOk = endResult?.timeOk === true;
+
+  const energyTarget =
+    endResult?.energyTarget != null && Number.isFinite(endResult.energyTarget)
+      ? Math.round(endResult.energyTarget)
+      : null;
+  const playerEnergy =
+    endResult?.playerEnergy != null && Number.isFinite(endResult.playerEnergy)
+      ? Math.round(endResult.playerEnergy)
+      : null;
+  const elapsedSec =
+    endResult?.elapsedSec != null && Number.isFinite(endResult.elapsedSec)
+      ? Math.round(endResult.elapsedSec)
+      : null;
+  const starTimeSec =
+    endResult?.starTimeSec != null && Number.isFinite(endResult.starTimeSec)
+      ? Math.round(endResult.starTimeSec)
+      : null;
+
+  /** @type {Array<{ key: string, ok: boolean, label: string, detail: string, gap: string }>} */
+  const items = [
+    {
+      key: "clear",
+      ok: true,
+      label: "肃清对抗细胞",
+      detail: "通关",
+      gap: "",
+    },
+  ];
+
+  {
+    let detail = "结束时己方能量充足";
+    let gap = "";
+    if (energyTarget != null && playerEnergy != null) {
+      detail = `能量 ${playerEnergy} / ${energyTarget}`;
+      if (!energyOk) {
+        const need = Math.max(0, energyTarget - playerEnergy);
+        gap = need > 0 ? `还差 ${need}` : "未达标";
+      }
+    } else if (endResult?.energyOk != null) {
+      detail = energyOk ? "能量充沛" : "能量不足";
+      gap = energyOk ? "" : "未达标";
+    }
+    items.push({
+      key: "energy",
+      ok: energyOk,
+      label: "保留足够能量",
+      detail,
+      gap,
+    });
+  }
+
+  {
+    let detail = "在限时内清场";
+    let gap = "";
+    if (starTimeSec != null && elapsedSec != null) {
+      detail = `用时 ${elapsedSec}s / ${starTimeSec}s`;
+      if (!timeOk) {
+        const over = Math.max(0, elapsedSec - starTimeSec);
+        gap = over > 0 ? `超时 ${over}s` : "超时";
+      }
+    } else if (endResult?.timeOk != null) {
+      detail = timeOk ? "限时达成" : "超时未达星";
+      gap = timeOk ? "" : "未达标";
+    }
+    items.push({
+      key: "time",
+      ok: timeOk,
+      label: "限时清场",
+      detail,
+      gap,
+    });
+  }
+
+  return items;
+}
+
+/**
  * 通关：烟花 + 顶部结算卡。
- * 约 3s 后结算卡淡出，「下一关」由 PlayScene 做飞入工具栏（设置左侧）动画。
+ * 约 4.5s 后结算卡淡出（鼠标悬停面板时推迟到离开），「下一关」由 PlayScene 做飞入工具栏动画。
  * @param {{
  *   active: boolean,
  *   fxKey?: number,
@@ -38,6 +123,8 @@ function relativeRect(el, root) {
  *     timeOk?: boolean,
  *     elapsedSec?: number,
  *     starTimeSec?: number,
+ *     energyTarget?: number,
+ *     playerEnergy?: number,
  *   } | null,
  * }} props
  */
@@ -58,6 +145,38 @@ export default function WinOverlay({
   const [showDim, setShowDim] = useState(false);
   /** 飞走后隐藏结算卡内的下一关，避免叠影 */
   const [nextLifted, setNextLifted] = useState(false);
+  /** 鼠标悬停结算卡时推迟折叠 */
+  const panelHoverRef = useRef(false);
+  /** 最短展示时间已到，可折叠（仍需不在 hover） */
+  const compactReadyRef = useRef(false);
+  const compactedRef = useRef(false);
+  const onCompactChangeRef = useRef(onCompactChange);
+  const sceneRefProp = useRef(sceneRef);
+  onCompactChangeRef.current = onCompactChange;
+  sceneRefProp.current = sceneRef;
+
+  const runCompact = () => {
+    if (compactedRef.current) return;
+    if (!compactReadyRef.current) return;
+    if (panelHoverRef.current) return;
+
+    compactedRef.current = true;
+    const btn = nextBtnRef.current;
+    const root =
+      sceneRefProp.current?.current ||
+      /** @type {HTMLElement | null} */ (btn?.closest(".cell-scene"));
+    let fromRect;
+    if (btn && root) {
+      try {
+        fromRect = relativeRect(btn, root);
+      } catch {
+        fromRect = undefined;
+      }
+    }
+    setNextLifted(true);
+    setCompact(true);
+    onCompactChangeRef.current?.(true, { fromRect });
+  };
 
   useEffect(() => {
     if (!active) {
@@ -65,39 +184,44 @@ export default function WinOverlay({
       setToastReady(false);
       setShowDim(false);
       setNextLifted(false);
-      onCompactChange?.(false);
+      panelHoverRef.current = false;
+      compactReadyRef.current = false;
+      compactedRef.current = false;
+      onCompactChangeRef.current?.(false);
       return undefined;
     }
     setToastReady(false);
     setCompact(false);
     setNextLifted(false);
-    onCompactChange?.(false);
+    panelHoverRef.current = false;
+    compactReadyRef.current = false;
+    compactedRef.current = false;
+    onCompactChangeRef.current?.(false);
     setShowDim(true);
 
+    // 最短展示结束后尝试折叠；悬停中会等鼠标离开
     const compactTimer = window.setTimeout(() => {
-      const btn = nextBtnRef.current;
-      const root =
-        sceneRef?.current ||
-        /** @type {HTMLElement | null} */ (btn?.closest(".cell-scene"));
-      let fromRect;
-      if (btn && root) {
-        try {
-          fromRect = relativeRect(btn, root);
-        } catch {
-          fromRect = undefined;
-        }
-      }
-      setNextLifted(true);
-      setCompact(true);
-      onCompactChange?.(true, { fromRect });
-    }, 3000);
+      compactReadyRef.current = true;
+      runCompact();
+    }, 4500);
 
-    const dimTimer = window.setTimeout(() => setShowDim(false), 5500);
+    const dimTimer = window.setTimeout(() => setShowDim(false), 7000);
     return () => {
       window.clearTimeout(compactTimer);
       window.clearTimeout(dimTimer);
     };
-  }, [active, fxKey, onCompactChange, sceneRef]);
+    // runCompact 使用 ref，不纳入 deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fxKey/active 重置即可
+  }, [active, fxKey]);
+
+  const handlePanelEnter = () => {
+    panelHoverRef.current = true;
+  };
+
+  const handlePanelLeave = () => {
+    panelHoverRef.current = false;
+    runCompact();
+  };
 
   useEffect(() => {
     if (!active) return undefined;
@@ -110,16 +234,7 @@ export default function WinOverlay({
 
   const stars = Math.min(3, Math.max(1, endResult?.stars ?? 1));
   const best = endResult?.bestStars ?? stars;
-  const bits = [];
-  if (endResult?.energyOk != null) {
-    bits.push(endResult.energyOk ? "能量充沛" : "能量不足");
-  }
-  if (endResult?.timeOk != null) {
-    bits.push(endResult.timeOk ? "限时达成" : "超时未达星");
-  }
-  if (endResult?.elapsedSec != null) {
-    bits.push(`${Math.round(endResult.elapsedSec)}s`);
-  }
+  const checklist = buildStarChecklist(endResult);
 
   return (
     <>
@@ -162,60 +277,100 @@ export default function WinOverlay({
         }}
         aria-hidden={compact}
       >
-        <div className="cell-win-toast-panel__card">
+        <div
+          className="cell-win-toast-panel__card"
+          onMouseEnter={handlePanelEnter}
+          onMouseLeave={handlePanelLeave}
+        >
           <div className="cell-win-toast-panel__shine" />
-          <div className="cell-win-toast-panel__row">
-            <div className="cell-win-toast-panel__badge" aria-hidden>
-              ✓
-            </div>
-            <div className="cell-win-toast-panel__body">
-              <div className="cell-win-toast-panel__title">挑战成功</div>
-              <div className="cell-win-stars" aria-label={`${stars} 星`}>
-                {[1, 2, 3].map((i) => (
-                  <span
-                    key={i}
-                    className={
-                      i <= stars ? "cell-win-star cell-win-star--on" : "cell-win-star"
-                    }
-                    aria-hidden
+          <div className="cell-win-toast-panel__main">
+            <div className="cell-win-toast-panel__row">
+              <div className="cell-win-toast-panel__badge" aria-hidden>
+                ✓
+              </div>
+              <div className="cell-win-toast-panel__body">
+                <div className="cell-win-toast-panel__title">挑战成功</div>
+                <div className="cell-win-stars" aria-label={`${stars} 星`}>
+                  {[1, 2, 3].map((i) => (
+                    <span
+                      key={i}
+                      className={
+                        i <= stars
+                          ? "cell-win-star cell-win-star--on"
+                          : "cell-win-star"
+                      }
+                      aria-hidden
+                    >
+                      ★
+                    </span>
+                  ))}
+                  {best > stars && (
+                    <span className="cell-win-star-meta cell-win-star-meta--inline">
+                      历史 {best}★
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="cell-win-toast-panel__actions">
+                {onBackToHub && (
+                  <button
+                    type="button"
+                    className="cell-win-btn-ghost"
+                    {...uiSfx("back", onBackToHub)}
                   >
+                    选关
+                  </button>
+                )}
+                <button
+                  ref={nextBtnRef}
+                  type="button"
+                  className="cell-win-next"
+                  style={
+                    nextLifted
+                      ? { opacity: 0, pointerEvents: "none" }
+                      : undefined
+                  }
+                  tabIndex={nextLifted ? -1 : 0}
+                  aria-hidden={nextLifted}
+                  {...uiSfx("confirm", () => onNext?.())}
+                >
+                  {nextLabel}
+                </button>
+              </div>
+            </div>
+            <ul className="cell-win-checklist" aria-label="三星条件">
+              {checklist.map((item, idx) => (
+                <li
+                  key={item.key}
+                  className={
+                    item.ok
+                      ? "cell-win-checklist__item cell-win-checklist__item--ok"
+                      : "cell-win-checklist__item cell-win-checklist__item--miss"
+                  }
+                >
+                  <span className="cell-win-checklist__star" aria-hidden>
                     ★
                   </span>
-                ))}
-                {best > stars && (
-                  <span className="cell-win-star-meta">历史 {best}★</span>
-                )}
-              </div>
-              {bits.length > 0 && (
-                <div className="cell-win-star-meta">{bits.join(" · ")}</div>
-              )}
-            </div>
-            <div className="cell-win-toast-panel__actions">
-              {onBackToHub && (
-                <button
-                  type="button"
-                  className="cell-win-btn-ghost"
-                  {...uiSfx("back", onBackToHub)}
-                >
-                  选关
-                </button>
-              )}
-              <button
-                ref={nextBtnRef}
-                type="button"
-                className="cell-win-next"
-                style={
-                  nextLifted
-                    ? { opacity: 0, pointerEvents: "none" }
-                    : undefined
-                }
-                tabIndex={nextLifted ? -1 : 0}
-                aria-hidden={nextLifted}
-                {...uiSfx("confirm", () => onNext?.())}
-              >
-                {nextLabel}
-              </button>
-            </div>
+                  <span className="cell-win-checklist__text">
+                    <span className="cell-win-checklist__label">
+                      {idx + 1}★ {item.label}
+                    </span>
+                    <span className="cell-win-checklist__detail">
+                      {item.detail}
+                      {item.gap ? (
+                        <span className="cell-win-checklist__gap">
+                          {" "}
+                          · {item.gap}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                  <span className="cell-win-checklist__mark" aria-hidden>
+                    {item.ok ? "✓" : "✗"}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
