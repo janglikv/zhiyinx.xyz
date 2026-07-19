@@ -160,11 +160,16 @@ export default function GameStage({ children, label = "游戏区域", stageRef }
           style={
             expanded
               ? {
+                  ["--cell-stage-w"]: `${GAME_WIDTH}px`,
+                  ["--cell-stage-h"]: `${GAME_HEIGHT}px`,
                   ["--cell-display-scale"]: String(scale),
                 }
               : {
                   width: GAME_WIDTH,
                   height: GAME_HEIGHT,
+                  ["--cell-stage-w"]: `${GAME_WIDTH}px`,
+                  ["--cell-stage-h"]: `${GAME_HEIGHT}px`,
+                  ["--cell-display-scale"]: String(scale),
                   transform: `scale(${scale})`,
                   transformOrigin: "top left",
                 }

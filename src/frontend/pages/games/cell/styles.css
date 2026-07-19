@@ -407,7 +407,10 @@ body.cell-fs-active {
 .cell-stage.cell-stage--immersive .cell-scene,
 .cell-stage:fullscreen .cell-fade-veil,
 .cell-stage:-webkit-full-screen .cell-fade-veil,
-.cell-stage.cell-stage--immersive .cell-fade-veil {
+.cell-stage.cell-stage--immersive .cell-fade-veil,
+.cell-stage:fullscreen .cell-modal-overlay,
+.cell-stage:-webkit-full-screen .cell-modal-overlay,
+.cell-stage.cell-stage--immersive .cell-modal-overlay {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -640,21 +643,26 @@ body.cell-fs-active {
   gap: 8px;
 }
 
-/* 设置模态框 Overlay（贴合 .cell-stage 540 高，勿用 88vh 以免顶栏被 overflow 裁切） */
+/*
+ * 设置/调试模态框：尺寸按逻辑舞台（--cell-stage-w/h）比例，
+ * 非全屏随 .cell-stage 的 transform 缩放；全屏/沉浸时由上方规则
+ * 与 .cell-scene 共用 --cell-display-scale，避免固定屏像素大小。
+ */
 .cell-modal-overlay {
   position: absolute;
   inset: 0;
   background: rgba(4, 8, 5, 0.82);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(0.75rem);
+  -webkit-backdrop-filter: blur(0.75rem);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  padding: 12px;
+  /* 相对舞台短边，避免固定 12px 在全屏缩放后失调 */
+  padding: calc(var(--cell-stage-h, 540px) * 0.022);
   box-sizing: border-box;
   animation: cellModalFadeIn 0.25s ease-out forwards;
-  border-radius: 20px; /* 和游戏画布保持一致 */
+  border-radius: inherit; /* 继承舞台圆角 */
 }
 
 @keyframes cellModalFadeIn {
@@ -662,10 +670,9 @@ body.cell-fs-active {
   to { opacity: 1; }
 }
 
-/* 模态框 Content：定高 flex，header 固定，body 内滚动 */
+/* 模态框 Content：宽高相对逻辑舞台，header 固定，body 内滚动 */
 .cell-modal-content {
-  width: 100%;
-  max-width: 380px;
+  width: min(100%, calc(var(--cell-stage-w, 960px) * 0.396)); /* ≈380/960 */
   max-height: 100%;
   min-height: 0;
   display: flex;
@@ -673,10 +680,10 @@ body.cell-fs-active {
   overflow: hidden;
   background: linear-gradient(135deg, rgba(16, 28, 20, 0.95) 0%, rgba(10, 16, 12, 0.98) 100%);
   border: 1px solid rgba(84, 201, 43, 0.25);
-  border-radius: 16px;
+  border-radius: calc(var(--cell-stage-h, 540px) * 0.03);
   box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.6),
-    0 0 24px rgba(84, 201, 43, 0.1);
+    0 0.75rem 2rem rgba(0, 0, 0, 0.6),
+    0 0 1.5rem rgba(84, 201, 43, 0.1);
   padding: 0;
   animation: cellModalScaleIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   box-sizing: border-box;
@@ -684,7 +691,7 @@ body.cell-fs-active {
 
 /* 调试面板：贴合舞台，宽高尽量铺满，内容紧凑一屏放下 */
 .cell-modal-overlay--debug {
-  padding: 8px;
+  padding: calc(var(--cell-stage-h, 540px) * 0.015);
   align-items: stretch;
   justify-content: stretch;
 }
@@ -696,12 +703,16 @@ body.cell-fs-active {
   max-height: 100%;
   border-color: rgba(255, 140, 66, 0.3);
   box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.6),
-    0 0 24px rgba(255, 140, 66, 0.12);
+    0 0.75rem 2rem rgba(0, 0, 0, 0.6),
+    0 0 1.5rem rgba(255, 140, 66, 0.12);
 }
 
 .cell-modal-header--debug {
-  padding: 8px 10px 8px 14px;
+  padding:
+    calc(var(--cell-stage-h, 540px) * 0.015)
+    calc(var(--cell-stage-w, 960px) * 0.01)
+    calc(var(--cell-stage-h, 540px) * 0.015)
+    calc(var(--cell-stage-w, 960px) * 0.015);
   border-bottom-color: rgba(255, 140, 66, 0.2);
   background: linear-gradient(
     180deg,
@@ -713,24 +724,27 @@ body.cell-fs-active {
 .cell-debug-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.4em;
   flex-shrink: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .cell-debug-toolbar__btn {
-  height: 30px !important;
-  min-height: 30px !important;
-  padding: 0 10px !important;
-  font-size: 11px !important;
+  height: 1.9em !important;
+  min-height: 1.9em !important;
+  padding: 0 0.65em !important;
+  font-size: 0.7em !important;
   width: auto !important;
   white-space: nowrap;
 }
 
 .cell-modal-body--debug {
-  gap: 8px;
-  padding: 10px 12px 10px;
+  gap: 0.5em;
+  padding:
+    calc(var(--cell-stage-h, 540px) * 0.018)
+    calc(var(--cell-stage-w, 960px) * 0.012)
+    calc(var(--cell-stage-h, 540px) * 0.018);
   overflow: hidden; /* 优先无内滚动；极端高度再兜底 */
   display: flex;
   flex-direction: column;
@@ -738,7 +752,7 @@ body.cell-fs-active {
   min-height: 0;
 }
 
-/* 高度极矮时才允许滚动，避免正常 540 舞台出滚动条 */
+/* 舞台逻辑高度很矮时才允许滚动 */
 @media (max-height: 420px) {
   .cell-modal-body--debug {
     overflow-y: auto;
@@ -748,7 +762,7 @@ body.cell-fs-active {
 @keyframes cellModalScaleIn {
   from {
     opacity: 0;
-    transform: scale(0.92) translateY(8px);
+    transform: scale(0.92) translateY(0.5em);
   }
   to {
     opacity: 1;
@@ -762,9 +776,13 @@ body.cell-fs-active {
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  gap: 8px;
+  gap: 0.5em;
   border-bottom: 1px solid rgba(84, 201, 43, 0.15);
-  padding: 14px 12px 12px 18px;
+  padding:
+    calc(var(--cell-stage-h, 540px) * 0.026)
+    calc(var(--cell-stage-w, 960px) * 0.012)
+    calc(var(--cell-stage-h, 540px) * 0.022)
+    calc(var(--cell-stage-w, 960px) * 0.019);
   margin: 0;
   position: relative;
   z-index: 2;
@@ -773,10 +791,10 @@ body.cell-fs-active {
 
 .cell-modal-title {
   margin: 0;
-  font-size: 16px;
+  font-size: calc(var(--cell-stage-h, 540px) * 0.03); /* ≈16 @ 540 */
   font-weight: 700;
   color: #b8ff7a;
-  text-shadow: 0 0 10px rgba(84, 201, 43, 0.3);
+  text-shadow: 0 0 0.6em rgba(84, 201, 43, 0.3);
   letter-spacing: 0.05em;
 }
 
@@ -784,18 +802,18 @@ body.cell-fs-active {
   background: none;
   border: none;
   color: rgba(184, 255, 122, 0.6);
-  font-size: 24px;
+  font-size: calc(var(--cell-stage-h, 540px) * 0.044);
   line-height: 1;
   cursor: pointer;
-  /* 扩大点击热区，避免被裁切/点偏 */
-  min-width: 40px;
-  min-height: 40px;
+  /* 点击热区相对舞台高度，随缩放一致 */
+  min-width: calc(var(--cell-stage-h, 540px) * 0.074);
+  min-height: calc(var(--cell-stage-h, 540px) * 0.074);
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: 0.35em;
   transition: color 0.15s ease, transform 0.15s ease, background 0.15s ease;
   position: relative;
   z-index: 3;
@@ -818,12 +836,15 @@ body.cell-fs-active {
 .cell-modal-body {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: calc(var(--cell-stage-h, 540px) * 0.037);
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 16px 18px 18px;
+  padding:
+    calc(var(--cell-stage-h, 540px) * 0.03)
+    calc(var(--cell-stage-w, 960px) * 0.019)
+    calc(var(--cell-stage-h, 540px) * 0.033);
   scrollbar-width: thin;
   scrollbar-color: rgba(84, 201, 43, 0.35) transparent;
   -webkit-overflow-scrolling: touch;
@@ -832,12 +853,12 @@ body.cell-fs-active {
 .cell-modal-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5em;
 }
 
 .cell-modal-section-title {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(var(--cell-stage-h, 540px) * 0.024);
   font-weight: 600;
   color: #e8ffe0;
   letter-spacing: 0.02em;
@@ -845,7 +866,7 @@ body.cell-fs-active {
 
 .cell-modal-desc {
   margin: 0;
-  font-size: 11px;
+  font-size: calc(var(--cell-stage-h, 540px) * 0.02);
   line-height: 1.4;
   color: rgba(148, 163, 184, 0.85);
 }
@@ -1130,23 +1151,23 @@ body.cell-fs-active {
   outline-offset: -2px;
 }
 
-/* 声音设置行 / 开关 / 滑条 */
+/* 声音设置行 / 开关 / 滑条（尺寸相对逻辑舞台，随游戏缩放） */
 .cell-settings-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 28px;
+  gap: calc(var(--cell-stage-w, 960px) * 0.012);
+  min-height: calc(var(--cell-stage-h, 540px) * 0.052);
 }
 
 .cell-settings-label {
-  font-size: 12px;
+  font-size: calc(var(--cell-stage-h, 540px) * 0.022);
   font-weight: 600;
   color: rgba(232, 255, 224, 0.9);
 }
 
 .cell-settings-value {
-  font-size: 11px;
+  font-size: calc(var(--cell-stage-h, 540px) * 0.02);
   font-variant-numeric: tabular-nums;
   color: rgba(148, 163, 184, 0.9);
   min-width: 2.5em;
@@ -1156,14 +1177,14 @@ body.cell-fs-active {
 .cell-settings-slider {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: calc(var(--cell-stage-h, 540px) * 0.011);
 }
 
 .cell-settings-slider__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 0.5em;
 }
 
 .cell-settings-slider.is-disabled {
@@ -1173,8 +1194,8 @@ body.cell-fs-active {
 
 .cell-toggle {
   position: relative;
-  width: 44px;
-  height: 24px;
+  width: calc(var(--cell-stage-h, 540px) * 0.081);
+  height: calc(var(--cell-stage-h, 540px) * 0.044);
   border-radius: 999px;
   border: 1px solid rgba(84, 201, 43, 0.35);
   background: rgba(255, 255, 255, 0.06);
@@ -1186,10 +1207,10 @@ body.cell-fs-active {
 
 .cell-toggle__knob {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
+  top: calc(var(--cell-stage-h, 540px) * 0.0037);
+  left: calc(var(--cell-stage-h, 540px) * 0.0037);
+  width: calc(var(--cell-stage-h, 540px) * 0.033);
+  height: calc(var(--cell-stage-h, 540px) * 0.033);
   border-radius: 50%;
   background: rgba(232, 255, 224, 0.85);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
@@ -1199,11 +1220,12 @@ body.cell-fs-active {
 .cell-toggle--on {
   background: rgba(84, 201, 43, 0.35);
   border-color: rgba(123, 232, 83, 0.7);
-  box-shadow: 0 0 10px rgba(84, 201, 43, 0.25);
+  box-shadow: 0 0 0.6em rgba(84, 201, 43, 0.25);
 }
 
 .cell-toggle--on .cell-toggle__knob {
-  transform: translateX(20px);
+  /* 行程 ≈ 开关宽 − 旋钮宽 − 双边距 */
+  transform: translateX(calc(var(--cell-stage-h, 540px) * 0.037));
   background: #b8ff7a;
 }
 
@@ -1220,7 +1242,7 @@ body.cell-fs-active {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 6px;
+  height: calc(var(--cell-stage-h, 540px) * 0.011);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   outline: none;
@@ -1231,19 +1253,19 @@ body.cell-fs-active {
 .cell-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: calc(var(--cell-stage-h, 540px) * 0.03);
+  height: calc(var(--cell-stage-h, 540px) * 0.03);
   border-radius: 50%;
   background: #7be853;
   border: 1px solid #b8ff7a;
-  box-shadow: 0 0 8px rgba(84, 201, 43, 0.45);
+  box-shadow: 0 0 0.5em rgba(84, 201, 43, 0.45);
   cursor: pointer;
   transition: transform 0.12s ease;
 }
 
 .cell-range::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: calc(var(--cell-stage-h, 540px) * 0.03);
+  height: calc(var(--cell-stage-h, 540px) * 0.03);
   border-radius: 50%;
   background: #7be853;
   border: 1px solid #b8ff7a;
