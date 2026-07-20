@@ -305,7 +305,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
           )}
         </GameStage>
 
-        <GameFooter />
+        {screen === "play" ? <GameFooter /> : null}
       </div>
     </GameLayout>
   );

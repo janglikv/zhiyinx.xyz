@@ -108,16 +108,6 @@
   min-height: 44px;
 }
 
-.chub__brand-kicker {
-  display: block;
-  margin: 0 0 2px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: rgba(154, 240, 90, 0.55);
-  text-transform: uppercase;
-}
-
 .chub__brand-title {
   margin: 0;
   font-family: var(--font-title, inherit);
@@ -213,102 +203,6 @@
   flex: 1;
 }
 
-.chub__chapter-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-shrink: 0;
-}
-
-.chub__chapter-kicker {
-  margin: 0 0 2px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: rgba(154, 240, 90, 0.5);
-}
-
-.chub__chapter-title {
-  margin: 0;
-  font-family: var(--font-title, inherit);
-  font-size: 18px;
-  font-weight: 800;
-  color: #f3ffe9;
-  letter-spacing: 0.03em;
-  line-height: 1.2;
-}
-
-.chub__chapter-name {
-  margin-left: 10px;
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(200, 230, 180, 0.75);
-}
-
-.chub__chapter-tag {
-  margin: 4px 0 0;
-  font-size: 11px;
-  color: rgba(175, 195, 170, 0.7);
-  line-height: 1.4;
-}
-
-.chub__chapter-stat {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  min-width: 88px;
-}
-
-.chub__chapter-stat-val {
-  font-family: var(--font-title, inherit);
-  font-size: 20px;
-  font-weight: 800;
-  color: #9af05a;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.chub__chapter-stat-val small {
-  font-size: 12px;
-  color: rgba(154, 240, 90, 0.4);
-  font-weight: 700;
-}
-
-.chub__chapter-stat-lab {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: rgba(180, 200, 175, 0.5);
-}
-
-.chub__chapter-stat-bar {
-  width: 72px;
-  height: 3px;
-  margin-top: 3px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-.chub__chapter-stat-bar i {
-  display: block;
-  height: 100%;
-  border-radius: 99px;
-  background: linear-gradient(90deg, #54c92b, #b8ff7a);
-  transition: width 0.3s ease;
-}
-
-.chub__chapter-stat-sub {
-  display: block;
-  margin-top: 4px;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: rgba(180, 200, 175, 0.55);
-}
-
 /* 关卡星级 */
 .chub__lv-stars {
   position: relative;
@@ -348,7 +242,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 2px 0 4px;
+  margin: 0;
   min-height: 18px;
 }
 
@@ -356,13 +250,7 @@
   font-size: 16px;
 }
 
-.chub__dock-stars-lab {
-  font-size: 11px;
-  color: rgba(180, 200, 175, 0.7);
-  letter-spacing: 0.02em;
-}
-
-/* 关卡网格 6×3（每章 18 关：主线 12 + 高难 6） */
+/* 关卡网格 6×3 */
 .chub__levels {
   flex: 1;
   display: grid;
@@ -958,7 +846,7 @@
 }
 
 .chub__dock-title {
-  margin: 0 0 3px;
+  margin: 0 0 4px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -968,6 +856,9 @@
   font-weight: 700;
   color: #f3ffe9;
   line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chub__dock-desc {
