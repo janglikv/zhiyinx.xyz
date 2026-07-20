@@ -1,4 +1,4 @@
-# 细胞分裂战 — 音频说明
+# 细胞战争 — 音频说明
 
 实现入口：[`audio.js`](./audio.js)  
 设置 UI：[`ui/SettingsModal.jsx`](./ui/SettingsModal.jsx)  
@@ -27,7 +27,7 @@
 
 | 场景 | API | 文件 | 说明 |
 |------|-----|------|------|
-| 选关大厅 | `setBgmScene("hub")` | `assets/hub-bgm.mp3` | 循环 |
+| 选关大厅 | `setBgmScene("hub")` | `assets/cell-bgm.mp3` | 循环 |
 | 对局 | `setBgmScene("play")` | `assets/battle-bgm.mp3` | 循环；同场景重开/下一关不重切，保持连续 |
 | 离开页面 | `stopBgm()` | — | 两轨 pause + 归零 |
 
@@ -35,7 +35,7 @@
 - 实际响度 = 用户「音乐」滑条 × 内部上限 `BGM_VOLUME_MAX`（约 0.35，避免默认过吵）。
 - 不用 `@pixi/sound` 播 BGM，避免 stop 后孤儿节点与战斗曲叠播。
 
-> 目录里若还有 `bgm.mp3` 等旧文件，当前代码未引用。
+> 旧大厅曲 `hub-bgm.mp3`、以及 `bgm.mp3` 仍保留未删（当前未引用）。
 
 ---
 

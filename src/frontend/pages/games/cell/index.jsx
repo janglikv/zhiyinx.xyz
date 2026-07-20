@@ -203,7 +203,7 @@ function CellEaterPage({ me, onLogout, onOpenLogin }) {
 
   return (
     <GameLayout
-      title="细胞分裂战"
+      title="细胞战争"
       icon="🦠"
       me={me}
       onLogout={onLogout}

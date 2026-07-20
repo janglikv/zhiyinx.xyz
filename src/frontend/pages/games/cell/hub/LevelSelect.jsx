@@ -138,7 +138,7 @@ export default function LevelSelect({
             <span className="chub__brand-kicker">
               CELL · {TOTAL_LEVELS} LEVELS
             </span>
-            <h1 className="chub__brand-title">细胞分裂战</h1>
+            <h1 className="chub__brand-title">细胞战争</h1>
           </div>
 
           <div className="chub__progress" title={`完成度 ${progressPct}%`}>
@@ -177,8 +177,7 @@ export default function LevelSelect({
               <div>
                 <p className="chub__chapter-kicker">CAMPAIGN</p>
                 <h2 className="chub__chapter-title">
-                  基础增殖
-                  <span className="chub__chapter-name">共 {TOTAL_LEVELS} 关</span>
+                  共 {TOTAL_LEVELS} 关
                 </h2>
                 <p className="chub__chapter-tag">{HUB_TAGLINE}</p>
               </div>

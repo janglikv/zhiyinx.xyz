@@ -1,7 +1,8 @@
 import { COLOR_PLAYER, GAME_WIDTH } from "./constants";
 import bulletSoundUrl from "./assets/shoot.mp3";
 import fireworkSoundUrl from "./assets/firework.mp3";
-import bgmUrl from "./assets/hub-bgm.mp3";
+// 大厅试用 cell-bgm；对局仍用 battle-bgm。旧轨 hub-bgm.mp3 / bgm.mp3 保留未删。
+import bgmUrl from "./assets/cell-bgm.mp3";
 import gameBgmUrl from "./assets/battle-bgm.mp3";
 
 const PLAYER_SHOT_GAP_MS = 55;
