@@ -37,7 +37,7 @@ function shortTitle(name) {
 }
 
 /**
- * 选关大厅 — 顶栏 · 关卡网格 · 底出击条
+ * 选关大厅 — 顶栏 · 凝胶晶片关卡格 · 底出击条
  * @param {{
  *   maxUnlocked: number,
  *   cleared: Set<number>,
@@ -166,36 +166,31 @@ export default function LevelSelect({
                       if (unlocked) enterLevel(index);
                     }}
                   >
-                    {isBoss && (
-                      <span className="chub__lv-skull-bg" aria-hidden>
-                        ☠
-                      </span>
-                    )}
-                    {isHard && !isBoss && (
-                      <span className="chub__lv-hard-bg" aria-hidden>
-                        ◆
-                      </span>
-                    )}
-                    <span className="chub__lv-top">
-                      <span className="chub__lv-stage">
-                        {String(stage).padStart(2, "0")}
-                      </span>
-                      {done && (
-                        <span className="chub__lv-check" aria-hidden>
-                          ✓
-                        </span>
-                      )}
-                      {!unlocked && (
+                    <span className="chub__lv-sheen" aria-hidden />
+                    <span className="chub__lv-num" aria-hidden>
+                      {String(stage).padStart(2, "0")}
+                    </span>
+                    <span className="chub__lv-core" aria-hidden>
+                      <i className="chub__lv-core-ring" />
+                      <i className="chub__lv-core-orb" />
+                      {isBoss ? <i className="chub__lv-core-spike" /> : null}
+                    </span>
+                    <span className="chub__lv-foot">
+                      {!unlocked ? (
                         <span className="chub__lv-lock" aria-hidden>
                           🔒
                         </span>
+                      ) : done ? (
+                        <StarRow n={lvStars} compact />
+                      ) : (
+                        <span className="chub__lv-hint" aria-hidden>
+                          {isRec ? "●" : ""}
+                        </span>
                       )}
                     </span>
-                    <span className="chub__lv-name">
-                      {shortTitle(lvl.name)}
-                    </span>
-                    <StarRow n={lvStars} compact />
-                    {isRec && !done && <span className="chub__lv-glow" aria-hidden />}
+                    {isRec && !done ? (
+                      <span className="chub__lv-glow" aria-hidden />
+                    ) : null}
                   </button>
                 );
               })}
@@ -219,9 +214,7 @@ export default function LevelSelect({
             .join(" ")}
         >
           <div className="chub__dock-info">
-            <p className="chub__dock-title">
-              {focus?.name ?? "—"}
-            </p>
+            <p className="chub__dock-title">{focus?.name ?? "—"}</p>
             <div className="chub__dock-stars">
               <StarRow n={focusStars} />
             </div>

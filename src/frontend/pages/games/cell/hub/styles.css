@@ -1,6 +1,6 @@
 /* =========================================================
    细胞战争 · 选关大厅
-   布局：顶栏 · 6×3 关卡网格 · 底出击条（无章节列表）
+   布局：顶栏 · 6×3 凝胶晶片 · 底出击条
    画布：960×540
    ========================================================= */
 
@@ -18,23 +18,44 @@
 @keyframes chubLvIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes chubNextPulse {
+@keyframes chubCorePulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes chubNextRing {
   0%,
   100% {
     opacity: 0.35;
     transform: scale(1);
   }
   50% {
-    opacity: 0.75;
-    transform: scale(1.04);
+    opacity: 0.85;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes chubSheen {
+  0% {
+    transform: translateX(-120%) rotate(18deg);
+  }
+  100% {
+    transform: translateX(220%) rotate(18deg);
   }
 }
 
@@ -80,12 +101,12 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.07;
+  opacity: 0.05;
   background-image:
-    linear-gradient(rgba(154, 240, 90, 0.5) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(154, 240, 90, 0.5) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(ellipse 70% 60% at 55% 50%, black 20%, transparent 75%);
+    radial-gradient(circle at 20% 30%, rgba(154, 240, 90, 0.35) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 60%, rgba(154, 240, 90, 0.25) 0 1px, transparent 1.5px);
+  background-size: 28px 28px, 42px 42px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black 20%, transparent 75%);
 }
 
 /* —— 内容壳 —— */
@@ -193,7 +214,6 @@
   min-width: 0;
 }
 
-/* 关卡列表 */
 .chub__main {
   display: flex;
   flex-direction: column;
@@ -203,24 +223,20 @@
   flex: 1;
 }
 
-/* 关卡星级 */
+/* 星级 */
 .chub__lv-stars {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 1px;
   line-height: 1;
 }
 
-.chub__lv-stars--compact {
-  margin-top: -1px;
-}
-
 .chub__star {
   font-style: normal;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.18);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.16);
   text-shadow: none;
 }
 
@@ -232,10 +248,6 @@
 .chub__lv--hard .chub__star--on {
   color: #e0b0ff;
   text-shadow: 0 0 8px rgba(180, 100, 255, 0.5);
-}
-
-.chub__lv--lock .chub__star {
-  opacity: 0.35;
 }
 
 .chub__dock-stars {
@@ -250,40 +262,65 @@
   font-size: 16px;
 }
 
-/* 关卡网格 6×3 */
+/* =========================================================
+   凝胶晶片关卡格
+   ========================================================= */
 .chub__levels {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
   min-height: 0;
+  padding: 2px;
 }
 
 .chub__lv {
+  --lv-glow: rgba(154, 240, 90, 0.45);
+  --lv-core: #9af05a;
+  --lv-core-dim: rgba(84, 201, 43, 0.35);
+  --lv-edge: rgba(154, 240, 90, 0.28);
+  --lv-fill-a: rgba(18, 42, 24, 0.72);
+  --lv-fill-b: rgba(4, 12, 8, 0.88);
+
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
   min-height: 0;
-  padding: 10px 10px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  padding: 8px 6px 8px;
+  border: 1px solid var(--lv-edge);
+  /* 切角晶片：左上 / 右下斜切 */
+  border-radius: 4px 14px 4px 14px;
+  clip-path: polygon(
+    0 10px,
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%
+  );
   background:
-    linear-gradient(165deg, rgba(20, 36, 22, 0.75) 0%, rgba(6, 12, 8, 0.72) 100%);
+    radial-gradient(ellipse 70% 55% at 50% 42%, var(--lv-core-dim) 0%, transparent 62%),
+    linear-gradient(160deg, var(--lv-fill-a) 0%, var(--lv-fill-b) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.35),
+    0 6px 14px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(0, 0, 0, 0.25);
   color: inherit;
   cursor: pointer;
   font: inherit;
-  text-align: left;
+  text-align: center;
   overflow: hidden;
+  isolation: isolate;
   transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    transform 0.12s ease,
-    box-shadow 0.15s ease;
-  animation: chubLvIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.18s ease;
+  animation: chubLvIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .chub__lv:nth-child(1) { animation-delay: 0.02s; }
@@ -305,472 +342,336 @@
 .chub__lv:nth-child(17) { animation-delay: 0.34s; }
 .chub__lv:nth-child(18) { animation-delay: 0.36s; }
 
-.chub__lv--open:hover {
-  border-color: rgba(154, 240, 90, 0.45);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
-}
-
-.chub__lv--open:active {
-  transform: translateY(0);
-}
-
-.chub__lv--lock {
-  cursor: not-allowed;
-  background: rgba(12, 16, 18, 0.55);
-  border-color: rgba(255, 255, 255, 0.05);
-  color: rgba(150, 160, 165, 0.7);
-}
-
-.chub__lv--done {
-  border-color: rgba(122, 224, 74, 0.35);
-  background:
-    linear-gradient(165deg, rgba(30, 55, 28, 0.8) 0%, rgba(10, 22, 12, 0.75) 100%);
-}
-
-/* 未解锁 Boss 也带微红底，与普关锁定区分 */
-.chub__lv--boss.chub__lv--lock {
-  border-color: rgba(160, 55, 40, 0.35);
-  background:
-    linear-gradient(165deg, rgba(42, 16, 14, 0.72) 0%, rgba(18, 10, 10, 0.68) 100%);
-  box-shadow: inset 0 0 0 1px rgba(180, 50, 35, 0.08);
-  color: rgba(180, 140, 130, 0.75);
-}
-
-.chub__lv--boss.chub__lv--open {
-  border-color: rgba(255, 70, 50, 0.55);
-  background:
-    linear-gradient(165deg, rgba(55, 18, 12, 0.9) 0%, rgba(22, 8, 6, 0.85) 100%);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 80, 50, 0.12),
-    0 0 16px rgba(200, 40, 20, 0.18);
-}
-
-.chub__lv--boss.chub__lv--done {
-  border-color: rgba(255, 100, 70, 0.5);
-}
-
-.chub__lv--boss.chub__lv--open:hover {
-  border-color: rgba(255, 100, 70, 0.75);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 100, 70, 0.2),
-    0 8px 18px rgba(80, 10, 0, 0.35);
-}
-
-/* 紫色高难关（章内 13–17） */
-.chub__lv--hard.chub__lv--lock {
-  border-color: rgba(120, 70, 180, 0.4);
-  background:
-    linear-gradient(165deg, rgba(32, 16, 48, 0.72) 0%, rgba(14, 8, 22, 0.68) 100%);
-  box-shadow: inset 0 0 0 1px rgba(140, 80, 200, 0.1);
-  color: rgba(190, 160, 220, 0.75);
-}
-
-.chub__lv--hard.chub__lv--open {
-  border-color: rgba(180, 110, 255, 0.55);
-  background:
-    linear-gradient(165deg, rgba(48, 22, 72, 0.9) 0%, rgba(18, 8, 32, 0.85) 100%);
-  box-shadow:
-    inset 0 0 0 1px rgba(190, 120, 255, 0.14),
-    0 0 16px rgba(140, 60, 220, 0.2);
-}
-
-.chub__lv--hard.chub__lv--done {
-  border-color: rgba(190, 130, 255, 0.5);
-}
-
-.chub__lv--hard.chub__lv--open:hover {
-  border-color: rgba(210, 150, 255, 0.75);
-  box-shadow:
-    inset 0 0 0 1px rgba(200, 140, 255, 0.22),
-    0 8px 18px rgba(60, 10, 90, 0.35);
-}
-
-.chub__lv--sel.chub__lv--hard {
-  border-color: #e0b8ff;
-  box-shadow:
-    0 0 0 1px rgba(210, 160, 255, 0.4),
-    0 0 22px rgba(160, 90, 255, 0.3);
-  background:
-    linear-gradient(165deg, rgba(60, 28, 90, 0.9) 0%, rgba(22, 10, 40, 0.85) 100%);
-}
-
-/* 紫色 Boss（14 / 16）：红→紫渐变；18 为红色终章 Boss，走普通 boss 样式 */
-.chub__lv--hard.chub__lv--boss.chub__lv--lock {
-  border-color: rgba(180, 70, 140, 0.42);
-  background:
-    linear-gradient(
-      145deg,
-      rgba(48, 14, 18, 0.78) 0%,
-      rgba(36, 12, 40, 0.74) 48%,
-      rgba(22, 10, 38, 0.72) 100%
-    );
-  box-shadow: inset 0 0 0 1px rgba(200, 70, 120, 0.1);
-  color: rgba(210, 160, 190, 0.78);
-}
-
-.chub__lv--hard.chub__lv--boss.chub__lv--open {
-  border-color: rgba(255, 100, 140, 0.55);
-  background:
-    linear-gradient(
-      145deg,
-      rgba(72, 18, 22, 0.94) 0%,
-      rgba(58, 16, 48, 0.9) 42%,
-      rgba(36, 12, 62, 0.9) 100%
-    );
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 90, 120, 0.12),
-    0 0 18px rgba(200, 40, 100, 0.2),
-    0 0 22px rgba(140, 50, 220, 0.18);
-}
-
-.chub__lv--hard.chub__lv--boss.chub__lv--done {
-  border-color: rgba(230, 120, 180, 0.55);
-}
-
-.chub__lv--hard.chub__lv--boss.chub__lv--open:hover {
-  border-color: rgba(255, 130, 180, 0.78);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 120, 170, 0.2),
-    0 8px 20px rgba(90, 10, 40, 0.32),
-    0 0 18px rgba(150, 60, 220, 0.22);
-}
-
-.chub__lv--sel.chub__lv--hard.chub__lv--boss {
-  border-color: #ffb8e0;
-  box-shadow:
-    0 0 0 1px rgba(255, 140, 180, 0.4),
-    0 0 24px rgba(200, 60, 140, 0.28),
-    0 0 20px rgba(160, 80, 255, 0.22);
-  background:
-    linear-gradient(
-      145deg,
-      rgba(80, 22, 32, 0.94) 0%,
-      rgba(62, 18, 58, 0.92) 45%,
-      rgba(40, 14, 70, 0.9) 100%
-    );
-}
-
-.chub__lv--hard .chub__lv-stage {
-  color: #c89bff;
-  text-shadow: 0 0 12px rgba(180, 100, 255, 0.45);
-}
-
-.chub__lv--hard.chub__lv--boss .chub__lv-stage {
-  background: linear-gradient(105deg, #ff7a5c 0%, #ff6aa8 48%, #c89bff 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  text-shadow: none;
-  filter: drop-shadow(0 0 8px rgba(255, 90, 140, 0.4));
-}
-
-.chub__lv--hard.chub__lv--boss .chub__lv-skull-bg {
-  color: rgba(255, 70, 120, 0.38);
-  text-shadow:
-    0 0 10px rgba(255, 50, 80, 0.4),
-    0 0 22px rgba(160, 50, 220, 0.35);
-  filter: saturate(1.3);
-}
-
-.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-skull-bg {
-  color: rgba(200, 70, 120, 0.26);
-  text-shadow: 0 0 10px rgba(160, 40, 100, 0.2);
-}
-
-.chub__lv--done.chub__lv--hard.chub__lv--boss .chub__lv-skull-bg {
-  color: rgba(230, 80, 140, 0.32);
-}
-
-.chub__lv--sel.chub__lv--hard.chub__lv--boss .chub__lv-skull-bg {
-  color: rgba(255, 80, 140, 0.48);
-  text-shadow:
-    0 0 14px rgba(255, 60, 100, 0.5),
-    0 0 28px rgba(160, 50, 230, 0.35);
-}
-
-.chub__lv--hard.chub__lv--boss .chub__lv-warn {
-  color: #ff8a9a;
-  text-shadow: 0 0 8px rgba(255, 80, 140, 0.5);
-}
-
-.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-warn {
-  color: rgba(220, 120, 150, 0.75);
-  text-shadow: none;
-}
-
-.chub__lv--hard.chub__lv--boss.chub__lv--open .chub__lv-flag {
-  color: rgba(255, 160, 200, 0.9);
-}
-
-.chub__lv--hard.chub__lv--boss.chub__lv--open .chub__lv-name {
-  color: #ffe8f4;
-}
-
-.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-stage {
-  background: none;
-  -webkit-background-clip: unset;
-  background-clip: unset;
-  color: rgba(220, 140, 180, 0.8);
-  -webkit-text-fill-color: unset;
-  filter: none;
-  text-shadow: none;
-}
-
-.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-name {
-  color: rgba(220, 170, 200, 0.75);
-}
-
-.chub__lv--lock.chub__lv--hard.chub__lv--boss .chub__lv-flag {
-  color: rgba(210, 130, 170, 0.7);
-}
-
-.chub__lv--lock.chub__lv--hard .chub__lv-stage {
-  color: rgba(170, 130, 210, 0.75);
-  text-shadow: none;
-}
-
-.chub__lv--lock.chub__lv--hard .chub__lv-name {
-  color: rgba(190, 160, 220, 0.72);
-}
-
-.chub__lv--lock.chub__lv--hard .chub__lv-flag {
-  color: rgba(170, 120, 210, 0.65);
-}
-
-.chub__lv--hard .chub__lv-flag {
-  color: rgba(200, 150, 255, 0.65);
-}
-
-.chub__lv--hard.chub__lv--done .chub__lv-flag {
-  color: rgba(220, 180, 255, 0.8);
-}
-
-.chub__lv-hard-bg {
+/* 表面高光扫过 */
+.chub__lv-sheen {
   position: absolute;
-  right: 6px;
-  bottom: 4px;
-  z-index: 0;
-  font-size: 42px;
-  line-height: 1;
-  color: rgba(160, 80, 255, 0.28);
+  inset: -20% -40%;
+  z-index: 3;
   pointer-events: none;
-  user-select: none;
-  transform: rotate(-18deg);
-  text-shadow: 0 0 16px rgba(140, 60, 220, 0.35);
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.1) 48%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 52%,
+    transparent 65%
+  );
+  opacity: 0;
+  transform: translateX(-120%) rotate(18deg);
 }
 
-.chub__lv--lock .chub__lv-hard-bg {
-  color: rgba(140, 80, 200, 0.18);
-  text-shadow: none;
+.chub__lv--open:hover .chub__lv-sheen {
+  opacity: 1;
+  animation: chubSheen 0.7s ease-out both;
 }
 
-.chub__lv-hard-mark {
-  display: inline-block;
-  margin-right: 3px;
-  color: #c89bff;
-  font-size: 11px;
-  vertical-align: -1px;
-  text-shadow: 0 0 8px rgba(180, 100, 255, 0.55);
-}
-
-.chub__lv--lock .chub__lv-hard-mark {
-  color: rgba(170, 120, 210, 0.7);
-  text-shadow: none;
-}
-
-.chub__lv--next {
-  border-color: rgba(154, 240, 90, 0.55);
-  box-shadow:
-    0 0 0 1px rgba(154, 240, 90, 0.15),
-    0 0 20px rgba(84, 201, 43, 0.18);
-}
-
-.chub__lv--sel {
-  border-color: #c8ff8a;
-  box-shadow:
-    0 0 0 1px rgba(200, 255, 138, 0.35),
-    0 0 22px rgba(154, 240, 90, 0.28);
-  background:
-    linear-gradient(165deg, rgba(40, 70, 32, 0.88) 0%, rgba(12, 24, 12, 0.82) 100%);
-}
-
-.chub__lv--sel.chub__lv--boss {
-  border-color: #ffb088;
-  box-shadow:
-    0 0 0 1px rgba(255, 160, 100, 0.35),
-    0 0 22px rgba(224, 90, 40, 0.28);
-}
-
-.chub__lv-top {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  width: 100%;
-  gap: 4px;
-}
-
-.chub__lv-stage {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* 大号水印关号 */
+.chub__lv-num {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 0;
+  transform: translate(-50%, -50%);
   font-family: var(--font-title, inherit);
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #9af05a;
+  font-size: clamp(28px, 5.2vw, 42px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
   line-height: 1;
+  color: rgba(154, 240, 90, 0.1);
   font-variant-numeric: tabular-nums;
-}
-
-.chub__lv--boss .chub__lv-stage {
-  color: #ff6b4a;
-  text-shadow: 0 0 12px rgba(255, 80, 50, 0.45);
-}
-
-/* Boss 卡片背景骷髅水印：45°，右下内侧留边距 */
-.chub__lv-skull-bg {
-  position: absolute;
-  right: 8px;
-  bottom: 6px;
-  left: auto;
-  z-index: 0;
-  font-size: 48px;
-  line-height: 1;
-  color: rgba(255, 48, 32, 0.42);
   pointer-events: none;
   user-select: none;
-  transform: rotate(45deg);
-  transform-origin: center center;
-  text-shadow:
-    0 0 12px rgba(255, 30, 10, 0.45),
-    0 0 28px rgba(200, 20, 0, 0.3);
-  filter: saturate(1.35);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
 }
 
-.chub__lv--lock .chub__lv-skull-bg {
-  color: rgba(200, 55, 40, 0.28);
-  text-shadow: 0 0 10px rgba(180, 30, 15, 0.2);
-  filter: saturate(1.05);
+/* 中央光核 */
+.chub__lv-core {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
-.chub__lv--done .chub__lv-skull-bg {
-  color: rgba(255, 55, 35, 0.32);
+.chub__lv-core-ring,
+.chub__lv-core-orb,
+.chub__lv-core-spike {
+  display: block;
+  position: absolute;
+  font-style: normal;
 }
 
-.chub__lv--sel .chub__lv-skull-bg {
-  color: rgba(255, 40, 25, 0.5);
-  text-shadow:
-    0 0 14px rgba(255, 40, 15, 0.55),
-    0 0 30px rgba(220, 20, 0, 0.35);
+.chub__lv-core-ring {
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--lv-core) 45%, transparent);
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--lv-core) 35%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--lv-core) 20%, transparent);
+  opacity: 0.75;
 }
 
-.chub__lv-warn {
-  display: inline-block;
-  margin-right: 3px;
-  color: #ff5a3a;
-  font-size: 11px;
-  vertical-align: -1px;
-  text-shadow: 0 0 8px rgba(255, 60, 30, 0.55);
+.chub__lv-core-orb {
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, #fff 0%, var(--lv-core) 38%, transparent 70%),
+    radial-gradient(circle at 50% 55%, var(--lv-core) 0%, transparent 72%);
+  box-shadow:
+    0 0 14px var(--lv-glow),
+    0 0 28px color-mix(in srgb, var(--lv-core) 40%, transparent);
 }
 
-.chub__lv--lock .chub__lv-stage {
-  color: rgba(140, 150, 155, 0.65);
+.chub__lv-core-spike {
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 30% 70% 40% 60% / 50% 35% 65% 50%;
+  border: 1px solid color-mix(in srgb, var(--lv-core) 55%, transparent);
+  opacity: 0.45;
+  transform: rotate(18deg);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--lv-core) 30%, transparent);
 }
 
-.chub__lv--lock.chub__lv--boss .chub__lv-stage {
-  color: rgba(210, 95, 75, 0.75);
-  text-shadow: none;
-}
-
-.chub__lv--lock.chub__lv--boss .chub__lv-name {
-  color: rgba(200, 150, 140, 0.72);
-}
-
-.chub__lv--lock.chub__lv--boss .chub__lv-flag {
-  color: rgba(190, 100, 80, 0.65);
-}
-
-.chub__lv--lock.chub__lv--boss .chub__lv-warn {
-  color: rgba(200, 80, 60, 0.7);
-  text-shadow: none;
-}
-
-.chub__lv-check {
-  font-size: 11px;
-  font-weight: 800;
-  color: #b8ff7a;
-  text-shadow: 0 0 8px rgba(84, 201, 43, 0.6);
+/* 底部：星 / 锁 */
+.chub__lv-foot {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14px;
+  width: 100%;
 }
 
 .chub__lv-lock {
-  font-size: 10px;
-  opacity: 0.7;
+  font-size: 11px;
+  opacity: 0.55;
+  filter: grayscale(0.4);
 }
 
-.chub__lv-name {
-  position: relative;
-  z-index: 1;
+.chub__lv-hint {
   display: block;
-  width: 100%;
-  font-size: 12px;
-  font-weight: 700;
-  color: rgba(240, 255, 232, 0.92);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lv-core);
+  box-shadow: 0 0 10px var(--lv-glow);
+  font-size: 0;
+  color: transparent;
+  opacity: 0.85;
 }
 
-.chub__lv--lock .chub__lv-name {
-  color: rgba(150, 160, 165, 0.65);
+/* —— 状态：开放 / 悬停 —— */
+.chub__lv--open:hover {
+  transform: translateY(-3px) scale(1.02);
+  border-color: color-mix(in srgb, var(--lv-core) 70%, white 10%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.28),
+    0 12px 22px rgba(0, 0, 0, 0.35),
+    0 0 18px color-mix(in srgb, var(--lv-glow) 55%, transparent);
 }
 
-.chub__lv-flag {
-  position: relative;
-  z-index: 1;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: rgba(154, 240, 90, 0.55);
+.chub__lv--open:active {
+  transform: translateY(-1px) scale(0.99);
 }
 
-.chub__lv--done .chub__lv-flag {
-  color: rgba(180, 255, 140, 0.75);
+/* —— 锁定：熄灭 —— */
+.chub__lv--lock {
+  --lv-glow: transparent;
+  --lv-core: #5a6660;
+  --lv-core-dim: rgba(40, 48, 44, 0.2);
+  --lv-edge: rgba(255, 255, 255, 0.06);
+  --lv-fill-a: rgba(10, 14, 12, 0.72);
+  --lv-fill-b: rgba(4, 6, 6, 0.9);
+  cursor: not-allowed;
+  filter: saturate(0.35) brightness(0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.45),
+    0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
-.chub__lv--lock .chub__lv-flag {
-  color: rgba(120, 130, 135, 0.7);
+.chub__lv--lock .chub__lv-num {
+  color: rgba(120, 130, 125, 0.12);
 }
 
-.chub__lv--boss.chub__lv--open .chub__lv-flag {
-  color: rgba(255, 120, 90, 0.9);
+.chub__lv--lock .chub__lv-core-orb {
+  box-shadow: none;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(200, 200, 200, 0.35) 0%, #4a524c 50%, transparent 72%);
 }
 
-.chub__lv--boss.chub__lv--open .chub__lv-name {
-  color: #ffe8e0;
+.chub__lv--lock .chub__lv-core-ring {
+  opacity: 0.3;
+  box-shadow: none;
 }
 
-.chub__lv--next .chub__lv-flag {
-  color: #9af05a;
+/* —— 已通关：湿润点亮 —— */
+.chub__lv--done {
+  --lv-edge: rgba(154, 240, 90, 0.42);
+  --lv-fill-a: rgba(28, 58, 30, 0.82);
+  --lv-fill-b: rgba(8, 22, 12, 0.9);
+  --lv-core-dim: rgba(120, 230, 80, 0.28);
 }
 
-.chub__lv--sel .chub__lv-flag {
-  color: #d4ff9a;
+.chub__lv--done .chub__lv-num {
+  color: rgba(180, 255, 120, 0.14);
+}
+
+/* —— 推荐：呼吸 —— */
+.chub__lv--next {
+  --lv-edge: rgba(154, 240, 90, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(154, 240, 90, 0.12),
+    0 0 20px rgba(84, 201, 43, 0.28);
+}
+
+.chub__lv--next .chub__lv-core-orb {
+  animation: chubCorePulse 2.2s ease-in-out infinite;
 }
 
 .chub__lv-glow {
   position: absolute;
-  inset: -1px;
-  border-radius: 12px;
-  border: 1px solid rgba(154, 240, 90, 0.45);
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
-  animation: chubNextPulse 2.4s ease-in-out infinite;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(154, 240, 90, 0.35),
+    0 0 18px rgba(154, 240, 90, 0.25);
+  animation: chubNextRing 2.4s ease-in-out infinite;
+}
+
+/* —— 选中 —— */
+.chub__lv--sel {
+  --lv-edge: #c8ff8a;
+  transform: translateY(-2px) scale(1.03);
+  z-index: 2;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(200, 255, 138, 0.35),
+    0 0 24px rgba(154, 240, 90, 0.35),
+    0 10px 20px rgba(0, 0, 0, 0.32);
+}
+
+.chub__lv--sel .chub__lv-num {
+  color: rgba(200, 255, 140, 0.2);
+}
+
+/* —— Boss：危险红核 —— */
+.chub__lv--boss {
+  --lv-glow: rgba(255, 80, 50, 0.5);
+  --lv-core: #ff6b4a;
+  --lv-core-dim: rgba(220, 50, 30, 0.32);
+  --lv-edge: rgba(255, 90, 60, 0.45);
+  --lv-fill-a: rgba(52, 16, 12, 0.88);
+  --lv-fill-b: rgba(14, 6, 6, 0.92);
+}
+
+.chub__lv--boss .chub__lv-num {
+  color: rgba(255, 90, 60, 0.14);
+}
+
+.chub__lv--boss.chub__lv--lock {
+  --lv-edge: rgba(160, 55, 40, 0.28);
+  --lv-fill-a: rgba(28, 12, 10, 0.8);
+  --lv-fill-b: rgba(10, 6, 6, 0.9);
+  --lv-core: #7a4038;
+  --lv-core-dim: rgba(80, 30, 24, 0.2);
+  filter: saturate(0.45) brightness(0.7);
+}
+
+.chub__lv--boss.chub__lv--sel {
+  --lv-edge: #ffb088;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 200, 160, 0.2),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 140, 90, 0.35),
+    0 0 26px rgba(224, 70, 30, 0.35),
+    0 10px 20px rgba(40, 8, 0, 0.35);
+}
+
+/* —— 高难：冷紫 —— */
+.chub__lv--hard {
+  --lv-glow: rgba(180, 100, 255, 0.5);
+  --lv-core: #c89bff;
+  --lv-core-dim: rgba(140, 70, 220, 0.32);
+  --lv-edge: rgba(180, 110, 255, 0.48);
+  --lv-fill-a: rgba(40, 18, 62, 0.88);
+  --lv-fill-b: rgba(12, 6, 24, 0.92);
+}
+
+.chub__lv--hard .chub__lv-num {
+  color: rgba(200, 150, 255, 0.14);
+}
+
+.chub__lv--hard.chub__lv--lock {
+  --lv-edge: rgba(100, 60, 150, 0.28);
+  --lv-core: #5a4870;
+  --lv-core-dim: rgba(50, 30, 70, 0.2);
+  --lv-fill-a: rgba(20, 12, 30, 0.8);
+  --lv-fill-b: rgba(8, 6, 14, 0.9);
+  filter: saturate(0.4) brightness(0.7);
+}
+
+.chub__lv--hard.chub__lv--sel {
+  --lv-edge: #e0b8ff;
+  box-shadow:
+    inset 0 1px 0 rgba(230, 200, 255, 0.2),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(210, 160, 255, 0.35),
+    0 0 26px rgba(160, 80, 255, 0.35),
+    0 10px 20px rgba(30, 8, 50, 0.35);
+}
+
+/* —— 紫 Boss：红紫交织 —— */
+.chub__lv--hard.chub__lv--boss {
+  --lv-glow: rgba(255, 80, 140, 0.48);
+  --lv-core: #ff7aa8;
+  --lv-core-dim: rgba(200, 40, 120, 0.3);
+  --lv-edge: rgba(255, 100, 160, 0.5);
+  --lv-fill-a: rgba(58, 14, 28, 0.9);
+  --lv-fill-b: rgba(24, 8, 40, 0.94);
+}
+
+.chub__lv--hard.chub__lv--boss .chub__lv-num {
+  color: rgba(255, 120, 180, 0.14);
+}
+
+.chub__lv--hard.chub__lv--boss .chub__lv-core-orb {
+  background:
+    radial-gradient(circle at 32% 28%, #fff 0%, #ff8ab0 30%, #c060ff 68%, transparent 78%),
+    radial-gradient(circle at 50% 55%, #ff6a9a 0%, transparent 72%);
+}
+
+.chub__lv--hard.chub__lv--boss.chub__lv--lock {
+  --lv-edge: rgba(160, 50, 100, 0.28);
+  --lv-core: #704858;
+  filter: saturate(0.4) brightness(0.68);
+}
+
+.chub__lv--hard.chub__lv--boss.chub__lv--sel {
+  --lv-edge: #ffb8e0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 200, 220, 0.18),
+    0 0 0 1px rgba(255, 140, 190, 0.35),
+    0 0 24px rgba(220, 50, 120, 0.3),
+    0 0 20px rgba(140, 60, 220, 0.22),
+    0 10px 20px rgba(40, 6, 20, 0.35);
 }
 
 /* —— 底栏 —— */
@@ -824,33 +725,9 @@
   min-width: 0;
 }
 
-.chub__dock-label {
-  margin: 0 0 2px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: rgba(154, 240, 90, 0.5);
-  text-transform: uppercase;
-}
-
-.chub__dock-label span {
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  color: rgba(175, 195, 170, 0.45);
-  text-transform: none;
-  font-variant-numeric: tabular-nums;
-}
-
 .chub__dock-title {
   margin: 0 0 4px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: block;
   font-family: var(--font-title, inherit);
   font-size: 15px;
   font-weight: 700;
@@ -859,65 +736,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.chub__dock-desc {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: rgba(175, 195, 170, 0.72);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.chub__tag {
-  display: inline-flex;
-  align-items: center;
-  height: 16px;
-  padding: 0 6px;
-  border-radius: 999px;
-  font-family: inherit;
-  font-size: 9px;
-  font-style: normal;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-
-.chub__tag--boss {
-  color: #ffd0b8;
-  background: rgba(224, 90, 40, 0.32);
-  border: 1px solid rgba(255, 140, 90, 0.4);
-}
-
-.chub__tag--hard {
-  color: #edd8ff;
-  background: rgba(140, 70, 220, 0.3);
-  border: 1px solid rgba(190, 130, 255, 0.42);
-}
-
-.chub__tag--hard-boss {
-  color: #ffe4f0;
-  background: linear-gradient(
-    105deg,
-    rgba(224, 70, 60, 0.38) 0%,
-    rgba(170, 50, 160, 0.36) 50%,
-    rgba(130, 60, 220, 0.38) 100%
-  );
-  border: 1px solid rgba(255, 140, 190, 0.48);
-}
-
-.chub__tag--done {
-  color: #d8ffc0;
-  background: rgba(84, 201, 43, 0.2);
-  border: 1px solid rgba(154, 240, 90, 0.32);
-}
-
-.chub__tag--tut {
-  color: #c8e8ff;
-  background: rgba(80, 150, 220, 0.22);
-  border: 1px solid rgba(120, 180, 240, 0.35);
 }
 
 .chub__dock-actions {
