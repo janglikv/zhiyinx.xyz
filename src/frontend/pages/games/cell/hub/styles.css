@@ -1,6 +1,6 @@
 /* =========================================================
-   细胞分裂战 · 选关大厅（全新设计）
-   布局：顶栏 · 左章节轨 · 右 6×2 关卡卡 · 底出击条
+   细胞分裂战 · 选关大厅
+   布局：顶栏 · 6×3 关卡网格 · 底出击条（无章节列表）
    画布：960×540
    ========================================================= */
 
@@ -70,9 +70,9 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(2, 8, 6, 0.92) 0%, rgba(2, 8, 6, 0.55) 22%, rgba(2, 8, 6, 0.35) 100%),
+    linear-gradient(90deg, rgba(2, 8, 6, 0.55) 0%, rgba(2, 8, 6, 0.4) 50%, rgba(2, 8, 6, 0.5) 100%),
     linear-gradient(180deg, rgba(0, 6, 4, 0.72) 0%, transparent 22%, transparent 70%, rgba(0, 4, 2, 0.88) 100%),
-    radial-gradient(ellipse 80% 60% at 60% 45%, transparent 0%, rgba(0, 0, 0, 0.45) 100%);
+    radial-gradient(ellipse 80% 60% at 50% 45%, transparent 0%, rgba(0, 0, 0, 0.45) 100%);
   pointer-events: none;
 }
 
@@ -197,131 +197,20 @@
 
 /* —— 主体 —— */
 .chub__body {
-  display: grid;
-  grid-template-columns: 148px minmax(0, 1fr);
-  gap: 12px;
-  min-height: 0;
-}
-
-/* 左：章节轨 */
-.chub__rail {
   display: flex;
   flex-direction: column;
-  gap: 5px;
   min-height: 0;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.chub__rail-item {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px 8px 8px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.28);
-  color: rgba(200, 215, 195, 0.78);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    transform 0.12s ease,
-    box-shadow 0.15s ease;
-}
-
-.chub__rail-item:hover:not(:disabled) {
-  border-color: rgba(154, 240, 90, 0.28);
-  background: rgba(84, 201, 43, 0.08);
-  transform: translateX(2px);
-}
-
-.chub__rail-item--on {
-  border-color: rgba(154, 240, 90, 0.5);
-  background: linear-gradient(90deg, rgba(84, 201, 43, 0.18), rgba(84, 201, 43, 0.06));
-  box-shadow:
-    inset 3px 0 0 #9af05a,
-    0 0 16px rgba(84, 201, 43, 0.12);
-  color: #f0ffe8;
-}
-
-.chub__rail-item--lock {
-  opacity: 0.48;
-  cursor: not-allowed;
-  filter: grayscale(0.4);
-}
-
-.chub__rail-item--done:not(.chub__rail-item--on) {
-  border-color: rgba(122, 224, 74, 0.22);
-}
-
-.chub__rail-no {
-  font-family: var(--font-title, inherit);
-  font-size: 13px;
-  font-weight: 800;
-  color: rgba(154, 240, 90, 0.55);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
-.chub__rail-item--on .chub__rail-no {
-  color: #9af05a;
-}
-
-.chub__rail-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
   min-width: 0;
 }
 
-.chub__rail-title {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: rgba(154, 240, 90, 0.5);
-}
-
-.chub__rail-item--on .chub__rail-title {
-  color: rgba(154, 240, 90, 0.85);
-}
-
-.chub__rail-name {
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chub__rail-mini {
-  font-size: 9px;
-  font-weight: 700;
-  color: rgba(180, 200, 175, 0.45);
-  font-variant-numeric: tabular-nums;
-}
-
-.chub__rail-mark {
-  font-size: 10px;
-  opacity: 0.75;
-}
-
-.chub__rail-mark--ok {
-  color: #9af05a;
-  font-weight: 800;
-}
-
-/* 右：章节内容 */
+/* 关卡列表 */
 .chub__main {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
   min-height: 0;
+  flex: 1;
 }
 
 .chub__chapter-head {

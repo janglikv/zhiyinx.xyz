@@ -1,23 +1,19 @@
 import { COLOR_PLAYER, COLOR_ENEMY, COLOR_NEUTRAL } from "../constants";
 import { chapter1AiSpec } from "../aiProfiles";
 
-/** 每章关卡数 / 总章数 */
-export const LEVELS_PER_CHAPTER = 18;
-export const TOTAL_CHAPTERS = 5;
+/** 全游戏关卡总数（不再分章节） */
+export const TOTAL_LEVELS = 18;
+/** @deprecated 兼容旧引用；等同 TOTAL_LEVELS */
+export const LEVELS_PER_CHAPTER = TOTAL_LEVELS;
 
 /**
- * 本章累计星达到该值后解锁下一章节第 1 关。
- * 单关最高 3★，18★ ≈ 主线平均 1.5★ 或 18 关各 1★。
- */
-export const CHAPTER_UNLOCK_STARS = 18;
-
-/**
- * 章内主线关数参考（1-based）。第 12 关仍为章节闸门 Boss 位。
+ * 主线闸门 Boss 位（1-based）。
  * 13–17 为紫色高难可选关（14 / 16 为紫色 Boss）；
  * 第 18 关为红色终章 Boss。
- * 章节解锁改由 {@link CHAPTER_UNLOCK_STARS} 控制。
  */
-export const CHAPTER_UNLOCK_STAGE = 12;
+export const GATE_BOSS_STAGE = 12;
+/** @deprecated 兼容旧引用 */
+export const CHAPTER_UNLOCK_STAGE = GATE_BOSS_STAGE;
 export const HARD_STAGE_START = 13;
 /** 紫色高难区结束 stage（含）；18 为红色终章 Boss，不在紫区 */
 export const HARD_STAGE_END = 17;
@@ -30,21 +26,21 @@ export const DEFAULT_STAR_TIME_SEC = 120;
 export const DEFAULT_ENERGY_STAR_RATIO = 1;
 
 /**
- * 章内 Boss 关（1-based stage）：
- * 6 中 Boss · 12 章节闸门 · 14/16 紫色高难 Boss · 18 红色终章 Boss
+ * Boss 关（1-based stage）：
+ * 6 中 Boss · 12 闸门 · 14/16 紫色高难 Boss · 18 红色终章 Boss
  */
 export const BOSS_STAGES = Object.freeze([6, 12, 14, 16, 18]);
 
 /**
- * @param {number} stage 章内第几关 1–18
+ * @param {number} stage 第几关 1–18
  */
 export function isBossStage(stage) {
   return BOSS_STAGES.includes(stage);
 }
 
 /**
- * 章内高难关（紫色）：13–17（含 14/16 紫 Boss；不含 18）
- * @param {number} stage 章内第几关 1–18
+ * 高难关（紫色）：13–17（含 14/16 紫 Boss；不含 18）
+ * @param {number} stage 第几关 1–18
  */
 export function isHardStage(stage) {
   return stage >= HARD_STAGE_START && stage <= HARD_STAGE_END;
@@ -52,64 +48,14 @@ export function isHardStage(stage) {
 
 /**
  * 紫色高难区内的 Boss（isHard && isBoss）——目前 14、16
- * @param {number} stage 章内第几关 1–18
+ * @param {number} stage 第几关 1–18
  */
 export function isHardBossStage(stage) {
   return isHardStage(stage) && isBossStage(stage);
 }
 
-/**
- * 章节：每章 18 关共用一张背景（level-1 … level-5）。
- * 本章累计 {@link CHAPTER_UNLOCK_STARS} 星解锁下一章；
- * 13–17 为紫色高难（14 / 16 紫 Boss），18 为红色终章 Boss。
- * @typedef {{
- *   id: number,
- *   name: string,
- *   title: string,
- *   description: string,
- *   background: string,
- * }} ChapterDef
- */
-
-/** @type {ChapterDef[]} */
-export const CHAPTERS = [
-  {
-    id: 1,
-    name: "基础增殖",
-    title: "第一章节",
-    description:
-      "1–6 教学打底，7–11 试炼组合，12 闸门验收；其后紫色高难与终章可选挑战。",
-    background: "level-1",
-  },
-  {
-    id: 2,
-    name: "待定",
-    title: "第二章节",
-    description: "内容待定",
-    background: "level-2",
-  },
-  {
-    id: 3,
-    name: "待定",
-    title: "第三章节",
-    description: "内容待定",
-    background: "level-3",
-  },
-  {
-    id: 4,
-    name: "待定",
-    title: "第四章节",
-    description: "内容待定",
-    background: "level-4",
-  },
-  {
-    id: 5,
-    name: "待定",
-    title: "第五章节",
-    description: "内容待定",
-    background: "level-5",
-  },
-];
+/** 默认大厅 / 对局背景 id */
+export const DEFAULT_BACKGROUND = "level-1";
 
 /**
  * 关卡定义。
@@ -122,7 +68,6 @@ export const CHAPTERS = [
  *   aiSeed: number,
  *   ai?: string | import("../aiProfiles").AiLevelConfig,
  *   tutorial?: string | boolean,
- *   chapterId: number,
  *   background: string,
  *   isBoss?: boolean,
  *   isHard?: boolean,
@@ -230,38 +175,18 @@ export function evaluateClearStars(p) {
 
 /**
  * @param {number} levelIndex 0-based
- * @returns {number} 0-based chapter index
- */
-export function chapterIndexFromLevelIndex(levelIndex) {
-  return Math.min(
-    TOTAL_CHAPTERS - 1,
-    Math.max(0, Math.floor(levelIndex / LEVELS_PER_CHAPTER)),
-  );
-}
-
-/**
- * @param {number} levelIndex 0-based
  * @returns {string} 背景 id，如 "level-1"
  */
 export function backgroundIdForLevelIndex(levelIndex) {
-  const ch = CHAPTERS[chapterIndexFromLevelIndex(levelIndex)];
-  return ch?.background ?? "level-1";
+  return LEVELS[levelIndex]?.background ?? DEFAULT_BACKGROUND;
 }
 
 /**
- * @param {number} levelIndex 0-based
- * @returns {ChapterDef}
- */
-export function getChapterForLevelIndex(levelIndex) {
-  return CHAPTERS[chapterIndexFromLevelIndex(levelIndex)];
-}
-
-/**
- * 章内第几关（1–18）
+ * 第几关（1–18）
  * @param {number} levelIndex 0-based
  */
 export function stageInChapter(levelIndex) {
-  return (levelIndex % LEVELS_PER_CHAPTER) + 1;
+  return Math.min(TOTAL_LEVELS, Math.max(1, (levelIndex | 0) + 1));
 }
 
 /**
@@ -275,24 +200,22 @@ function lerp(a, b, t) {
 }
 
 /**
- * 按章内进度缩放数值（stage 1→0 … stage 18→1）
+ * 按关卡进度缩放数值（stage 1→0 … stage 18→1）
  * @param {number} stage 1–18
  * @param {number} easy
  * @param {number} hard
  */
 function scaleByStage(stage, easy, hard) {
-  const t = (stage - 1) / Math.max(1, LEVELS_PER_CHAPTER - 1);
+  const t = (stage - 1) / Math.max(1, TOTAL_LEVELS - 1);
   return lerp(easy, hard, t);
 }
 
 /**
- * 章内关名
- * @param {ChapterDef} chapter
- * @param {number} globalId 1–90
+ * @param {number} id 1–18
  * @param {string} short
  */
-function levelName(chapter, globalId, short) {
-  return `${chapter.title} · 第${globalId}关：${short}`;
+function levelName(id, short) {
+  return `第${id}关：${short}`;
 }
 
 /**
@@ -573,7 +496,7 @@ function chapter1TrialCopy(stage) {
 }
 
 /**
- * 第一章章节闸门（关 12，共 12 细胞）：
+ * 主线闸门（关 12，共 12 细胞）：
  * 4 绿 + 3 灰争点 + 侧翼/前哨/母巢 5 红，综合验收 7–11。
  * @returns {Array<{ x: number, y: number, value: number, color: number }>}
  */
@@ -605,7 +528,7 @@ function buildChapter1GateBossCells() {
  * @param {number} stage
  */
 function buildBossCells(stage) {
-  const isMajor = stage >= CHAPTER_UNLOCK_STAGE;
+  const isMajor = stage >= GATE_BOSS_STAGE;
   const p = Math.max(20, scaleByStage(stage, 22, 20));
   const n = scaleByStage(stage, 14, 22);
   const boss = isMajor
@@ -638,57 +561,19 @@ function buildBossCells(stage) {
 }
 
 /**
- * 生成某一章的 18 关。
- * 目前仅第一章节有完整内容；其余章节关卡内容已清空（壳位保留，后续再填）。
- * @param {ChapterDef} chapter
- * @param {number} chapterIndex 0-based
+ * 生成全部 18 关（主线 1–12 · 紫高难 13–17 · 终章 18）。
  * @returns {LevelDef[]}
  */
-function buildChapterLevels(chapter, chapterIndex) {
-  const baseId = chapterIndex * LEVELS_PER_CHAPTER;
+function buildAllLevels() {
   /** @type {LevelDef[]} */
   const list = [];
-  const contentReady = chapterIndex === 0;
 
-  for (let stage = 1; stage <= LEVELS_PER_CHAPTER; stage++) {
-    const id = baseId + stage;
+  for (let stage = 1; stage <= TOTAL_LEVELS; stage++) {
+    const id = stage;
     const aiSeed = 100 + id;
     const boss = isBossStage(stage);
     const hard = isHardStage(stage);
-    const tutorial = contentReady && stage === 1;
-
-    if (!contentReady) {
-      // 第 2–5 章：只保留槽位、Boss / 高难标记，关卡内容清空
-      let short;
-      if (boss && hard) short = `紫 Boss ${stage}`;
-      else if (boss && stage === 6) short = "中 Boss";
-      else if (boss && stage === 12) short = "章节闸门";
-      else if (boss && stage === 18) short = "终章 Boss";
-      else if (boss) short = "Boss";
-      else if (hard) short = `高难 ${stage}`;
-      else short = `关卡 ${stage}`;
-
-      list.push({
-        id,
-        name: levelName(chapter, id, short),
-        description: hard
-          ? boss
-            ? "紫色高难 Boss（可选）· 内容待定"
-            : "高难挑战（可选）· 内容待定"
-          : boss && stage === 18
-            ? "终章 Boss · 内容待定"
-            : "内容待定",
-        cells: [],
-        aiSeed,
-        ai: { profile: "placeholder" },
-        chapterId: chapter.id,
-        background: chapter.background,
-        isBoss: boss,
-        isHard: hard,
-        stage,
-      });
-      continue;
-    }
+    const tutorial = stage === 1;
 
     let short;
     let description;
@@ -698,7 +583,6 @@ function buildChapterLevels(chapter, chapterIndex) {
     let starTimeSec;
     /** @type {number | undefined} */
     let timeLimitSec;
-    /** 第一章每关显式 AI；后续关同理在规格表定制 */
     const ai = chapter1AiSpec(stage);
 
     if (boss) {
@@ -709,29 +593,29 @@ function buildChapterLevels(chapter, chapterIndex) {
         cells = buildChapter1MidBossCells();
       } else if (hard) {
         short = `紫 Boss ${stage}`;
-        description = `${chapter.name} · 紫色高难 Boss（可选）· 更强母巢布局，章节内第 ${stage} 关（占位，后续细化）。`;
+        description = `紫色高难 Boss（可选）· 更强母巢布局，第 ${stage} 关（占位，后续细化）。`;
         cells = buildBossCells(stage);
       } else if (stage === 18) {
         short = "终章 Boss";
         description =
-          "终章 Boss：红色终极关卡。肃清本章最强母巢，亦可回头刷满紫色高难与星数。";
+          "终章 Boss：红色终极关卡。肃清最强母巢，亦可回头刷满紫色高难与星数。";
         cells = buildBossCells(stage);
       } else if (stage === 12) {
         short = "闸门";
         description =
-          "章节闸门（12 细胞）：侧翼、中路争点、前哨补给与双核母巢。按阶段拆掉守卫——先翼后点再断流，最后合击母巢。";
+          "主线闸门（12 细胞）：侧翼、中路争点、前哨补给与双核母巢。按阶段拆掉守卫——先翼后点再断流，最后合击母巢。";
         cells = buildChapter1GateBossCells();
         starTimeSec = 130;
         timeLimitSec = 200;
       } else {
-        short = "章节闸门";
+        short = "闸门";
         description =
-          "章节闸门 Boss：更强母巢与侧翼。本章攒满星数可解锁下一章节，亦可继续挑战紫色高难关。";
+          "闸门 Boss：更强母巢与侧翼。亦可继续挑战紫色高难关。";
         cells = buildBossCells(stage);
       }
     } else if (hard) {
       short = `高难 ${stage}`;
-      description = `${chapter.name} · 高难挑战（可选）· 章节内第 ${stage} 关（占位，后续细化）。`;
+      description = `高难挑战（可选）· 第 ${stage} 关（占位，后续细化）。`;
       cells = buildNormalCells(stage, false);
     } else if (stage <= 5) {
       const copy = chapter1StageCopy(stage);
@@ -746,19 +630,18 @@ function buildChapterLevels(chapter, chapterIndex) {
       if (copy.starTimeSec != null) starTimeSec = copy.starTimeSec;
     } else {
       short = `关卡 ${stage}`;
-      description = `${chapter.name} · 章节内第 ${stage} 关（占位布局，后续细化）。`;
+      description = `第 ${stage} 关（占位布局，后续细化）。`;
       cells = buildNormalCells(stage, false);
     }
 
     list.push({
       id,
-      name: levelName(chapter, id, short),
+      name: levelName(id, short),
       description,
       cells,
       aiSeed,
       ai,
-      chapterId: chapter.id,
-      background: chapter.background,
+      background: DEFAULT_BACKGROUND,
       isBoss: boss,
       isHard: hard,
       stage,
@@ -771,8 +654,8 @@ function buildChapterLevels(chapter, chapterIndex) {
   return list;
 }
 
-/** @type {LevelDef[]} 5 章 × 18 关 = 90 关（仅第 1 章有完整内容） */
-export const LEVELS = CHAPTERS.flatMap((ch, i) => buildChapterLevels(ch, i));
+/** @type {LevelDef[]} 共 18 关 */
+export const LEVELS = buildAllLevels();
 
 /**
  * @param {number} index

@@ -1,36 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  LEVELS,
-  CHAPTERS,
-  LEVELS_PER_CHAPTER,
-  TOTAL_CHAPTERS,
-  CHAPTER_UNLOCK_STARS,
-  chapterIndexFromLevelIndex,
-} from "../levels";
-import { isChapterUnlocked, isLevelUnlocked } from "./progress";
+import { LEVELS, TOTAL_LEVELS } from "../levels";
+import { isLevelUnlocked } from "./progress";
 import { uiSfx } from "../audio";
 import bg1 from "../backgrounds/level-1.webp";
-import bg2 from "../backgrounds/level-2.webp";
-import bg3 from "../backgrounds/level-3.webp";
-import bg4 from "../backgrounds/level-4.webp";
-import bg5 from "../backgrounds/level-5.webp";
 import "./styles.css";
 
-const CHAPTER_BGS = {
-  "level-1": bg1,
-  "level-2": bg2,
-  "level-3": bg3,
-  "level-4": bg4,
-  "level-5": bg5,
-};
-
-const CHAPTER_TAGLINES = [
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–17 · 18 终章 Boss。`,
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–17 · 18 终章 Boss。`,
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–17 · 18 终章 Boss。`,
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁下一章 · 紫关 13–17 · 18 终章 Boss。`,
-  `本章累计 ${CHAPTER_UNLOCK_STARS}★ 解锁最终内容 · 紫关 13–17 · 18 终章 Boss。`,
-];
+const HUB_TAGLINE =
+  "主线 1–12 · 紫关 13–17 · 终章 Boss 18 · 通关上一关解锁下一关。";
 
 /**
  * @param {number} n 0–3
@@ -83,7 +59,7 @@ function ctaLabel(s) {
 }
 
 /**
- * 选关大厅 — 全新布局：左章节轨 · 右关卡网格 · 底出击条
+ * 选关大厅 — 顶栏 · 关卡网格 · 底出击条（无章节列表）
  * @param {{
  *   maxUnlocked: number,
  *   cleared: Set<number>,
@@ -112,81 +88,27 @@ export default function LevelSelect({
   const progressPct = Math.round((clearedCount / LEVELS.length) * 100);
   const neverPlayed = clearedCount === 0;
   const totalStars = stars.reduce((a, b) => a + (b || 0), 0);
+  const maxStars = LEVELS.length * 3;
+  const starPct = Math.min(100, Math.round((totalStars / maxStars) * 100));
 
-  const [activeChapter, setActiveChapter] = useState(
-    chapterIndexFromLevelIndex(recommendedIndex),
-  );
   const [selectedIndex, setSelectedIndex] = useState(recommendedIndex);
-  const [bgTick, setBgTick] = useState(0);
 
   useEffect(() => {
-    setActiveChapter(chapterIndexFromLevelIndex(recommendedIndex));
     setSelectedIndex(recommendedIndex);
   }, [recommendedIndex]);
 
-  const chapter = CHAPTERS[activeChapter] ?? CHAPTERS[0];
-  const hubBg = CHAPTER_BGS[chapter.background] ?? bg1;
-  const tagline = CHAPTER_TAGLINES[activeChapter] ?? chapter.description;
-
-  const chapterLevels = useMemo(() => {
-    const start = activeChapter * LEVELS_PER_CHAPTER;
-    return LEVELS.slice(start, start + LEVELS_PER_CHAPTER).map((lvl, i) => ({
-      lvl,
-      index: start + i,
-      stage: i + 1,
-    }));
-  }, [activeChapter]);
-
-  const chapterStats = useMemo(() => {
-    const start = activeChapter * LEVELS_PER_CHAPTER;
-    let done = 0;
-    let starSum = 0;
-    for (let i = 0; i < LEVELS_PER_CHAPTER; i++) {
-      if (cleared.has(start + i)) done += 1;
-      starSum += stars[start + i] || 0;
-    }
-    const starNeed = CHAPTER_UNLOCK_STARS;
-    const starPct = Math.min(100, Math.round((starSum / starNeed) * 100));
-    return {
-      done,
-      total: LEVELS_PER_CHAPTER,
-      pct: Math.round((done / LEVELS_PER_CHAPTER) * 100),
-      stars: starSum,
-      starNeed,
-      starPct,
-      chapterOpen:
-        activeChapter >= TOTAL_CHAPTERS - 1 || starSum >= starNeed,
-    };
-  }, [activeChapter, cleared, stars]);
-
-  function isChapterReachable(chapterIdx) {
-    return isChapterUnlocked(chapterIdx);
-  }
-
-  function selectChapter(idx) {
-    if (!isChapterReachable(idx)) return;
-    setActiveChapter(idx);
-    setBgTick((t) => t + 1);
-    const start = idx * LEVELS_PER_CHAPTER;
-    const end = start + LEVELS_PER_CHAPTER - 1;
-    if (recommendedIndex >= start && recommendedIndex <= end) {
-      setSelectedIndex(recommendedIndex);
-    } else {
-      // 选本章第一个已解锁关，否则章首
-      let pick = start;
-      for (let i = start; i <= end; i += 1) {
-        if (isLevelUnlocked(i)) {
-          pick = i;
-          break;
-        }
-      }
-      setSelectedIndex(pick);
-    }
-  }
+  const allLevels = useMemo(
+    () =>
+      LEVELS.map((lvl, i) => ({
+        lvl,
+        index: i,
+        stage: i + 1,
+      })),
+    [],
+  );
 
   function enterLevel(index) {
     if (!isLevelUnlocked(index)) return;
-    setActiveChapter(chapterIndexFromLevelIndex(index));
     onEnterLevel(index);
   }
 
@@ -197,15 +119,13 @@ export default function LevelSelect({
   const focusBoss = Boolean(focus?.isBoss);
   const focusHard = Boolean(focus?.isHard);
   const focusRec = selectedIndex === recommendedIndex;
-  const focusStage = (selectedIndex % LEVELS_PER_CHAPTER) + 1;
-  const focusCh = CHAPTERS[chapterIndexFromLevelIndex(selectedIndex)];
+  const focusStage = selectedIndex + 1;
 
   return (
     <div className="chub">
       <div
-        key={bgTick}
         className="chub__bg"
-        style={{ backgroundImage: `url(${hubBg})` }}
+        style={{ backgroundImage: `url(${bg1})` }}
         aria-hidden
       />
       <div className="chub__shade" aria-hidden />
@@ -216,7 +136,7 @@ export default function LevelSelect({
         <header className="chub__bar">
           <div className="chub__brand">
             <span className="chub__brand-kicker">
-              CELL · {TOTAL_CHAPTERS} CHAPTERS · {LEVELS.length} LEVELS
+              CELL · {TOTAL_LEVELS} LEVELS
             </span>
             <h1 className="chub__brand-title">细胞分裂战</h1>
           </div>
@@ -229,6 +149,7 @@ export default function LevelSelect({
               <span className="chub__progress-sep" />
               <span>
                 星 <strong>{totalStars}</strong>
+                <em>/{maxStars}</em>
               </span>
               <span className="chub__progress-sep" />
               <span>
@@ -249,98 +170,35 @@ export default function LevelSelect({
           {tools ? <div className="chub__tools">{tools}</div> : null}
         </header>
 
-        {/* —— 主体：左章节 + 右内容 —— */}
+        {/* —— 主体：关卡网格 —— */}
         <div className="chub__body">
-          <nav className="chub__rail" aria-label="章节">
-            {CHAPTERS.map((ch, idx) => {
-              const reachable = isChapterReachable(idx);
-              const start = idx * LEVELS_PER_CHAPTER;
-              let done = 0;
-              for (let i = 0; i < LEVELS_PER_CHAPTER; i++) {
-                if (cleared.has(start + i)) done += 1;
-              }
-              const allDone = done === LEVELS_PER_CHAPTER;
-              const active = idx === activeChapter;
-              return (
-                <button
-                  key={ch.id}
-                  type="button"
-                  className={[
-                    "chub__rail-item",
-                    active ? "chub__rail-item--on" : "",
-                    !reachable ? "chub__rail-item--lock" : "",
-                    allDone ? "chub__rail-item--done" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  disabled={!reachable}
-                  {...uiSfx("confirm", () => selectChapter(idx))}
-                  title={
-                    reachable
-                      ? `${ch.description}（${done}/${LEVELS_PER_CHAPTER}）`
-                      : "通关上一章节后解锁"
-                  }
-                >
-                  <span className="chub__rail-no">
-                    {String(idx + 1).padStart(2, "0")}
-                  </span>
-                  <span className="chub__rail-text">
-                    <span className="chub__rail-title">{ch.title}</span>
-                    <span className="chub__rail-name">{ch.name}</span>
-                  </span>
-                  {!reachable ? (
-                    <span className="chub__rail-mark" aria-hidden>
-                      🔒
-                    </span>
-                  ) : allDone ? (
-                    <span className="chub__rail-mark chub__rail-mark--ok" aria-hidden>
-                      ✓
-                    </span>
-                  ) : (
-                    <span className="chub__rail-mini">
-                      {done}/{LEVELS_PER_CHAPTER}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-
-          <section className="chub__main" aria-label={`${chapter.title}关卡`}>
+          <section className="chub__main" aria-label="关卡列表">
             <div className="chub__chapter-head">
               <div>
-                <p className="chub__chapter-kicker">
-                  CHAPTER {String(activeChapter + 1).padStart(2, "0")}
-                </p>
+                <p className="chub__chapter-kicker">CAMPAIGN</p>
                 <h2 className="chub__chapter-title">
-                  {chapter.title}
-                  <span className="chub__chapter-name">{chapter.name}</span>
+                  基础增殖
+                  <span className="chub__chapter-name">共 {TOTAL_LEVELS} 关</span>
                 </h2>
-                <p className="chub__chapter-tag">{tagline}</p>
+                <p className="chub__chapter-tag">{HUB_TAGLINE}</p>
               </div>
               <div className="chub__chapter-stat">
                 <span className="chub__chapter-stat-val">
-                  {chapterStats.stars}
-                  <small>/{chapterStats.starNeed}★</small>
+                  {totalStars}
+                  <small>/{maxStars}★</small>
                 </span>
-                <span className="chub__chapter-stat-lab">
-                  {chapterStats.chapterOpen
-                    ? activeChapter >= TOTAL_CHAPTERS - 1
-                      ? "本章星数"
-                      : "已可解锁下章"
-                    : "解锁下章进度"}
-                </span>
+                <span className="chub__chapter-stat-lab">总星数</span>
                 <div className="chub__chapter-stat-bar" aria-hidden>
-                  <i style={{ width: `${chapterStats.starPct}%` }} />
+                  <i style={{ width: `${starPct}%` }} />
                 </div>
                 <span className="chub__chapter-stat-sub">
-                  通关 {chapterStats.done}/{chapterStats.total}
+                  通关 {clearedCount}/{LEVELS.length}
                 </span>
               </div>
             </div>
 
             <div className="chub__levels" role="list">
-              {chapterLevels.map(({ lvl, index, stage }) => {
+              {allLevels.map(({ lvl, index, stage }) => {
                 const unlocked = isLevelUnlocked(index);
                 const done = cleared.has(index);
                 const lvStars = stars[index] || 0;
@@ -467,9 +325,8 @@ export default function LevelSelect({
           <div className="chub__dock-info">
             <p className="chub__dock-label">
               {focusRec ? "推荐出击" : "关卡情报"}
-              {focusCh ? ` · ${focusCh.title}` : ""}
               <span>
-                章节内 {focusStage}/{LEVELS_PER_CHAPTER}
+                第 {focusStage}/{TOTAL_LEVELS} 关
               </span>
             </p>
             <p className="chub__dock-title">
@@ -510,7 +367,6 @@ export default function LevelSelect({
                 className="chub__btn-ghost"
                 {...uiSfx("confirm", () => {
                   setSelectedIndex(recommendedIndex);
-                  setActiveChapter(chapterIndexFromLevelIndex(recommendedIndex));
                 })}
               >
                 回到下一步

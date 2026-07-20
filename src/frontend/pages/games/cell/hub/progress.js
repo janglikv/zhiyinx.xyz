@@ -1,12 +1,4 @@
-import {
-  LEVELS,
-  LEVELS_PER_CHAPTER,
-  TOTAL_CHAPTERS,
-  CHAPTER_UNLOCK_STARS,
-  stageInChapter,
-  isHardStage,
-  chapterIndexFromLevelIndex,
-} from "../levels";
+import { LEVELS, stageInChapter, isHardStage } from "../levels";
 
 const KEY_MAX_UNLOCKED = "cell_game_max_unlocked";
 const KEY_CLEARED = "cell_game_cleared";
@@ -15,8 +7,7 @@ const KEY_LAST_LEVEL = "cell_game_level";
 const KEY_STARS = "cell_game_stars";
 
 /**
- * 已解锁的最高关卡下标（含）——仅用于同章线性推进兼容。
- * 章节门槛以星数为准，见 {@link isLevelUnlocked}。
+ * 已解锁的最高关卡下标（含）。
  * @returns {number}
  */
 export function getMaxUnlockedIndex() {
@@ -73,23 +64,6 @@ function persistStars(stars) {
 }
 
 /**
- * 本章累计星（全部关，含高难）。
- * @param {number} chapterIndex 0-based
- * @returns {number}
- */
-export function getChapterStars(chapterIndex) {
-  const stars = getStarsArray();
-  const start = chapterIndex * LEVELS_PER_CHAPTER;
-  let sum = 0;
-  for (let i = 0; i < LEVELS_PER_CHAPTER; i += 1) {
-    const idx = start + i;
-    if (idx >= LEVELS.length) break;
-    sum += stars[idx] || 0;
-  }
-  return sum;
-}
-
-/**
  * 全局总星
  * @returns {number}
  */
@@ -98,23 +72,11 @@ export function getTotalStars() {
 }
 
 /**
- * 本章理论满星
+ * 理论满星（18 关 × 3）
  * @returns {number}
  */
-export function getChapterMaxStars() {
-  return LEVELS_PER_CHAPTER * 3;
-}
-
-/**
- * 章节是否已对玩家开放（第 1 章始终开放；其后看前一章累计星）。
- * @param {number} chapterIndex 0-based
- */
-export function isChapterUnlocked(chapterIndex) {
-  if (chapterIndex <= 0) return true;
-  if (chapterIndex >= TOTAL_CHAPTERS) return false;
-  if (getChapterStars(chapterIndex - 1) >= CHAPTER_UNLOCK_STARS) return true;
-  // 兼容旧存档：线性已打进该章
-  return getMaxUnlockedIndex() >= chapterIndex * LEVELS_PER_CHAPTER;
+export function getMaxStars() {
+  return LEVELS.length * 3;
 }
 
 /**
@@ -141,29 +103,20 @@ export function isLevelCleared(index) {
 
 /**
  * 关卡是否可进入：
- * - 章节须已解锁（前章 ≥ CHAPTER_UNLOCK_STARS）
- * - 章内第 1 关：章节开放即可
- * - 其余：前一关已通关，或历史 maxUnlocked 覆盖（同章推进）
+ * - 第 1 关始终开放
+ * - 其余：前一关已通关，或历史 maxUnlocked 覆盖
  * @param {number} index
  * @returns {boolean}
  */
 export function isLevelUnlocked(index) {
   if (index < 0 || index >= LEVELS.length) return false;
   if (index === 0) return true;
-
-  const ch = chapterIndexFromLevelIndex(index);
-  if (!isChapterUnlocked(ch)) return false;
-
-  const stage = stageInChapter(index);
-  if (stage === 1) return true;
-
   if (isLevelCleared(index - 1)) return true;
   return index <= getMaxUnlockedIndex();
 }
 
 /**
- * 通关后标记进度：记录已通关、最高星，并解锁同章下一关。
- * 本章累计星 ≥ CHAPTER_UNLOCK_STARS 时开放下一章节（不跨章批量解锁中间关）。
+ * 通关后标记进度：记录已通关、最高星，并解锁下一关。
  * @param {number} clearedIndex
  * @param {number} [earnedStars=1] 本局获得星数 1–3（只升不降）
  * @returns {{ maxUnlocked: number, cleared: Set<number>, stars: number[], bestStars: number }}
@@ -183,21 +136,10 @@ export function markLevelCleared(clearedIndex, earnedStars = 1) {
   let maxUnlocked = getMaxUnlockedIndex();
   const next = clearedIndex + 1;
   if (clearedIndex >= 0 && next < LEVELS.length) {
-    const ch = chapterIndexFromLevelIndex(clearedIndex);
-    const nextCh = chapterIndexFromLevelIndex(next);
-    if (nextCh === ch) {
-      // 同章：通关后开放下一关
-      maxUnlocked = Math.max(maxUnlocked, next);
-    } else if (getChapterStars(ch) >= CHAPTER_UNLOCK_STARS) {
-      // 跨章：仅当星数达标才把水位推到下一章第 1 关
-      maxUnlocked = Math.max(maxUnlocked, next);
-    }
+    maxUnlocked = Math.max(maxUnlocked, next);
   } else if (clearedIndex === LEVELS.length - 1) {
     maxUnlocked = Math.max(maxUnlocked, LEVELS.length - 1);
   }
-
-  // 下一章入口：由 isChapterUnlocked（前章星数）+ 章内 stage===1 判断，不在此抬高 maxUnlocked，
-  // 避免跨章水位把中间未通关一并打开。
 
   localStorage.setItem(KEY_MAX_UNLOCKED, String(maxUnlocked));
 
