@@ -1,4 +1,5 @@
 import { COLOR_PLAYER, COLOR_ENEMY, COLOR_NEUTRAL } from "../constants";
+import { chapter1AiSpec } from "../aiProfiles";
 
 /** 每章关卡数 / 总章数 */
 export const LEVELS_PER_CHAPTER = 18;
@@ -111,12 +112,15 @@ export const CHAPTERS = [
 ];
 
 /**
+ * 关卡定义。
+ * ai: 本关 AI（具名 profile 或 { profile, enemyRoles, 字段覆盖 }），勿依赖全局通用战术。
  * @typedef {{
  *   id: number,
  *   name: string,
  *   description: string,
  *   cells: Array<{ x: number, y: number, value: number, color: number }>,
  *   aiSeed: number,
+ *   ai?: string | import("../aiProfiles").AiLevelConfig,
  *   tutorial?: string | boolean,
  *   chapterId: number,
  *   background: string,
@@ -297,9 +301,10 @@ function levelName(chapter, globalId, short) {
  * @param {boolean} tutorial
  */
 function buildNormalCells(stage, tutorial) {
-  const player = tutorial ? 99 : scaleByStage(stage, 28, 16);
+  // 参战单位至少一档（20），避免开局无法开火
+  const player = tutorial ? 99 : Math.max(20, scaleByStage(stage, 28, 20));
   const neutral = scaleByStage(stage, 10, 20);
-  const enemy = scaleByStage(stage, 12, 38);
+  const enemy = Math.max(20, scaleByStage(stage, 20, 38));
   return [
     { x: 280 - Math.min(stage, 8) * 3, y: 270, value: player, color: COLOR_PLAYER },
     { x: 480, y: 270, value: neutral, color: COLOR_NEUTRAL },
@@ -320,7 +325,8 @@ function buildChapter1TutorialCells(stage) {
       return [
         { x: 260, y: 270, value: 99, color: COLOR_PLAYER },
         { x: 480, y: 270, value: 12, color: COLOR_NEUTRAL },
-        { x: 700, y: 270, value: 14, color: COLOR_ENEMY },
+        // 一档起步，引导解锁后即可对射
+        { x: 700, y: 270, value: 20, color: COLOR_ENEMY },
       ];
 
     // 关 2 · 占点：1 绿 + 2 中立（近/远）+ 1 中等红；先占灰再打更稳
@@ -340,20 +346,20 @@ function buildChapter1TutorialCells(stage) {
         { x: 720, y: 270, value: 48, color: COLOR_ENEMY },
       ];
 
-    // 关 4 · 前哨：后排双绿喂前排，前排贴脸输出；忌全员远射
+    // 关 4 · 前哨：后排双绿喂前排，前排须 ≥20 才能输出
     case 4:
       return [
         { x: 170, y: 150, value: 28, color: COLOR_PLAYER },
         { x: 170, y: 390, value: 28, color: COLOR_PLAYER },
-        { x: 430, y: 270, value: 16, color: COLOR_PLAYER },
+        { x: 430, y: 270, value: 22, color: COLOR_PLAYER },
         { x: 740, y: 270, value: 52, color: COLOR_ENEMY },
       ];
 
-    // 关 5 · 蓄势：仅绿 vs 红，无中立。同一排；先养厚再出手（略放水：开局差缩小）
+    // 关 5 · 蓄势：1v1。开局在成长一档（<20）且射速极慢；空窗进二档再打。红方 rush_punish。
     case 5:
       return [
-        { x: 260, y: 270, value: 26, color: COLOR_PLAYER },
-        { x: 700, y: 270, value: 34, color: COLOR_ENEMY },
+        { x: 260, y: 270, value: 12, color: COLOR_PLAYER },
+        { x: 700, y: 270, value: 28, color: COLOR_ENEMY },
       ];
 
     default:
@@ -396,7 +402,7 @@ function chapter1StageCopy(stage) {
       return {
         short: "蓄势",
         description:
-          "开局能量很低，射速几乎没有。先空窗自增，养厚后再连线出手；低能硬冲红巢会被压垮。",
+          "开局很瘦、射速极慢，对面会主动压过来。先空窗自增（成长一档更快），过 20 进二档后再出手；低能硬冲会被射穿。",
       };
     default:
       return { short: `关卡 ${stage}`, description: "内容待定" };
@@ -451,11 +457,11 @@ function buildChapter1TrialCells(stage) {
         { x: 160, y: 270, value: 24, color: COLOR_PLAYER },
         { x: 160, y: 400, value: 22, color: COLOR_PLAYER },
         { x: 380, y: 270, value: 10, color: COLOR_NEUTRAL },
-        // 前哨/中继能量够开火，才能稳定输血；母巢本体不强
-        { x: 540, y: 180, value: 16, color: COLOR_ENEMY },
-        { x: 540, y: 360, value: 16, color: COLOR_ENEMY },
-        { x: 680, y: 270, value: 18, color: COLOR_ENEMY },
-        { x: 820, y: 270, value: 22, color: COLOR_ENEMY },
+        // 前哨/中继须 ≥20 才能输送；母巢一档，靠喂养冲二档
+        { x: 540, y: 180, value: 22, color: COLOR_ENEMY },
+        { x: 540, y: 360, value: 22, color: COLOR_ENEMY },
+        { x: 680, y: 270, value: 24, color: COLOR_ENEMY },
+        { x: 820, y: 270, value: 26, color: COLOR_ENEMY },
       ];
 
     // 关 9 · 夹击（9 细胞）：3绿 + 2灰中路 + 上翼2红 + 下翼2红
@@ -480,21 +486,21 @@ function buildChapter1TrialCells(stage) {
         // 后排
         { x: 140, y: 150, value: 24, color: COLOR_PLAYER },
         { x: 140, y: 390, value: 24, color: COLOR_PLAYER },
-        // 中继
-        { x: 300, y: 200, value: 16, color: COLOR_PLAYER },
-        { x: 300, y: 340, value: 16, color: COLOR_PLAYER },
+        // 中继 / 前线均需 ≥20 才能射或转输
+        { x: 300, y: 200, value: 22, color: COLOR_PLAYER },
+        { x: 300, y: 340, value: 22, color: COLOR_PLAYER },
         // 前线前哨
-        { x: 480, y: 270, value: 14, color: COLOR_PLAYER },
+        { x: 480, y: 270, value: 20, color: COLOR_PLAYER },
         { x: 400, y: 100, value: 10, color: COLOR_NEUTRAL },
         // 上下侧翼骚扰
-        { x: 620, y: 100, value: 16, color: COLOR_ENEMY },
-        { x: 620, y: 440, value: 16, color: COLOR_ENEMY },
+        { x: 620, y: 100, value: 22, color: COLOR_ENEMY },
+        { x: 620, y: 440, value: 22, color: COLOR_ENEMY },
         // 母巢纵深
         { x: 760, y: 220, value: 28, color: COLOR_ENEMY },
         { x: 820, y: 340, value: 36, color: COLOR_ENEMY },
       ];
 
-    // 关 11 · 饥荒（11 细胞）：无中立；4 绿低开 vs 7 红环压，必须先养
+    // 关 11 · 饥荒：绿方刻意 <20 须先攒档；红方均已一档可压
     case 11:
       return [
         { x: 180, y: 130, value: 12, color: COLOR_PLAYER },
@@ -502,9 +508,9 @@ function buildChapter1TrialCells(stage) {
         { x: 180, y: 330, value: 14, color: COLOR_PLAYER },
         { x: 180, y: 430, value: 12, color: COLOR_PLAYER },
         // 前压线
-        { x: 520, y: 160, value: 18, color: COLOR_ENEMY },
-        { x: 520, y: 270, value: 20, color: COLOR_ENEMY },
-        { x: 520, y: 380, value: 18, color: COLOR_ENEMY },
+        { x: 520, y: 160, value: 22, color: COLOR_ENEMY },
+        { x: 520, y: 270, value: 24, color: COLOR_ENEMY },
+        { x: 520, y: 380, value: 22, color: COLOR_ENEMY },
         // 后排红核
         { x: 740, y: 120, value: 22, color: COLOR_ENEMY },
         { x: 780, y: 220, value: 24, color: COLOR_ENEMY },
@@ -557,7 +563,7 @@ function chapter1TrialCopy(stage) {
       return {
         short: "饥荒",
         description:
-          "没有中立可抢，己方四巢开局偏瘦，对面七红压境。先空窗自增养厚再分路出手；低能硬冲会被前压线吃掉。",
+          "没有中立可抢，己方四巢开局偏瘦，对面七红压境。先空窗攒过成长一档再分路出手；低能硬冲会被前压线吃掉。",
         // 略紧：鼓励蓄势后高效清场，服务三星
         starTimeSec: 95,
       };
@@ -582,11 +588,11 @@ function buildChapter1GateBossCells() {
     { x: 380, y: 160, value: 11, color: COLOR_NEUTRAL },
     { x: 420, y: 270, value: 12, color: COLOR_NEUTRAL },
     { x: 380, y: 380, value: 11, color: COLOR_NEUTRAL },
-    // 敌前哨补给（1）
-    { x: 580, y: 270, value: 18, color: COLOR_ENEMY },
+    // 敌前哨补给（1）— 须 ≥20 才能喂母巢
+    { x: 580, y: 270, value: 22, color: COLOR_ENEMY },
     // 上下侧翼（2）
-    { x: 680, y: 100, value: 18, color: COLOR_ENEMY },
-    { x: 680, y: 440, value: 18, color: COLOR_ENEMY },
+    { x: 680, y: 100, value: 22, color: COLOR_ENEMY },
+    { x: 680, y: 440, value: 22, color: COLOR_ENEMY },
     // 母巢集群（2）
     { x: 800, y: 200, value: 32, color: COLOR_ENEMY },
     { x: 820, y: 340, value: 40, color: COLOR_ENEMY },
@@ -600,10 +606,10 @@ function buildChapter1GateBossCells() {
  */
 function buildBossCells(stage) {
   const isMajor = stage >= CHAPTER_UNLOCK_STAGE;
-  const p = scaleByStage(stage, 16, 12);
+  const p = Math.max(20, scaleByStage(stage, 22, 20));
   const n = scaleByStage(stage, 14, 22);
   const boss = isMajor
-    ? scaleByStage(stage, 70, 100)
+    ? Math.min(99, scaleByStage(stage, 70, 99))
     : scaleByStage(stage, 48, 72);
 
   /** @type {Array<{ x: number, y: number, value: number, color: number }>} */
@@ -623,8 +629,8 @@ function buildBossCells(stage) {
       color: COLOR_NEUTRAL,
     });
     cells.push(
-      { x: 740, y: 140, value: scaleByStage(stage, 12, 20), color: COLOR_ENEMY },
-      { x: 740, y: 400, value: scaleByStage(stage, 12, 20), color: COLOR_ENEMY },
+      { x: 740, y: 140, value: Math.max(20, scaleByStage(stage, 20, 28)), color: COLOR_ENEMY },
+      { x: 740, y: 400, value: Math.max(20, scaleByStage(stage, 20, 28)), color: COLOR_ENEMY },
     );
   }
 
@@ -674,6 +680,7 @@ function buildChapterLevels(chapter, chapterIndex) {
             : "内容待定",
         cells: [],
         aiSeed,
+        ai: { profile: "placeholder" },
         chapterId: chapter.id,
         background: chapter.background,
         isBoss: boss,
@@ -691,6 +698,8 @@ function buildChapterLevels(chapter, chapterIndex) {
     let starTimeSec;
     /** @type {number | undefined} */
     let timeLimitSec;
+    /** 第一章每关显式 AI；后续关同理在规格表定制 */
+    const ai = chapter1AiSpec(stage);
 
     if (boss) {
       if (stage === 6) {
@@ -747,6 +756,7 @@ function buildChapterLevels(chapter, chapterIndex) {
       description,
       cells,
       aiSeed,
+      ai,
       chapterId: chapter.id,
       background: chapter.background,
       isBoss: boss,

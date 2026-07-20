@@ -186,7 +186,12 @@ export function mountCellGame(
       cells.push(cell);
     });
 
-    const ai = createAI({ cells, combat, seed: level.aiSeed });
+    const ai = createAI({
+      cells,
+      combat,
+      seed: level.aiSeed,
+      ai: level.ai ?? null,
+    });
 
     if (level.tutorial) {
       tutorial = createTutorialController({

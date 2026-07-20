@@ -5,17 +5,12 @@ import {
   MIN_FIRE_ENERGY,
   COLOR_ENEMY,
   AI_SEED,
-  AI_THINK_MIN_MS,
-  AI_THINK_MAX_MS,
-  AI_CHARGE_COST_MULT,
-  AI_PRESS_COST_MULT,
-  AI_HOLD_TARGET_MS,
-  AI_RECOVERY_THRESHOLD,
-  AI_SUPPLY_ALLY_LEAD,
-  AI_SUPPLY_ROOM_MIN,
 } from "./constants";
+import { resolveLevelAi } from "./aiProfiles";
 
 /** @typedef {'charge' | 'probe' | 'press' | 'supply'} AiIntent */
+/** @typedef {import("./aiProfiles").AiBehavior} AiBehavior */
+/** @typedef {import("./aiProfiles").AiEnemyRole} AiEnemyRole */
 
 /**
  * 可复现伪随机（mulberry32）。同 seed 同决策序列，便于调关与排错。
@@ -42,19 +37,48 @@ function randRange(min, max, rng) {
 }
 
 /**
- * 敌人 AI：状态机意图 + 可控抖动，不硬编码时间轴。
- * - 仅操作 COLOR_ENEMY 细胞（染色后自动接管/放弃）
- * - 中立不作为己方；可攻击玩家或中立
- * - 小巢可对更大己方巢「同色输送」（supply），支撑断流/补给线玩法
- * - 开火走 combat 连发，与玩家同一套规则
+ * 按关卡行为配置驱动的敌人 AI（无内置通用战术）。
+ * - 仅操作 COLOR_ENEMY
+ * - 行为参数来自 resolveLevelAi(level.ai)
+ * - 可选 enemyRoles：按红巢生成顺序绑定 feeder/core/…
  *
  * @param {object} options
  * @param {import("./cell").Cell[]} options.cells
  * @param {ReturnType<import("./combat").createCombat>} options.combat
  * @param {number} [options.seed]
+ * @param {import("./aiProfiles").AiLevelConfig | string | null} [options.ai]
+ * @param {AiBehavior} [options.behavior] 已解析行为（优先于 ai）
+ * @param {AiEnemyRole[]} [options.enemyRoles]
  */
-export function createAI({ cells, combat, seed = AI_SEED }) {
+export function createAI({
+  cells,
+  combat,
+  seed = AI_SEED,
+  ai = null,
+  behavior: behaviorIn = null,
+  enemyRoles: rolesIn = null,
+}) {
+  const resolved = behaviorIn
+    ? {
+        behavior: behaviorIn,
+        enemyRoles: Array.isArray(rolesIn) ? rolesIn : [],
+      }
+    : resolveLevelAi(ai);
+
+  const B = resolved.behavior;
+  const enemyRoles = resolved.enemyRoles;
   const rng = createRng(seed);
+
+  /** @type {WeakMap<import("./cell").Cell, AiEnemyRole>} */
+  const roleOf = new WeakMap();
+  {
+    let ei = 0;
+    for (const c of cells) {
+      if (!c.isEnemy()) continue;
+      roleOf.set(c, enemyRoles[ei] || "default");
+      ei += 1;
+    }
+  }
 
   /**
    * @type {WeakMap<import("./cell").Cell, {
@@ -72,7 +96,7 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
     if (!m) {
       m = {
         intent: "charge",
-        thinkIn: randRange(AI_THINK_MIN_MS, AI_THINK_MAX_MS, rng),
+        thinkIn: randRange(B.thinkMinMs, B.thinkMaxMs, rng),
         holdTargetUntil: 0,
         preferred: null,
       };
@@ -81,8 +105,12 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
     return m;
   }
 
+  /** @param {import("./cell").Cell} source */
+  function getRole(source) {
+    return roleOf.get(source) || "default";
+  }
+
   /**
-   * 场上最强红巢（可作补给目标）。
    * @param {import("./cell").Cell} source
    * @returns {import("./cell").Cell | null}
    */
@@ -96,24 +124,21 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
   }
 
   /**
-   * 源是否适合给某友军输送：友军明显更壮，且未顶满。
    * @param {import("./cell").Cell} source
    * @param {import("./cell").Cell | null} ally
    */
   function canSupplyAlly(source, ally) {
+    if (!B.supplyEnabled) return false;
     if (!ally || !ally.isEnemy() || ally === source) return false;
     if (source.value < MIN_FIRE_ENERGY + ENERGY_EPS) return false;
-    if (source.value < AI_RECOVERY_THRESHOLD - ENERGY_EPS) return false;
+    if (source.value < B.recoveryThreshold - ENERGY_EPS) return false;
     const room = MAX_ENERGY - ally.value;
-    if (room < AI_SUPPLY_ROOM_MIN - ENERGY_EPS) return false;
-    // 只喂「更大核」：前哨/中继 → 母巢；避免母巢倒灌小兵
-    if (ally.value + ENERGY_EPS < source.value + AI_SUPPLY_ALLY_LEAD) return false;
+    if (room < B.supplyRoomMin - ENERGY_EPS) return false;
+    if (ally.value + ENERGY_EPS < source.value + B.supplyAllyLead) return false;
     return true;
   }
 
   /**
-   * 目标评分：越大越优先。
-   * 中立偏「扩张」；玩家偏「威胁 / 弱点」；supply 时评友军。
    * @param {import("./cell").Cell} source
    * @param {import("./cell").Cell} target
    * @param {AiIntent} intent
@@ -124,35 +149,42 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
     const dx = target.container.x - source.container.x;
     const dy = target.container.y - source.container.y;
     const dist = Math.hypot(dx, dy) || 1;
-    // 近距更优（伤害/治疗效率也更高）
-    const near = 1 / (1 + dist / 220);
+    const near = (1 / (1 + dist / 220)) * (B.nearBias || 1);
 
     if (intent === "supply") {
       if (target.color !== COLOR_ENEMY) return -Infinity;
       if (!canSupplyAlly(source, target)) return -Infinity;
       const room = MAX_ENERGY - target.value;
-      // 优先喂更壮的核、还有空间、距离不离谱
       return target.value * 0.08 + room * 0.12 + near * 2.5;
     }
 
     if (target.color === COLOR_ENEMY) return -Infinity;
 
+    const role = getRole(source);
+
     if (target.isNeutral()) {
-      // 扩张：空/弱中立优先，加入极高的固定值偏置，以确保有中立细胞时必定集火抢点占领
+      if (B.expandWeight <= ENERGY_EPS && role !== "expander") return -Infinity;
       const weak = 1 / (1 + target.value * 0.12);
-      const expand = 12.0 + 3.0 * weak * near;
-      return intent === "probe" ? expand * 1.35 : expand;
+      let expand = B.expandWeight + 3.0 * weak * near;
+      if (role === "expander") expand *= 1.5;
+      if (role === "raider") expand *= 0.35;
+      if (role === "core") expand *= 0.55;
+      return intent === "probe" ? expand * 1.25 : expand;
     }
 
     if (target.isPlayer()) {
       const threat = 0.35 + target.value * 0.04;
-      const weakSpot = 1 / (1 + target.value * 0.08);
+      const weakSpot =
+        (1 / (1 + target.value * 0.08)) * (B.preferWeakPlayer || 1);
+      let score;
       if (intent === "press") {
-        // 压制：优先近处强敌，也肯打弱的收割
-        return (threat * 0.55 + weakSpot * 0.9) * near * 1.4;
+        score = (threat * 0.55 + weakSpot * 0.9) * near * 1.4 * B.pressWeight;
+      } else {
+        score = weakSpot * near * 1.15 * B.pressWeight;
       }
-      // 试探：更喜欢弱的玩家细胞
-      return weakSpot * near * 1.15;
+      if (role === "raider") score *= 1.25;
+      if (role === "feeder") score *= 0.85;
+      return score;
     }
 
     return -Infinity;
@@ -161,14 +193,12 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
   /**
    * @param {import("./cell").Cell} source
    * @param {AiIntent} intent
-   * @returns {import("./cell").Cell | null}
    */
   function pickBestTarget(source, intent) {
     let best = null;
     let bestScore = -Infinity;
     for (const cell of cells) {
       const s = scoreTarget(source, cell, intent);
-      // 小幅抖动，避免永远同一目标，但幅度不足以推翻明显优劣
       const jitter = (rng() - 0.5) * 0.12;
       const total = s + jitter;
       if (total > bestScore) {
@@ -180,31 +210,28 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
   }
 
   /**
-   * preferred 是否仍适应当前意图（用于 hold，避免乱切目标）。
    * @param {import("./cell").Cell} source
    * @param {import("./cell").Cell | null} preferred
    * @param {AiIntent} intent
    */
   function preferredStillValid(source, preferred, intent) {
     if (!preferred || !combat.canFireLink(source, preferred)) return false;
-    if (intent === "supply") {
-      return canSupplyAlly(source, preferred);
-    }
-    // 进攻意图只锁玩家/中立
+    if (intent === "supply") return canSupplyAlly(source, preferred);
     return preferred.isPlayer() || preferred.isNeutral();
   }
 
   /**
-   * 根据能量与场上局势选意图。
    * @param {import("./cell").Cell} source
    * @returns {AiIntent}
    */
   function chooseIntent(source) {
-    const pressNeed = FIRE_COST * AI_PRESS_COST_MULT;
-    const chargeNeed = FIRE_COST * AI_CHARGE_COST_MULT;
+    const role = getRole(source);
+    if (role === "idle") return "charge";
 
-    // 过瘦：强制休养
-    if (source.value < AI_RECOVERY_THRESHOLD - ENERGY_EPS) {
+    const pressNeed = FIRE_COST * B.pressCostMult;
+    const chargeNeed = FIRE_COST * B.chargeCostMult;
+
+    if (source.value < B.recoveryThreshold - ENERGY_EPS) {
       return "charge";
     }
     if (source.value < chargeNeed - ENERGY_EPS && source.value < MIN_FIRE_ENERGY + 2) {
@@ -227,35 +254,51 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
     }
 
     const feedTarget = strongestAlly(source);
-    const supplyOk = allyCount > 0 && canSupplyAlly(source, feedTarget);
+    const supplyOk =
+      B.supplyEnabled &&
+      role !== "core" &&
+      role !== "raider" &&
+      allyCount > 0 &&
+      canSupplyAlly(source, feedTarget);
 
-    // 有弱中立可吃 → 扩张优先（争点仍压过喂养，避免开局全员只灌母巢）
-    if (weakNeutral && weakNeutral.value <= source.value * 0.85 + 2) {
-      return "probe";
+    // 角色：feeder 无紧急争点时强输送
+    if (role === "feeder" && supplyOk) {
+      if (!weakNeutral || weakNeutral.value > source.value * 0.5) {
+        if (rng() < Math.max(0.55, B.supplyStickiness)) return "supply";
+      }
     }
 
-    // 小巢/中继：无争点时优先给大核输血（断流关的核心行为）
-    // 大核自身（场上最壮）不会 supply
-    if (supplyOk) {
-      // 能量刚够开火时更倾向输送；很肥时偶发转压制，避免永远不输出
-      if (source.value < pressNeed * 1.35 || rng() < 0.72) {
+    // 争点：expandWeight 高时优先吃灰
+    if (
+      weakNeutral &&
+      B.expandWeight > ENERGY_EPS &&
+      role !== "raider" &&
+      weakNeutral.value <= source.value * 0.85 + 2
+    ) {
+      // expandWeight 越高越不容易跳过抢点
+      const skipChance = 1 / (1 + B.expandWeight * 0.15);
+      if (rng() > skipChance * 0.35 || role === "expander") {
+        return "probe";
+      }
+    }
+
+    if (supplyOk && role !== "core") {
+      const stick = B.supplyStickiness;
+      if (stick > ENERGY_EPS && (role === "feeder" || source.value < pressNeed * 1.35 || rng() < stick)) {
         return "supply";
       }
     }
 
-    // 能量充裕且玩家存在 → 压制
-    if (source.value >= pressNeed - ENERGY_EPS && playerCount > 0) {
-      if (playerPower >= source.value * 0.55 || source.value >= pressNeed * 1.2) {
-        return "press";
+    if (playerCount > 0 && B.pressWeight > ENERGY_EPS) {
+      if (source.value >= pressNeed - ENERGY_EPS) {
+        if (playerPower >= source.value * 0.55 || source.value >= pressNeed * 1.2) {
+          return "press";
+        }
       }
-    }
-
-    if (playerCount > 0) {
       return source.value >= pressNeed * 0.85 ? "press" : "probe";
     }
 
-    // 场上只剩中立：继续扩张；否则能喂就喂
-    if (weakNeutral) return "probe";
+    if (weakNeutral && B.expandWeight > ENERGY_EPS) return "probe";
     if (supplyOk) return "supply";
     return "charge";
   }
@@ -274,8 +317,8 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
     }
 
     const holding =
-      preferredStillValid(source, m.preferred, m.intent)
-      && timeMs < m.holdTargetUntil;
+      preferredStillValid(source, m.preferred, m.intent) &&
+      timeMs < m.holdTargetUntil;
 
     const target = holding ? m.preferred : pickBestTarget(source, m.intent);
     if (!target || !combat.canFireLink(source, target)) {
@@ -292,33 +335,34 @@ export function createAI({ cells, combat, seed = AI_SEED }) {
 
     combat.startFireLink(source, target);
     m.preferred = target;
-    m.holdTargetUntil = timeMs + AI_HOLD_TARGET_MS * (0.85 + rng() * 0.35);
+    m.holdTargetUntil = timeMs + B.holdTargetMs * (0.85 + rng() * 0.35);
   }
 
   /**
-   * 每帧调用。
    * @param {number} dt
    */
   function update(dt) {
     timeMs += dt;
 
     for (const cell of cells) {
-      if (!cell.isEnemy()) {
-        // 被染色后断开 AI 连线状态由 combat 色校验处理；清理思维即可
-        continue;
-      }
+      if (!cell.isEnemy()) continue;
 
       const m = ensureMind(cell);
       m.thinkIn -= dt;
-      if (m.thinkIn > 0) {
-        continue;
-      }
+      if (m.thinkIn > 0) continue;
 
-      m.thinkIn = randRange(AI_THINK_MIN_MS, AI_THINK_MAX_MS, rng);
+      m.thinkIn = randRange(B.thinkMinMs, B.thinkMaxMs, rng);
       m.intent = chooseIntent(cell);
       applyIntent(cell, m);
     }
   }
 
-  return { update };
+  return {
+    update,
+    /** 调试/HUD 用 */
+    getBehavior: () => B,
+    getRole: (cell) => getRole(cell),
+  };
 }
+
+export { resolveLevelAi, AI_PROFILES, chapter1AiSpec } from "./aiProfiles";

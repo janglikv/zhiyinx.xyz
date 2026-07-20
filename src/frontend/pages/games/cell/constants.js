@@ -13,13 +13,56 @@ export const LARGE_CELL_THRESHOLD = 50;
 export const ENERGY_EPS = 1e-6;
 
 /**
- * 自增速率（能量/秒）：rate = max(GROWTH_MIN, GROWTH_BASE + value * GROWTH_PER_UNIT)
- * 例：0→0.35/s，15→0.68/s，50→2.1/s，80→3.3/s
+ * 自增分档（能量/秒）：按当前体量落在哪一档，用该档固定速率（档内无复利）。
+ *   v < 20      → 一档
+ *   20 ≤ v < 60 → 二档
+ *   60 ≤ v < 99 → 三档
+ *   v ≥ 99      → 顶满，速率用于 overflow 累计
  * 中立色（COLOR_NEUTRAL）不参与自增。
  */
-export const GROWTH_BASE = 0.08;
-export const GROWTH_PER_UNIT = 0.04;
-export const GROWTH_MIN = 0.35;
+export const GROWTH_TIER_1_ENERGY = 20;
+export const GROWTH_TIER_2_ENERGY = 60;
+export const GROWTH_TIER_3_ENERGY = 99;
+/** 一档（瘦）：略快，便于进可操作区间 */
+export const GROWTH_RATE_TIER_1 = 0.9;
+/** 二档（常态对局带） */
+export const GROWTH_RATE_TIER_2 = 0.7;
+/** 三档（肥）：略慢，抑制无脑堆满 */
+export const GROWTH_RATE_TIER_3 = 0.45;
+/** 顶满时 overflow 累计速率 */
+export const GROWTH_RATE_CAPPED = GROWTH_RATE_TIER_3;
+/** @deprecated 用 growthRateForValue；别名取二档 */
+export const GROWTH_RATE = GROWTH_RATE_TIER_2;
+/** @deprecated */
+export const GROWTH_BASE = GROWTH_RATE_TIER_2;
+/** @deprecated 无连续体量加速 */
+export const GROWTH_PER_UNIT = 0;
+/** @deprecated */
+export const GROWTH_MIN = GROWTH_RATE_TIER_1;
+
+/**
+ * @param {number} value
+ * @returns {1 | 2 | 3 | 4} 成长档：1/2/3 对应 20 前 / 20–60 / 60–99；4 = 顶满
+ */
+export function growthTier(value) {
+  const v = Number(value) || 0;
+  if (v + ENERGY_EPS < GROWTH_TIER_1_ENERGY) return 1;
+  if (v + ENERGY_EPS < GROWTH_TIER_2_ENERGY) return 2;
+  if (v + ENERGY_EPS < GROWTH_TIER_3_ENERGY) return 3;
+  return 4;
+}
+
+/**
+ * @param {number} value
+ * @returns {number} 能量/秒
+ */
+export function growthRateForValue(value) {
+  const tier = growthTier(value);
+  if (tier === 1) return GROWTH_RATE_TIER_1;
+  if (tier === 2) return GROWTH_RATE_TIER_2;
+  if (tier === 3) return GROWTH_RATE_TIER_3;
+  return GROWTH_RATE_CAPPED;
+}
 
 /**
  * AI 决策（状态机 + 可控抖动）
@@ -81,11 +124,11 @@ export const OVERFLOW_SPAWN_AIMED = 6;
  * 攻速随体型（仅 value > MIN_FIRE_ENERGY 时开火）：
  *   rate = (value - MIN_FIRE_ENERGY) * FIRE_RATE_PER_UNIT（发/秒）
  *   interval = max(FIRE_INTERVAL_MIN_MS, 1000 / rate)
- * 例：11→~18.2s，20→~1.82s，50→~0.45s，99→~0.20s
  * 建链/换目标不得绕过该间隔（见 combat.cooldown）。
+ * 注：成长是分档的；射速仍连续，与成长档独立。
  */
 export const FIRE_RATE_PER_UNIT = 0.055;
-/** 最快射速下限（当前 MAX_ENERGY 下通常碰不到） */
+/** 最快射速下限 */
 export const FIRE_INTERVAL_MIN_MS = 110;
 
 /** 输入：拖拽阈值 / 切断采样 */

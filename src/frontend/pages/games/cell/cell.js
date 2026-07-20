@@ -2,9 +2,11 @@ import * as PIXI from "pixi.js";
 import {
   MAX_ENERGY,
   LARGE_CELL_THRESHOLD,
+  GROWTH_RATE,
   GROWTH_BASE,
   GROWTH_PER_UNIT,
   GROWTH_MIN,
+  growthRateForValue,
   RADIUS_ANIM_SPEED,
   ENERGY_EPS,
   COLOR_PLAYER,
@@ -16,9 +18,11 @@ import {
 export {
   MAX_ENERGY,
   LARGE_CELL_THRESHOLD,
+  GROWTH_RATE,
   GROWTH_BASE,
   GROWTH_PER_UNIT,
   GROWTH_MIN,
+  growthRateForValue,
   RADIUS_ANIM_SPEED,
   ENERGY_EPS,
   COLOR_PLAYER,
@@ -459,15 +463,14 @@ export class Cell {
   }
 
   /**
-   * 自增能量（浮点连续）：中立跳过；其余能量为 0 也会长；越大越快，封顶 MAX_ENERGY。
+   * 自增能量（浮点连续）：中立跳过；其余能量为 0 也会长。
+   * 速率按 {@link growthRateForValue} 分档（20 / 60 / 99），档内固定、无复利。
    * 已达上限时仍按速率累计 overflowEnergy，供连线时全部输出。
    * @param {number} deltaMS
    */
   tickGrowth(deltaMS) {
     if (!this.canGrow()) return;
-    const raw = GROWTH_BASE + Math.max(0, this.value) * GROWTH_PER_UNIT;
-    const rate = Math.max(GROWTH_MIN, raw);
-    const delta = rate * (deltaMS / 1000);
+    const delta = growthRateForValue(this.value) * (deltaMS / 1000);
     if (delta <= ENERGY_EPS) return;
 
     if (this.value >= MAX_ENERGY - ENERGY_EPS) {
